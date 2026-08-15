@@ -1,0 +1,756 @@
+.TH GPU-SCREEN-RECORDER 1 "2026-05-07" "5.13.4" "GPU Screen Recorder Manual"
+.SH NAME
+gpu-screen-recorder \- The fastest screen recording tool for Linux
+.SH SYNOPSIS
+.B gpu-screen-recorder
+.B \-w
+.I window_id|monitor|focused|portal|region|v4l2_device_path
+.RI [ options ]
+.B \-o
+.I output_file
+.PP
+.B gpu-screen-recorder
+.B \-\-help
+|
+.B \-\-version
+|
+.B \-\-info
+|
+.B \-\-list\-capture\-options
+|
+.B \-\-list\-monitors
+|
+.B \-\-list\-v4l2\-devices
+|
+.B \-\-list\-audio\-devices
+|
+.B \-\-list\-application\-audio
+.SH DESCRIPTION
+.B gpu-screen-recorder
+is the fastest screen recording tool for Linux. It uses the GPU
+only to record the screen to minimize system performance impact. It supports recording,
+live streaming, instant replay (similar to NVIDIA ShadowPlay), and
+screenshot capture. The tool works on both X11 and Wayland with AMD,
+Intel, and NVIDIA graphics cards.
+.PP
+Key features include:
+.RS
+.IP \(bu 3
+GPU-accelerated encoding using H264, HEVC, AV1, VP8, or VP9 codecs
+.IP \(bu 3
+Support for HDR recording (HEVC HDR and AV1 HDR)
+.IP \(bu 3
+Instant replay buffer (last N seconds recording)
+.IP \(bu 3
+Live streaming capabilities
+.IP \(bu 3
+Audio recording from devices and applications (PipeWire required for app audio)
+.IP \(bu 3
+Plugin system for custom graphics overlay
+.IP \(bu 3
+Minimal performance impact compared to traditional screen recorders
+.RE
+.SH OPTIONS
+.SS Capture Options
+.TP
+.BI \-w " window_id|monitor|focused|portal|region|v4l2_device_path"
+Specify what to record.
+Formats:
+.RS
+.IP \(bu 3
+.B window
+- Record a specific window (use window ID) (X11 only)
+.IP \(bu 3
+.B screen
+- Record the first monitor found
+.IP \(bu 3
+.B screen\-direct
+- NVIDIA X11 only, for VRR/G-SYNC support (not recommended due to driver issues)
+.IP \(bu 3
+.B focused
+- Record the currently focused window (X11 only) (use with -s option)
+.IP \(bu 3
+.B portal
+- Use xdg-desktop-portal with PipeWire (Wayland only)
+.IP \(bu 3
+.B region
+- Record a specific region (use with
+.B \-region
+option)
+.IP \(bu 3
+Monitor name (e.g.,
+.BR DP\-1 )
+- Record specific monitor
+.IP \(bu 3
+V4L2 device path (e.g.,
+.BR /dev/video0 )
+- Record camera device (V4L2).
+
+Other applications can't use the camera when GPU Screen Recorder is using the camera and GPU Screen Recorder may not be able to use the camera if another application is already using the camera
+.IP \(bu 3
+Combine sources with | (e.g.,
+.BR "monitor:screen|v4l2:/dev/video0" )
+.RE
+.PP
+Run
+.B \-\-list\-capture\-options
+to list available capture sources.
+.PP
+Additional options can be passed to each capture source by splitting capture source with
+.B ;
+for example
+.BR "screen;x=50;y=50".
+.br
+These are the available options for all capture sources (optional):
+.RS
+.IP \(bu 3
+.B x
+- The X position in pixels. If the number ends with % then this sets the X position relative to the video width (integer percentage where 100 = 100%)
+.IP \(bu 3
+.B y
+- The Y position in pixels. If the number ends with % then this sets the Y position relative to the video height (integer percentage where 100 = 100%)
+.IP \(bu 3
+.B width
+- The width in pixels. If the number ends with % then this sets the width relative to the video width (integer percentage where 100 = 100%).
+
+A value of 0 means to not scale the capture source and instead use the original width.
+.IP \(bu 3
+.B height
+- The height in pixels. If the number ends with % then this sets the height relative to the video height (integer percentage where 100 = 100%).
+
+A value of 0 means to not scale the capture source and instead use the original height.
+.IP \(bu 3
+.B halign
+- The horizontal alignment, should be either
+.BR "start",
+.B center
+or
+.BR "end".
+
+Set to
+.B center
+by default when using one capture source, otherwise it's set to
+.B start
+by default.
+.IP \(bu 3
+.B valign
+- The vertical alignment, should be either
+.BR "start",
+.B center
+or
+.BR "end".
+
+Set to
+.B center
+by default when using one capture source, otherwise it's set to
+.B start
+by default.
+.IP \(bu 3
+.B hflip
+- If the source should be flipped horizontally, should be either
+.B "true"
+or
+.BR "false".
+Set to
+.B false
+by default
+.IP \(bu 3
+.B vflip
+- If the source should be flipped vertically, should be either
+.B "true"
+or
+.BR "false".
+Set to
+.B false
+by default
+.RE
+.PP
+These are the additional options available for camera (V4L2) sources (optional):
+.RS
+.IP \(bu 3
+.B pixfmt
+- The pixel format, should be either
+.BR "auto",
+.B yuyv
+or
+.BR "mjpeg".
+Set to
+.B auto
+by default
+.IP \(bu 3
+.B camera_fps
+- The camera fps. Has to match a camera fps returned in
+.B --info
+or
+.B --list-v4l2-devices
+for the device.
+
+A value of 0 means to use the best option available.
+.IP \(bu 3
+.B camera_width
+- The camera width in pixels. Has to match a camera width returned in
+.B --info
+or
+.B --list-v4l2-devices
+for the device.
+
+A value of 0 means to use the best option available.
+.IP \(bu 3
+.B camera_height
+- The camera height in pixels. Has to match a camera height returned in
+.B --info
+or
+.B --list-v4l2-devices
+for the device.
+
+A value of 0 means to use the best option available.
+.RE
+.TP
+.BI \-region " WxH+X+Y"
+Specify region to capture when using
+.BR \-w " region."
+Format is width x height + X offset + Y offset. Set width and height to 0 to capture the whole monitor that contains the position.
+
+It is compatible with tools such as slop (X11) and slurp (Wayland).
+.TP
+.BI \-c " container_format"
+Container format (mp4, mkv, flv, webm). Defaults to extension from
+.B \-o
+filename.
+.TP
+.BI \-s " WxH"
+Output resolution limit (e.g., 1920x1080). The captured content is scaled to fit within this
+resolution while keeping its aspect ratio and the video size shrinks to fit the scaled content.
+Use 0x0 for original resolution.
+Required for
+.BR \-w " focused"
+(where the video is exactly this resolution).
+.TP
+.BI \-f " fps"
+Frame rate (default: 60). For variable frame rate mode, this is maximum FPS.
+.TP
+.BI \-cursor " yes|no"
+Record cursor (default: yes).
+.TP
+.BI \-restore\-portal\-session " yes|no"
+Restore previous portal session (used with -w portal option, default: no).
+.SS Audio Options
+.TP
+.BI \-a " audio_source"
+Audio device or application to record. Can be specified multiple times.
+Formats:
+.RS
+.IP \(bu 3
+.B default_output
+- Default output device
+.IP \(bu 3
+.B default_input
+- Default input device
+.IP \(bu 3
+.B device:name
+- Specific device
+.IP \(bu 3
+.B app:name
+- Application audio (case-insensitive)
+.IP \(bu 3
+.B app\-inverse:name
+- All applications except specified
+.IP \(bu 3
+Combine sources with | (e.g.,
+.BR "default_output|app:firefox" )
+.RE
+.PP
+Run
+.B \-\-list\-audio\-devices
+to list available audio devices.
+.br
+Run
+.B \-\-list\-application\-audio
+to list available applications for audio capture.
+.TP
+.BI \-ac " aac|opus|flac"
+Audio codec (default: opus for mp4/mkv, aac otherwise). FLAC temporarily disabled.
+.TP
+.BI \-ab " bitrate"
+Audio bitrate in kbps (default: 128 for opus/flac, 160 for aac). 0 = automatic.
+.SS Video Quality Options
+.TP
+.BI \-k " codec"
+Video codec:
+.BR auto ", " h264 ", " hevc ", " av1 ", " vp8 ", " vp9 ", " hevc_hdr ", " av1_hdr ", " hevc_10bit ", " av1_10bit ", " h264_vulkan ", " hevc_vulkan ", " hevc_10bit_vulkan ", " av1_vulkan ", " av1_hdr_vulkan ", " av1_10bit_vulkan
+
+HDR options not available on X11 or portal capture. 10-bit capture reduces banding but may not be supported properly by all video players.
+.br
+Vulkan codec options are experimental. They may not work properly on your system because of GPU driver issues.
+.br
+Using vulkan codecs may result in better gaming performance with older NVIDIA gpu drivers, as vulkan video encoding doesn't suffer from an issue known as "cuda p2 state"
+.br
+where the GPU gets downclocked when using nvenc (regular video codecs on NVIDIA).
+
+(default: auto → h264).
+.TP
+.BI \-q " quality"
+Quality preset (medium, high, very_high, ultra) for QP/VBR mode, or bitrate (kbps) for CBR mode (default: very_high).
+.TP
+.BI \-bm " auto|qp|vbr|cbr"
+Bitrate mode (default: auto → qp). CBR recommended for replay buffer and live streaming.
+
+QP means to capture with constant quality, even in motion, while VBR and CBR means to capture with constant size.
+.TP
+.BI \-fm " cfr|vfr|content"
+Frame rate mode: cfr (constant), vfr (variable), or content (match content) (default: vfr). Content mode is only available on X11 or portal.
+
+Content mode syncs video to the captured content and is recommended for smoothest video when the game is running
+at the same frame rate or lower than what you are trying to record at.
+.TP
+.BI \-cr " limited|full"
+Color range (default: limited). Full range may cause issues with some video players/websites.
+.TP
+.BI \-tune " performance|quality"
+Encoding tune (default: performance). Currently NVIDIA only.
+.TP
+.BI \-keyint " seconds"
+Keyframe interval in seconds (default: 2.0). Affects seeking precision.
+.TP
+.BI \-encoder " gpu|cpu"
+Encoding device (default: gpu). CPU encoding only for H264.
+.TP
+.BI \-fallback\-cpu\-encoding " yes|no"
+Fallback to CPU if GPU encoding unavailable (default: no).
+.SS Replay Buffer Options
+.TP
+.BI \-r " seconds"
+Replay buffer duration (2-86400 seconds). When set, only saves on command.
+.TP
+.BI \-replay\-storage " ram|disk"
+Buffer storage location (default: ram). Disk mode may reduce SSD lifespan.
+.TP
+.BI \-restart\-replay\-on\-save " yes|no"
+Clear buffer after saving replay (default: no).
+.TP
+.BI \-df " yes|no"
+Organize replays in date-based folders (default: no).
+.SS Advanced Options
+.TP
+.BI \-p " plugin.so"
+Load plugin (.so file). Can be specified multiple times.
+.TP
+.BI \-sc " script_path"
+Script to run after saving video. Receives filepath and type ("regular", "replay", "screenshot").
+.TP
+.BI \-portal\-session\-token\-filepath " path"
+Portal session token file (default: ~/.config/gpu-screen-recorder/restore_token).
+.TP
+.BI \-ffmpeg-opts " options"
+Additional arguments to pass to FFmpeg for the file in a list of key-values pairs in the format "key=value;key=value",
+.br
+for example: -ffmpeg-opts "hls_list_size=3;hls_time=1;hls_flags=delete_segments".
+.br
+Note: this overwrites options set by GPU Screen Recorder with the same name.
+.TP
+.BI \-ffmpeg-video-opts " options"
+Additional arguments to pass to FFmpeg for the video in a list of key-values pairs in the format "key=value;key=value",
+.br
+for example: -ffmpeg-video-opts "codec=cabac;rc_mode=CQP;qp=16".
+.br
+Note: this overwrites options set by GPU Screen Recorder with the same name.
+.TP
+.BI \-ffmpeg-audio-opts " options"
+Additional arguments to pass to FFmpeg for the audio in a list of key-values pairs in the format "key=value;key=value",
+.br
+for example: -ffmpeg-audio-opts "aac_coder=fast;aac_pce=true".
+.br
+Note: this overwrites options set by GPU Screen Recorder with the same name.
+.TP
+.BI \-gl\-debug " yes|no"
+OpenGL debug output (default: no).
+.TP
+.BI \-v " yes|no"
+Print FPS and damage info (default: yes).
+.TP
+.BI \-low-power " yes|no"
+Run in low power mode. This currently has only an affect on AMD (as it's only an issue on AMD) and allows the GPU to go into a lower power mode when recording (default: no).
+.br
+Setting this to
+.B yes
+might not always be ideal because of AMD driver issues where after playing a video with VAAPI on the system the video encoding performance
+also reduces, which affects GPU Screen Recorder.
+.br
+It's recommended to also use the option
+.B -fm content
+when this is set to
+.B yes
+to only encode frames when the screen content updates to lower GPU and video encoding usage when the system is idle.
+.TP
+.BI \-exclude-metadata " yes|no"
+Exclude personal metadata from the video file, such as audio track title that is composed from the name of the audio device by default (default: no).
+.TP
+.BI \-write\-first\-frame\-ts " yes|no"
+When enabled, writes a timestamp file with extra extension \fI.ts\fR next to the output video containing:
+.nf
+monotonic_microsec	realtime_microsec
+<monotonic_microsec>	<realtime_microsec>
+.fi
+(default: no). Ignored for live streaming and when output is piped.
+.TP
+.BI \-ipc " socket_path"
+Listen for commands on a unix domain socket at
+.I socket_path
+instead of only accepting signals. The socket is created when GPU Screen Recorder starts and removed when it exits.
+See the
+.B IPC
+section for the protocol. Has no effect when taking a screenshot.
+.SS Output Options
+.TP
+.BI \-o " output"
+Output file path (or directory for replay mode). Required except when outputting to stdout.
+.TP
+.BI \-ro " directory"
+Output directory for regular recordings during replay/streaming mode.
+.SS Information Commands
+.TP
+.B \-\-help
+Show help message.
+.TP
+.B \-\-version
+Show version (5.10.2).
+.TP
+.B \-\-info
+Show system info (codecs, capture options).
+.TP
+.B \-\-list\-capture\-options
+List available capture sources (window, monitors, portal, v4l2 device path).
+.TP
+.B \-\-list\-monitors
+List available monitors.
+.TP
+.B \-\-list\-v4l2\-devices
+List available cameras devices (V4L2).
+.TP
+.B \-\-list\-audio\-devices
+List available audio devices.
+.TP
+.B \-\-list\-application\-audio
+List available applications for audio capture.
+.SH SIGNALS
+GPU Screen Recorder can be controlled via signals:
+.TP
+.B SIGINT (Ctrl+C)
+Stop and save recording (stop without save in replay mode).
+.TP
+.B SIGUSR1
+Save replay (replay mode only).
+.TP
+.B SIGUSR2
+Pause/unpause recording (not for streaming/replay).
+.TP
+.B SIGRTMIN
+Start/stop regular recording during replay/streaming.
+.TP
+.B SIGRTMIN+1
+Save last 10 seconds (replay mode).
+.TP
+.B SIGRTMIN+2
+Save last 30 seconds (replay mode).
+.TP
+.B SIGRTMIN+3
+Save last 60 seconds (replay mode).
+.TP
+.B SIGRTMIN+4
+Save last 5 minutes (replay mode).
+.TP
+.B SIGRTMIN+5
+Save last 10 minutes (replay mode).
+.TP
+.B SIGRTMIN+6
+Save last 30 minutes (replay mode).
+.PP
+Use
+.B pkill
+to send signals (e.g.,
+.BR "pkill -SIGUSR1 -f ""^gpu-screen-recorder""" ).
+.SH IPC
+When the
+.B \-ipc
+option is used GPU Screen Recorder also listens for commands on a unix domain socket. This gives the same control as signals,
+except that a replay can be saved with an arbitrary number of seconds. The socket can only be used by the user that
+started GPU Screen Recorder and it's removed when GPU Screen Recorder exits.
+.PP
+.BR gsr\-cli (1)
+is a program that sends these commands and reports the reply, so the protocol below only has to be
+implemented by programs that want to talk to the socket directly.
+.PP
+Requests and replies are json objects terminated by a newline. Every request is replied to.
+A request has these fields:
+.TP
+.B id
+Number that identifies the request. The reply to the request has the same id.
+.TP
+.B name
+String with the name of the request.
+.TP
+.B data
+Optional, the type depends on the request.
+.PP
+A reply has these fields:
+.TP
+.B id
+The id of the request that this is a reply to, or 0 when the request had no valid id.
+.TP
+.B result
+Either
+.B ok
+or
+.BR error .
+.TP
+.B data
+Optional. For an
+.B error
+result this is a string that describes what went wrong. For an
+.B ok
+result to
+.BR stop ", " save-replay " or " stop-replay-recording
+this is a string with the path of the saved file.
+.PP
+The
+.BR stop ", " save-replay " and " stop-replay-recording
+requests save a file, and they are replied to when the file has been saved and the script given with the
+.B \-sc
+option has been started. The other requests are replied to as soon as they are accepted.
+.PP
+These requests are available:
+.TP
+.B stop
+Stop and save recording (stop without save in replay mode). The reply contains the path of the
+saved file, except in replay mode where nothing is saved.
+.TP
+.B save-replay
+Save replay (replay mode only).
+.B data
+is an object with these optional fields:
+.RS
+.TP
+.B seconds
+The number of seconds to save, which has to be larger than 0.
+.TP
+.B restart-replay
+true/false, which overrides the
+.B \-restart\-replay\-on\-save
+option for this save. Just like that option, the replay buffer is only cleared when the whole replay buffer is saved.
+.RE
+.IP
+The whole replay buffer is saved when
+.B data
+is omitted or null, or when
+.B seconds
+is omitted or null. The reply contains the path of the saved file.
+.TP
+.B toggle-pause
+Pause/unpause recording (not for streaming/replay).
+.TP
+.B set-paused
+Pause/unpause recording (not for streaming/replay).
+.B data
+has to be true to pause or false to unpause. Unlike
+.B toggle-pause
+this doesn't fail when the recording is already paused/unpaused.
+.TP
+.B toggle-replay-recording
+Start/stop regular recording during replay/streaming, which requires the
+.B \-ro
+option.
+.TP
+.B start-replay-recording
+Start regular recording during replay/streaming, which requires the
+.B \-ro
+option. Does nothing when a recording is already running.
+.TP
+.B stop-replay-recording
+Stop the regular recording that runs during replay/streaming. Fails when no recording is running.
+The reply contains the path of the saved file.
+.PP
+Example:
+.nf
+.RS
+gpu-screen-recorder -w screen -f 60 -c mp4 -r 60 -o ~/Videos -ipc "$XDG_RUNTIME_DIR/gsr.sock" &
+echo '{"id":1,"name":"save-replay","data":{"seconds":30}}' | socat - "UNIX-CONNECT:$XDG_RUNTIME_DIR/gsr.sock"
+.RE
+.fi
+which replies with the following when the replay has been saved:
+.nf
+.RS
+{"id":1,"result":"ok","data":"/home/user/Videos/Replay_2026-08-05_14-04-22.mp4"}
+.RE
+.fi
+.SH EXAMPLES
+.B Record monitor at 60 FPS with desktop audio:
+.nf
+.RS
+gpu-screen-recorder -w screen -f 60 -a default_output -o video.mp4
+.RE
+.fi
+.PP
+.B Record monitor at 60 FPS with desktop audio and microphone:
+.nf
+.RS
+gpu-screen-recorder -w screen -f 60 -a "default_output|default_input" -o video.mp4
+.RE
+.fi
+.PP
+.B Record specific window (X11 only):
+.nf
+.RS
+gpu-screen-recorder -w $(xdotool selectwindow) -f 60 -o video.mp4
+.RE
+.fi
+.PP
+.B Instant replay (last 60 seconds):
+.nf
+.RS
+gpu-screen-recorder -w screen -c mp4 -r 60 -o ~/Videos
+.RE
+.fi
+.PP
+.B Instant replay with constant framerate (recommended for predicable ram usage):
+.nf
+.RS
+gpu-screen-recorder -w screen -c mp4 -r 60 -bm cbr -q 40000 -o ~/Videos
+.RE
+.fi
+.PP
+.B Record region using slop:
+.nf
+.RS
+gpu-screen-recorder -w $(slop) -o video.mp4
+.RE
+.fi
+.PP
+.B Record region using slurp:
+.nf
+.RS
+gpu-screen-recorder -w $(slurp -f "%wx%h+%x+%y") -o video.mp4
+.RE
+.fi
+.PP
+.B Instant replay and launch a script when saving replay:
+.nf
+.RS
+gpu-screen-recorder -w screen -c mp4 -r 60 -sc ./script.sh -o ~/Videos
+.RE
+.fi
+.PP
+.B Stream to Twitch with constant bitrate mode:
+.nf
+.RS
+gpu-screen-recorder -w screen -c flv -a default_output -bm cbr -q 8000 -o "rtmp://live.twitch.tv/app/stream_key"
+.RE
+.fi
+.PP
+.B Take screenshot:
+.nf
+.RS
+gpu-screen-recorder -w screen -o screenshot.jpg
+.PP
+.RE
+.fi
+.B Record screen and camera:
+.nf
+.RS
+gpu-screen-recorder -w "screen|/dev/video0" -o video.mp4
+.PP
+.RE
+.fi
+.B Record screen and camera. The camera is located at the bottom right and flipped horizontally:
+.nf
+.RS
+gpu-screen-recorder -w "screen|/dev/video0;halign=end;valign=end;hflip=true;width=30%;height=30%" -o video.mp4
+.PP
+.RE
+.fi
+.B Record two monitors, side by side (assuming the first monitor has a resolution of 1920x1080):
+.nf
+.RS
+gpu-screen-recorder -w "DP-1|DP-2;x=1920" -o video.mp4
+.RE
+.fi
+.PP
+.B Stream whip with an authorization key:
+.nf
+.RS
+gpu-screen-recorder -w screen -bm cbr -q 3500 -ffmpeg-opts "authorization=streamtest;ts_buffer_size=131072" -c whip -o https://b.siobud.com/api/whip
+.PP
+.RE
+.fi
+.SH FILES
+.TP
+.I ~/.config/gpu-screen-recorder/gpu-screen-recorder.env
+Environment variables for systemd service (optional).
+.TP
+.I /usr/lib/modprobe.d/gsr-nvidia.conf
+NVIDIA suspend/resume fix.
+.TP
+.I ~/.config/gpu-screen-recorder/restore_token
+Portal session token storage (default location).
+.SH TIPS
+.IP \(bu 3
+Some video editors don't support videos in variable frame rate mode.
+
+Change video container to .mkv or capture in constant frame rate mode instead to workaround this issue
+.IP \(bu 3
+Variable frame rate may cause issues in some video players (use MPV)
+.IP \(bu 3
+H.265/HEVC not supported in browsers/Discord (use H264 for sharing)
+.IP \(bu 3
+Some distros disable hardware codecs (use Flatpak version)
+.IP \(bu 3
+Use CBR mode (
+.B \-bm cbr
+) for replay buffer to control RAM usage
+.SH PERFORMANCE TIPS
+.IP \(bu 3
+Save to SSD (HDD may be too slow)
+.IP \(bu 3
+Close other screen recorders (including idle OBS)
+.SH KNOWN ISSUES
+.IP \(bu 3
+NVIDIA: CUDA breaks after suspend (install gsr-nvidia.conf fix)
+.IP \(bu 3
+AMD: Possible black bars in output video with HEVC/AV1 (use H264 or FFmpeg >=8)
+.SH AUTHORS
+Developed by dec05eba and contributors.
+.SH REPORTING BUGS
+Report bugs to:
+.UR mailto:dec05eba@protonmail.com
+dec05eba@protonmail.com
+.UE .
+.br
+See more information about reporting bugs at the gpu-screen-recorder website: \fIhttps://git.dec05eba.com/?p=about\fR.
+.br
+Please take a look at the FAQ part of the README before reporting a bug: \fIhttps://git.dec05eba.com/gpu-screen-recorder/about\fR.
+.br
+The bug may have been previously reported or may not be related to gpu-screen-recorder (such as a driver issue).
+.SH COPYRIGHT
+Copyright © dec05eba. Licensed under GPL-3.0-only.
+.SH SEE ALSO
+.BR gsr\-cli (1),
+.BR gsr\-kms\-server (1)
+.PP
+.UR https://git.dec05eba.com/gpu-screen-recorder
+Project homepage
+.UE
+.br
+.UR https://git.dec05eba.com/gpu-screen-recorder/about
+Project readme, with more information
+.UE
+.br
+.UR https://git.dec05eba.com/gpu-screen-recorder-gtk
+GTK GUI version (deprecated)
+.UE
+.br
+.UR https://git.dec05eba.com/gpu-screen-recorder-ui
+ShadowPlay-style UI
+.UE
+.br
+.BR xdotool (1),
+.BR slop (1),
+.BR slurp (1),

@@ -1,0 +1,78 @@
+--- a/libavformat/tls_mbedtls.c
++++ b/libavformat/tls_mbedtls.c
+@@ -43,6 +43,65 @@
+ #include "libavutil/parseutils.h"
+ #include "libavutil/avstring.h"
+ #include "libavutil/random_seed.h"
++#include "libavutil/getenv_utf8.h"
++
++/*
++ * mbedtls has no built-in default certificate location, unlike openssl which
++ * falls back to the location it was compiled with. Without this the peer
++ * certificate can only be verified when the caller passes a ca_file, so look
++ * for the certificate store of the system instead, honoring the same
++ * environment variables as openssl does.
++ */
++static const char * const default_ca_files[] = {
++    "/etc/ssl/certs/ca-certificates.crt", // debian, ubuntu, arch, alpine, gentoo
++    "/etc/ssl/ca-bundle.pem",             // opensuse
++    "/etc/ssl/cert.pem",                  // openbsd, freebsd, macos
++    "/usr/local/etc/ssl/cert.pem",        // freebsd ports
++};
++
++static const char * const default_ca_dirs[] = {
++    "/etc/ssl/certs",
++    "/etc/pki/tls/certs",
++};
++
++/* A positive return value from mbedtls means that only some of the certificates failed to parse, which is not fatal */
++static int mbedtls_load_default_ca_certs(URLContext *h, mbedtls_x509_crt *ca_cert)
++{
++    char *env_ca_file = getenv_utf8("SSL_CERT_FILE");
++    char *env_ca_dir = getenv_utf8("SSL_CERT_DIR");
++    int loaded = 0;
++
++    if (env_ca_file && mbedtls_x509_crt_parse_file(ca_cert, env_ca_file) >= 0)
++        loaded = 1;
++
++    if (!loaded && env_ca_dir && mbedtls_x509_crt_parse_path(ca_cert, env_ca_dir) >= 0)
++        loaded = 1;
++
++    freeenv_utf8(env_ca_file);
++    freeenv_utf8(env_ca_dir);
++
++    for (size_t i = 0; !loaded && i < FF_ARRAY_ELEMS(default_ca_files); i++) {
++        if (mbedtls_x509_crt_parse_file(ca_cert, default_ca_files[i]) >= 0) {
++            av_log(h, AV_LOG_VERBOSE, "loaded CA certificates from %s\n", default_ca_files[i]);
++            loaded = 1;
++        }
++    }
++
++    for (size_t i = 0; !loaded && i < FF_ARRAY_ELEMS(default_ca_dirs); i++) {
++        if (mbedtls_x509_crt_parse_path(ca_cert, default_ca_dirs[i]) >= 0) {
++            av_log(h, AV_LOG_VERBOSE, "loaded CA certificates from %s\n", default_ca_dirs[i]);
++            loaded = 1;
++        }
++    }
++
++    if (!loaded) {
++        av_log(h, AV_LOG_WARNING, "unable to find the CA certificates of the system, "
++                                  "certificate verification is going to fail\n");
++        return AVERROR(ENOENT);
++    }
++
++    return 0;
++}
+ 
+ static int mbedtls_x509_fingerprint(char *cert_buf, size_t cert_sz, char **fingerprint)
+ {
+@@ -555,6 +614,9 @@
+             av_log(h, AV_LOG_ERROR, "mbedtls_x509_crt_parse_file for CA cert returned %d\n", ret);
+             goto fail;
+         }
++    } else if (shr->verify) {
++        // Only a warning is logged when this fails, matching what the openssl backend does
++        mbedtls_load_default_ca_certs(h, &tls_ctx->ca_cert);
+     }
+ 
+     // load own certificate

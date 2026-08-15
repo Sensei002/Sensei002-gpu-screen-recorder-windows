@@ -1,0 +1,6 @@
+[wrap-file]
+directory = srt-1.5.6
+source_url = https://github.com/Haivision/srt/archive/refs/tags/v1.5.6.tar.gz
+source_filename = srt-1.5.6.tar.gz
+source_hash = 2c4980c2c4cfd142d21b829d939dc51db9c6628af5967fff62fd7290769569c7
+patch_directory = srt

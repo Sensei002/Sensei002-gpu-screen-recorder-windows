@@ -1,0 +1,70 @@
+.TH GSR\-KMS\-SERVER 1 "2026-05-07" "5.13.4" "GPU Screen Recorder KMS Server Manual"
+.SH NAME
+gsr\-kms\-server \- KMS (Kernel Mode Setting) server for GPU Screen Recorder
+.SH SYNOPSIS
+.B gsr\-kms\-server
+<\fIdomain_socket_path\fR> <\fIcard_path\fR>
+.SH DESCRIPTION
+\fBgsr\-kms\-server\fR is a companion daemon for GPU Screen Recorder that provides
+Kernel Mode Setting (KMS) access for screen capture in environments where
+direct DRM access is required. It acts as a local server that communicates
+via a Unix domain socket, allowing GPU Screen Recorder to capture screen
+content through the KMS interface.
+.PP
+This component is typically used when GPU Screen Recorder needs to access
+display hardware directly, bypassing the windowing system for more efficient
+or lower-level capture. It runs as a separate process and communicates with
+the main GPU Screen Recorder instance.
+.SH ARGUMENTS
+.TP
+.B \fIdomain_socket_path\fR
+Path to the Unix domain socket that the server will create and listen on.
+This socket is used for communication between GPU Screen Recorder and the
+KMS server. The path should be in a location where both processes have
+appropriate permissions to read and write.
+.TP
+.B \fIcard_path\fR
+Path to the DRM device file (typically \fI/dev/dri/cardX\fR) that the server
+will use for KMS operations. This corresponds to a specific graphics card
+in the system.
+.SH EXAMPLES
+Start the KMS server using card0 and create socket at /tmp/gsr-kms.sock:
+.RS
+.B gsr\-kms\-server /tmp/gsr\-kms.sock /dev/dri/card0
+.RE
+.PP
+Start the KMS server using card1 and create socket in a user-specific location:
+.RS
+.B gsr\-kms\-server ~/.cache/gsr\-kms.sock /dev/dri/card1
+.RE
+.SH NOTES
+.IP \(bu 3
+The \fBgsr-kms-server\fR typically runs with elevated permissions to access
+DRM devices, which requires root permission.
+.IP \(bu 3
+Only one instance should run per DRM card at a time.
+.IP \(bu 3
+The server will exit when the client disconnects or when terminated by a signal.
+.IP \(bu 3
+The socket file is created by the server and removed when the server exits.
+.SH FILES
+.TP
+.B /dev/dri/card*
+DRM device files for graphics cards
+.TP
+.B /tmp/gsr-kms.sock
+Typical location for the domain socket (user-configurable)
+.SH AUTHORS
+gsr\-kms\-server was written by the GPU Screen Recorder contributors.
+.SH REPORTING BUGS
+Report bugs to:
+.UR mailto:dec05eba@protonmail.com
+dec05eba@protonmail.com
+.UE .
+.SH COPYRIGHT
+Copyright © dec05eba. Licensed under GPL-3.0-only.
+.SH SEE ALSO
+.BR gpu\-screen\-recorder (1),
+.BR drm (4)
+.PP
+Project homepage: <https://git.dec05eba.com/gpu-screen-recorder/about/>

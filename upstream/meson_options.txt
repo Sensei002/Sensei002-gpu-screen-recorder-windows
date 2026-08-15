@@ -1,0 +1,7 @@
+option('systemd', type : 'boolean', value : true, description : 'Install systemd service file')
+option('capabilities', type : 'boolean', value : true, description : 'Set binary admin capability on gsr-kms-server binary to remove password prompt when recording monitor (without desktop portal option) on amd/intel or nvidia wayland')
+option('nvidia_suspend_fix', type : 'boolean', value : true, description : 'Install nvidia modprobe config file to tell nvidia driver to preserve video memory on suspend. This is a workaround for an nvidia driver bug that breaks cuda (and gpu screen recorder) on suspend')
+option('portal', type : 'boolean', value : true, description : 'Build with support for xdg desktop portal ScreenCast capture (wayland only) (-w portal option). Requires pipewire')
+option('app_audio', type : 'boolean', value : true, description : 'Build with support for recording a single audio source (-a app: option). Requires pipewire')
+option('plugin_examples', type : 'boolean', value : false, description : 'Build plugin examples')
+option('ffmpeg_static', type : 'boolean', value : false, description : 'Download and build a minimal ffmpeg and the libraries it depends on from source with lto and link them statically into gpu-screen-recorder instead of using the system ffmpeg. Requires make, nasm, cmake and perl')

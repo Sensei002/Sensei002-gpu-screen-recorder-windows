@@ -1,0 +1,225 @@
+# =============================================================================
+# GPU Screen Recorder — Windows Port — single production pipeline
+#
+# The ENTIRE production pipeline lives in this ONE workflow file, per the
+# project brief (§59):
+#
+#     build  →  test  →  package  →  release
+#
+# All compilation, testing, packaging and releasing happens here on a
+# GitHub-hosted Windows x64 runner. Nothing is ever built locally.
+#
+# Release policy (§84):
+#   * Pushes to `main` run build + test + package (validation).
+#   * A GitHub Release is created ONLY from a version tag
+#     (e.g. `v6.0.0-w1`) or an explicit workflow_dispatch with a version
+#     input — never for a trivial commit.
+#
+# PHASE STATUS (docs/implementation-roadmap.md):
+#   Phase 1: build job ran a toolchain smoke test (tests/ci-smoke).
+#   Phase 2: the build job now builds the real portable engine core
+#            (upstream sources + Windows shims) with MinGW-w64, and the
+#            test job runs the unit tests. Active: build + test.
+#   Phase 3+: package/release jobs are activated as their components
+#             land. They are currently disabled with `if: false` so pushes
+#             do not fail on not-yet-implemented stages.
+# =============================================================================
+
+name: Windows Release Pipeline
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - "v*"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 6.0.0-w1). Empty = build+test only."
+        required: false
+        default: ""
+
+jobs:
+  # -------------------------------------------------------------------------
+  # BUILD
+  # -------------------------------------------------------------------------
+  build:
+    name: Build (Windows x64)
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Print toolchain versions
+        shell: pwsh
+        run: |
+          Write-Host "=== Toolchain versions ==="
+          cmake --version
+
+      # MSYS2 MINGW64 provides the MinGW-w64 GCC toolchain. The MSYS packages
+      # (patch) and mingw-w64 packages are both installed here.
+      - name: Setup MSYS2 (MINGW64)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-binutils
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-nasm
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-python
+            mingw-w64-x86_64-curl
+            make
+            patch
+
+      # The FFmpeg stack (ffmpeg 9.0 + x264 + opus + mbedtls + srt +
+      # nv-codec-headers, pinned and sha256-verified, built from source by
+      # scripts/build-ffmpeg-windows.sh) is cached as a whole directory:
+      # sources, install prefix and per-library stamps. On a cache hit the
+      # stamp check makes the build a no-op.
+      - name: Cache FFmpeg build
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/ffmpeg-prefix
+            build/ffmpeg-sources
+            build/ffmpeg-libs
+          key: ffmpeg-${{ hashFiles('scripts/build-ffmpeg-windows.sh', 'scripts/patches/*.patch') }}
+
+      - name: Build FFmpeg stack from source
+        shell: msys2 {0}
+        run: |
+          ./scripts/build-ffmpeg-windows.sh
+
+      - name: Configure
+        shell: msys2 {0}
+        run: |
+          # Native pkg-config needs Windows-style paths (cygpath -m).
+          export PKG_CONFIG_PATH="$(cygpath -m "$PWD/build/ffmpeg-prefix/lib/pkgconfig"):$(cygpath -m /mingw64/lib/pkgconfig)"
+          cmake -S . -B build/cmake -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        shell: msys2 {0}
+        run: cmake --build build/cmake --parallel
+
+      - name: Run unit tests (ctest)
+        shell: msys2 {0}
+        run: ctest --test-dir build/cmake --output-on-failure
+
+      # Run the test binaries directly as well: the static-linked executables
+      # run on any Windows system, which is what the `test` job relies on.
+      - name: Run tests directly (static-linked binaries)
+        shell: pwsh
+        run: |
+          .\build\cmake\ci-smoke.exe
+          .\build\cmake\compat-probe.exe
+          .\build\cmake\gsr-core-test.exe
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: |
+            build/cmake/ci-smoke.exe
+            build/cmake/compat-probe.exe
+            build/cmake/gsr-core-test.exe
+          if-no-files-found: error
+
+  # -------------------------------------------------------------------------
+  # TEST
+  # -------------------------------------------------------------------------
+  # Runs the static-linked test executables produced by the build job. They
+  # are statically linked against libgcc/libwinpthread and the static FFmpeg,
+  # so they run on a plain windows-latest runner without MSYS2.
+  test:
+    name: Test
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: build/bin/
+      - name: Run unit tests
+        shell: pwsh
+        run: |
+          .\build\bin\compat-probe.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\bin\gsr-core-test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\bin\ci-smoke.exe
+
+  # -------------------------------------------------------------------------
+  # PACKAGE
+  # -------------------------------------------------------------------------
+  package:
+    name: Package (installer + portable zip)
+    needs: test
+    # TODO(phase 16): enable when the installer/zip tooling is ready.
+    if: false
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: build/Release/
+      - name: Build installer + portable zip
+        shell: pwsh
+        run: |
+          # TODO(phase 16): produce
+          #   GPU-Screen-Recorder-Windows-x64-Setup.exe
+          #   GPU-Screen-Recorder-Windows-x64-Portable.zip
+          # and validate: executables present, DLLs present, LICENSE present,
+          # --help/--version works, archive extracts.
+          Write-Host "Package stage not yet implemented (Phase 16)."
+          exit 1
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-artifacts
+          path: dist/
+          if-no-files-found: error
+
+  # -------------------------------------------------------------------------
+  # RELEASE
+  # -------------------------------------------------------------------------
+  release:
+    name: Create GitHub Release
+    needs: package
+    # TODO(phase 17): enable with the release policy (version tag / dispatch).
+    if: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-release-artifacts
+          path: dist/
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/GPU-Screen-Recorder-Windows-x64-Setup.exe
+            dist/GPU-Screen-Recorder-Windows-x64-Portable.zip
+          # TODO(phase 17): generate release notes from
+          # docs/release-notes-template.md (port version, upstream revision,
+          # commit SHA, Windows-specific changes, limitations, hardware
+          # notes, attribution). Never claim hardware CI testing that did
+          # not happen (brief §64).

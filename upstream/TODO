@@ -1,0 +1,433 @@
+Check for reparent.
+Quickly changing workspace and back while recording under i3 breaks the screen recorder. i3 probably unmaps windows in other workspaces.
+See https://trac.ffmpeg.org/wiki/EncodingForStreamingSites for optimizing streaming.
+Look at VK_EXT_external_memory_dma_buf.
+Use mov+faststart.
+Allow recording all monitors/selected monitor without nvfbc by recording the compositor proxy window and only recording the part that matches the monitor(s).
+Disable flipping on nvidia? this might fix some stuttering issues on some setups. See NvCtrlGetAttribute/NvCtrlSetAttributeAndGetStatus NV_CTRL_SYNC_TO_VBLANK https://github.com/NVIDIA/nvidia-settings/blob/d5f022976368cbceb2f20b838ddb0bf992f0cfb9/src/gtk%2B-2.x/ctkopengl.c.
+Cleanup unused gl/egl functions, macro, etc.
+Reverse engineer nvapi so we can disable "force p2 state" on linux too (nvapi profile api with the settings id 0x50166c5e).
+Support yuv444p on amd/intel.
+fix yuv444 for hevc.
+Do not allow streaming if yuv444.
+Re-enable yuv444 and allow yuv444 for software encoding. Good for remote desktop. But for remote desktop its more ideal to use yuv420 and when the image is not moving then send a png image instead, for clear image when the image is static.
+Support 10 bit output because of better gradients. May even be smaller file size. Better supported on hevc (not supported at all on h264 on my gpu).
+Add nvidia/(amd/intel) specific install script for ubuntu. User should run install_ubuntu.sh but it should run different install dep script depending on if /proc/driver/nvidia/version exists or not. But what about switchable graphics setup?
+Test different combinations of switchable graphics. Intel hybrid mode (running intel but possible to run specific applications with prime-run), running pure intel. Detect switchable graphics.
+
+https://web.archive.org/web/20210306020203/https://forums.developer.nvidia.com/t/performance-power-management-problem-on-shared-vgpu/161986
+https://djdallmann.github.io/GamingPCSetup/CONTENT/RESEARCH/FINDINGS/registrykeys_displayadapter_class_4d36e968-e325-11ce-bfc1-08002be10318.txt
+
+The video output will be black if if the system is suspended on nvidia and NVreg_PreserveVideoMemoryAllocations is not set to 1. This happens because I think that the driver invalidates textures/cuda buffers? To fix this we could try and recreate gsr capture when gsr_capture_capture fails (with timeout to retry again).
+
+NVreg_RegistryDwords.
+Window capture doesn't work properly in _control_ game after going from pause menu to in-game (and back to pause menu). There might be some x11 event we need to catch. Same for vr-video-player.
+
+Monitor capture on steam deck is slightly below the game fps, but only when capturing on the steam deck screen. If capturing on another monitor, there is no issue.
+    Is this related to the dma buf rotation issue? different modifier being slow? does this always happen?
+
+Intel is a bit weird with monitor capture and multiple monitors. If one of the monitors is rotated then all the kms will be rotated as well.
+    Is that only the case when the primary monitor is rotated? Also the primary monitor becomes position 0, 0 so crtc (x11 randr) position doesn't match the drm pos. Maybe get monitor position and size from drm instead.
+    How about if multiple monitors are rotated?
+
+Support screen (all monitors) capture on amd/intel and nvidia wayland when no combined plane is found. Right now screen just takes the first output.
+Use separate plane (which has offset and pitch) from combined plane instead of the combined plane.
+
+Both twitch and youtube support variable bitrate but twitch recommends constant bitrate to reduce stream buffering/dropped frames when going from low motion to high motion: https://help.twitch.tv/s/article/broadcasting-guidelines?language=en_US. Info for youtube: https://support.google.com/youtube/answer/2853702?hl=en#zippy=%2Cvariable-bitrate-with-custom-stream-keys-in-live-control-room%2Ck-p-fps%2Cp-fps.
+
+On nvidia some games apparently causes the game to appear to stutter (without dropping fps) when recording a monitor but not using
+    when using direct screen capture. Observed in Deus Ex and Apex Legends.
+
+Capture is broken on amd on wlroots. It's disabled at the moment and instead uses kms capture. Find out why we get a black screen in wlroots.
+
+Support vulkan video encoding. That might workaround forced p2 state nvidia driver "bug". Ffmpeg supports vulkan video encoding if it's encoding with --enable-vulkan
+
+It may be possible to improve color conversion rgb->yuv shader for color edges by biasing colors to an edge, instead of letting color overlaying with bilinear filtering handle it.
+
+When webcam is supported mention that nvidia_drm.modeset=1 must be set on nvidia x11 (it's required on wayland so it's not needed there. Or does eglstream work without it??). Check if this really is the case.
+  Support green screen removal, cropping, shader effects in general (circle mask, rounded corners, etc).
+
+Preset is set to p5 for now but it should ideally be p6 or p7.
+    This change is needed because for certain sizes of a window (or monitor?) such as 971x780 causes encoding to freeze
+    when using h264 codec. This is a new(?) nvidia driver bug.
+    Maybe dont choose p6 or p7 again? it causes micro stutter for some users (?).
+
+For low latency, see https://developer.download.nvidia.com/compute/nvenc/v4.0/NVENC_VideoEncoder_API_ProgGuide.pdf (section 7.1).
+Remove follow focused option.
+
+Exit if X11/Wayland killed (if drm plane dead or something?)
+
+Test if p2 state can be worked around by using pure nvenc api and overwriting cuInit/cuCtxCreate* to not do anything. Cuda might be loaded when using nvenc but it might not be used, with certain record options? (such as h264 p5).
+    nvenc uses cuda when using b frames and rgb->yuv conversion, so convert the image ourselves instead.-
+
+Drop frames if live streaming cant keep up with target fps, or dynamically change resolution/quality.
+
+Instead of sending a big list of drm data back to kms client, send the monitor we want to record to kms server and the server should respond with only the matching monitor, and cursor.
+
+Rotate cursor texture properly (around top left origin).
+
+Modify ffmpeg to accept opengl texture for nvenc encoding. Removes extra buffers and copies.
+
+When vulkan encode is added, mention minimum nvidia driver required. (550.54.14?).
+
+Investigate if there is a way to do gpu->gpu copy directly without touching system ram to enable video encoding on a different gpu. On nvidia this is possible with cudaMemcpyPeer, but how about from an intel/amd gpu to an nvidia gpu or the other way around or any combination of iGPU and dedicated GPU?
+    Maybe something with clEnqueueMigrateMemObjects? on AMD something with DirectGMA maybe?
+
+Use lanczos resampling for better scaling quality. Lanczos resampling can also be used for YUV chroma for better color quality on small text.
+
+Flac is disabled because the frame sizes are too large which causes big audio/video desync.
+
+Enable b-frames.
+
+Support vfr matching games exact fps all the time. On x11 use damage tracking, on wayland? maybe there is drm plane damage tracking. But that may not be accurate as the compositor may update it every monitor hz anyways. On wayland maybe only support it for desktop portal + pipewire capture.
+    Another method to track damage that works regardless of the display server would be to do a diff between frames with a shader.
+    A 1x1 texture could be created and then write to the texture with imageStore in glsl.
+    Multiple textures aren't needed for diff, the diff between the color conversion output can be done by using it as an input
+    as well, which would diff it against the previous frame.
+
+Support selecting which gpu to use. This can be done in egl with eglQueryDevicesEXT and then eglGetPlatformDisplayEXT. This will automatically work on AMD and Intel as vaapi uses the same device. On nvidia we need to use eglQueryDeviceAttribEXT with EGL_CUDA_DEVICE_NV.
+    Maybe on glx (nvidia x11 nvfbc) we need to use __NV_PRIME_RENDER_OFFLOAD, __NV_PRIME_RENDER_OFFLOAD_PROVIDER, __GLX_VENDOR_LIBRARY_NAME, __VK_LAYER_NV_optimus, VK_ICD_FILENAMES instead. Just look at prime-run /usr/bin/prime-run.
+
+Add option to send video to another computer.
+New gpu screen recorder gui should have the option to cut the video directly, maybe running an ffmpeg command or implementing that ourselves. Only support gpu screen recorder video files.
+
+Check if is software renderer by using eglQueryDisplayAttribEXT(egl_display, EGL_DEVICE_EXT..) eglQueryDeviceStringEXT(egl_device, EGL_EXTENSIONS) and check for "EGL_MESA_device_software".
+
+Use MapTexture2DINTEL for software encoding on intel.
+
+To test vulkan encode on amd set the environment variable RADV_PERFTEST=video_encode before running a program that uses vulkan encode (or queries for it, such as vulkaninfo).
+
+Support hevc/av1 for software encoder and hdr support at the same time. Need support for yuv420p shader for that. Use libx265 for hevc and libsvtav1 for av1 (libsvtav1 is the fastest software av1 video encoder). Also support vp8/vp9 since we are not limited by hardware.
+
+Cleanup pipewire code and add more error checks.
+
+Make dbus code and pipewire setup non blocking.
+
+Support portal (pipewire) hdr capture when pipewire adds support for it. Maybe use the result of SelectSources and then query the hdr metadata with drm.
+
+HDR support on x11?
+
+Move most kms data to kms client. We dont need root access for everything that is server from kms server right now, such as hdr metadata and drm plane properties. Only the drm plane fd really needs root access.
+
+Show rotated window size in monitor list when using incorrect monitor name.
+
+Desktop portal capture on kde plasma makes notifications not show up unless the notification is set as urgent. How to fix this? do we have to make our own notification system?
+
+Explicit sync is done with the drm property IN_FENCE_FD (see https://drmdb.emersion.fr/properties/4008636142/IN_FENCE_FD). Check if this needs to be used on wayland (especially on nvidia) when capturing a monitor directly without desktop portal.
+
+The update fps appear to be lower when recording a monitor instead of using portal on intel. Does this reflect in game framerate?
+
+Fix glitches when using prime-run with desktop portal. It happens when moving a window around. It's probably a syncing issue.
+
+Allow prime-run on x11 if monitor capture and the prime gpu is not nvidia.
+
+Enable 2-pass encoding.
+
+Restart replay/update video resolution if monitor resolution changes.
+
+Use nvidia low latency options for better encoding times.
+
+Test ideal async_depth value. Increasing async_depth also increased gpu memory usage a lot (from 100mb to 500mb when moving from async_depth 2 to 16) at 4k resolution. Setting it to 8 increases it by 200mb which might be ok.
+
+Replace -encoder cpu with -k h264_software?
+
+Change vp8/vp9 quality options, right now the file size is too large (for vp9 at least at very_high quality).
+
+Support recording while in replay mode. This will be needed when enabling replay on system startup with systemd service and wanting to record a video besides that.
+    The harder and more bloat solution for this would be to make an IPC.
+    The simple solution would be to use SIGUSR2 for starting/stopping recording since SIGUSR2 is unused for replays. That would mean SIGUSR2 for pausing recording would be ignored.
+    It also means that the video will be created in the same directory as the replay (or have option to specify another location for that) but the filename would have to be generated automatically.
+    To rename the file you would have to use -sc to rename it with a script, or add an option to provide a template for the name.
+
+Dynamically change bitrate/resolution to match desired fps. This would be helpful when streaming for example, where the encode output speed also depends on upload speed to the streaming service.
+Implement opengl injection to capture texture. This fixes VRR without having to use NvFBC direct capture and also allows perfect frame timing.
+Always use direct capture with NvFBC once the capture issue in mpv fullscreen has been resolved (maybe detect if direct capture fails in nvfbc and switch to non-direct recording. NvFBC says if direct capture fails).
+
+Support ROI (AV_FRAME_DATA_REGIONS_OF_INTEREST).
+
+Default to hevc if capture size is larger than 4096 in width or height.
+
+Set low latency mode on vulkan encoding.
+
+Support recording/replay/livestreaming at the same time by allowing commands to be run on an existing gpu screen recorder instance.
+
+Test if `xrandr --output DP-1 --scale 1.5` captures correct size on nvidia.
+
+Fix cursor position and scale when scaling x11 display.
+
+Support application audio recording without pipewire combined sink.
+
+Support transposing (rotating) with vaapi. This isn't supported on many devices with rgb buffer, but its supported with nv12 buffer (on intel at least).
+
+Cleanup pipewire_audio.c (proper error handling and memory cleanup of proxies).
+
+Hide application audio module-null-sink by using sink_properties=media.class="Audio/Sink/Internal".
+
+Improve software encoding performance.
+
+Add option to record audio from the recorded window only.
+
+Add option to automatically select best video codec available. Add -k best, -k best_10bit and -k best_hdr.
+
+Use wayland color management protocol when it's available: https://gitlab.freedesktop.org/wayland/wayland-protocols/-/merge_requests/14.
+
+Use different exit codes for different errors. Use one for invalid -w option, another one for invalid -a option for audio devices, etc. This is to make UI error reporting better.
+    Document these exit codes in an exit code .md file, or finally create a manpage where this can be documented.
+
+Use opengl compute shader instead of graphics shader. This might allow for better performance when games are using 100% of graphics unit which might fix issue with 100% gpu usage causing gpu screen recorder to run slow when not using vaapi to convert rgb to nv12(?).
+
+Always disable prime run/dri prime and list all monitors to record from from all cards.
+    Do this instead of adding an option to choose which gpu to use.
+    On X11 the primary gpu will always have the framebuffer for all monitors combined.
+        Use randr to list all monitors and always record and encode with the primary gpu.
+    On Wayland each gpu will have its own list of monitors with framebuffers.
+        Iterate through all cards with drm and list all monitors with associated framebuffers and when choosing a monitor to record
+        automatically use the associated gpu card.
+
+Allow flv av1 if recent ffmpeg version and streaming to youtube (and twitch?) and for custom services.
+Use explicit sync in pipewire video code: https://docs.pipewire.org/page_dma_buf.html. This should fix cross gpu pipewire capture.
+
+Replay (and recording?) fails to save properly sometimes (especially for long videos). This is noticable with mp4 files since they get corrupt and become unplayable.
+    The entire video does seem to get saved (it's a large video file) and it seems to have the correct headers but it's not playable.
+
+Make it possible to save a shorter replay clip remotely. Maybe implement ipc first, to then also allow starting recording/stream while a replay is running.
+
+Add an option to pass http headers when streaming. Some streaming services require streaming keys to be passed in a http header instead of in the url as a parameter.
+
+When adding vulkan video support add VK_VIDEO_ENCODE_TUNING_MODE_LOW_LATENCY_KHR.
+
+Implement screenshot without invoking opengl (which is slow to start on some systems).
+
+Automatically use desktop portal on wayland when hdr is enabled (or night light) by checking if kms hdr metadata exists, if hdr video codec is not used.
+    Or maybe do this in the ui?
+
+Detect if cached portal session token is no longer valid (this can happen if the user switches to another wayland compositor).
+
+Support reconnecting (and setting things up again) if the audio server is restarted (for both device recording and app recording).
+
+Find out how nvidia-smi fixes nvenc not working on opensuse and do that ourselves instead of relying on nvidia-smi that is not always installed.
+
+Pulseaudio code: add "running" variable to loops to allow stopping the running code when quitting.
+
+Scale screenshot frame libswscale or implement lanczos shader for improved scaline for video as well.
+
+Support high quality scaling with -s by using lanczos.
+
+Support spanning multiple monitors with region capture. This would also allow the user to record multiple monitors at the same time, the same way screen-direct works on nvidia x11.
+
+When webcam support is added also support v4l2loopback? this is done by using avdevice_register_all(); and -c v4l2 -o /dev/video0; but it needs to output raw data as well instead of h264 and possibly yuv420p. Maybe add a -k yuv420p option to do that or -k rgb.
+    This would be implemented by outputting the raw data directly into the output file, without using the video encoder.
+
+Do proper exit, to call gsr_capture_destroy which will properly stop gsr-kms-server. Otherwise there can be zombie gsr-kms-server on error.
+
+Cursor position might be slightly wrong on rotated monitor.
+
+External texture doesn't work on nvidia x11, probably because of glx context (requires gles es). External texture is not used on nvidia x11 right now so it's not an issue.
+
+Add option to save replay buffer on disk instead of ram.
+
+nvfbc capture cursor with cursor.h instead and composite that on top. This allows us to also always get a cursor in direct capture mode. This could possible give better performance as well.
+
+Maybe remove external shader code and make a simple external to internal texture converter (compute shader), to reduce texture sampling. Maybe this is faster?
+
+Fix opengl context broken after suspend on nvidia by using this: https://registry.khronos.org/OpenGL/extensions/NV/NV_robustness_video_memory_purge.txt requires glx context creation flags and GetGraphicsResetStatusARB() == PURGED_CONTEXT_RESET_NV check to recreate all graphics.
+
+HDR looks incorrect, brightest point gets cut off.
+
+Make "screen" capture the preferred monitor.
+
+When webcam support is added add the option to add it as a second video track, to make it easier to edit in video editors.
+
+Fix constant framerate not working properly on amd/intel because capture framerate gets locked to the same framerate as
+    game framerate, which doesn't work well when you need to encode multiple duplicate frames (AMD/Intel is slow at encoding!).
+    It also appears to skip audio frames on nvidia wayland? why? that should be fine, but it causes video stuttering because of audio/video sync.
+
+Add option to pass a fd (from socketpair) to use for rpc. In the rpc have a common header, with protocol version, data type and data in an enum.
+
+Add the option to set audio track name, for example with -a "track-name:blabla|device:default_output|app:firefox"
+
+Maybe disable qp/vbr for replay. In that case we can preallocate all replay data (for both ram and disk) and write to that directly when receiving packet (dont do that when also recording at the same time).
+    That could improve performance/disk write optimization and maybe even reduce ram usage because of less blocks/fragmentation.
+
+When rpc is added add the option to add/remove audio devices/app audio and also overlays (from new capture sources). It should also be possible to save a replay of any duration (below duration set with -r).
+    Have an rpc info/status command that just returns the status. This is to check if gpu screen recorder is running.
+
+Support hdr screenshot.
+
+Recreate opengl context on loss. This can happen if there is a gpu driver bug, causing context to need to be recreated. This is a nice improvement to not break recording even with buggy driver.
+
+Support saving video with surround sound. Surround sound audio capture does work, but it gets downmixed to stereo.
+
+Add (render) plugin support. To simplify it (and possibly best performance) create one rgba texture (with the size of the output video) that is used across all plugins.
+    Create a framebuffer and set this texture and the target and set the framebuffer as active before calling the plugins.
+    Then the plugins can render simply by doing simple opengl draw functions.
+    Maybe send some metadata to the plugin, such as video (and framebuffer) size. Although this data can be retrieved from the active framebuffer.
+
+Either support webcam support with raw yuyv, mapping the buffer directly to opengl. Or use mjpeg, mapping the buffer directly to vaapi jpeg decoder and then get then map the decoded buffer to opengl.
+    Some webcams dont support raw yuyv and many webcams support higher framerates for mjpeg.
+
+Allow medium, high, very_high and ultra quality for -bm cbr. If that is used then it will automatically estimate the best bitrate for that quality based on resolution and fps.
+    Maybe do this in the ui instead (or both?), to show estimated file size.
+
+Maybe remove shader compute code. It doesn't seem necessary anymore now that glSwapBuffer/glFinish isn't used. dbus server isn't needed anymore either, the code can be moved back to the gpu screen recorder process.
+
+Add proper check if opengl functions are supported. dlsym for the symbol will return a no-op function if it's not supported, so it silently fails if used.
+
+Colors are offset to bottom left by 1 pixel or so on steam deck in landscape mode.
+
+When constant framerate is used (and for audio) multiple frames need to be encoded after resuming from suspend.
+    The clock jumps forward by around 2-3 seconds (on my machine). Is there a way to make sure the clock doesn't jump forward?
+
+Colors are correct, but they look incorrect for thin elements, such as colored text. This can be improved by sampling neighbor pixels for color average.
+
+Record first video/audio frame immediately.
+
+Disable GL_DEPTH_TEST, GL_CULL_FACE.
+
+kde plasma portal capture for screenshot doesn't work well because the portal ui is still visible when taking a screenshot because of its animation.
+
+We can use dri2connect/dri3open to get the /dev/dri/card device. Note that this doesn't work on nvidia x11.
+
+Add support for QVBR (QP with target bitrate). Maybe use VBR instead, since nvidia doesn't support QVBR and neither does vulkan.
+
+Check if pipewire audio link-factory is available before attempting to use app audio or merging audio with pipewire.
+    Also do the same in supports_app_audio check in gpu-screen-recorder --info output.
+
+Move region capture to an option in the color conversion instead of having the region code in kms capture code. This would make it cleaner and make it work with all capture methods.
+    -w region would just be an option for selecting the monitor and -region would work with all capture methods (-w).
+
+Set top level window argument for portal capture. Same for gpu-screen-recorder-gtk global shortcuts.
+
+Remove unix domain socket code from kms-client/server and use socketpair directly. To make this possible always execute the kms server permission setup in flatpak, before starting recording (in gpu-screen-recorder-gtk).
+
+Add -k best/best_hdr/best_10bit option, to automatically choose the best codec (prefer av1, then hevc and then h264. For webm files choose vp9 and then vp8).
+
+Check if region capture works properly with fractional scaling on wayland.
+
+Add option to specify medium/high/very high/ultra for -bm cbr as well, which should automatically pick bitrate based on resolution and framerate.
+    This should also be reflected in gsr ui.
+
+After adding rpc, making recording while in replay/streaming work differently. Start recording should take audio as an argument, to optionally specify different audio for recording than replay/stream.
+
+After adding rpc, make it possible to add/remove audio and video. The same number of audio tracks should remain, but the audio devices/app should be possible to configure. You should be able to configure the capture sources however you want.
+
+It takes a while to shutdown gpu screen recorder when using replay with a long replay time (when the replay buffer is for example 6gb). Maybe this has to do with cleaning up so much memory. Try if _exit(0) is faster, ignoring cleanup of anything (assuming the gpu driver is happy with that, nvidia doesn't like such things. GPU drivers are often buggy when it comes to automatic cleanup).
+
+Support desktop portal hdr capture when this gets merged: https://invent.kde.org/plasma/kwin/-/merge_requests/8293 note that it only works with pipewire >= 1.5.81. If codec is set to non-hdr codec when use desktop portal without hdr (convert to sdr, remove the code that forces non-hdr equivalent of the codec). Update gsr-gtk and gsr-ui accordingly.
+
+Add option to save screenshot as .qoi. Use that then in gsr-ui for the background for the window (capture the monitor that the ui is going to show on). Do that on cosmic and hyprland, which are unable to display things behind the fullscreen window.
+
+Support pausing recording when recording while replay/streaming.
+
+Maybe use VK_VALVE_video_encode_rgb_conversion with vulkan encoding for shader-less rgb to yuv conversion. That would allow screen capture with no gpu processing.
+
+Cursor sometimes doesn't have color when capturing region scaled (on kde plasma wayland at least).
+
+Remove drm_monitor_get_display_server_data and do that work in the drm monitor query.
+
+In gpu screen recorder --info output codec max resolutions. This allows for better error messages in ui frontends and easier and better error handling.
+
+Set minimum fps for live stream or piping or always.
+
+Support youtube sso.
+
+Remove -fm content (support it but remove it from documentation and output deprecation notice when its used) and use it when using -fm vbr (which is the default option).
+    But first -fm content needs to be support on wayland as well, by checking if there is a difference between frames (checksum the frame content).
+    -fm content also needs to have a minimum fps to prevent live stream from timing out when nothing changes on the screen.
+
+There is a leak in nvfbc. When a monitor is turned off and then on there will be an x11 display leak inside nvfbc. This seems to be a bug in nvfbc.
+    Right now a mitigation has been added to not try to recreate the nvfbc session if the capture target (monitor) isn't connected (predict if nvfbc session create will fail).
+    One possible reason this happens is because bExternallyManagedContext is set to true.
+    This also means that nvfbc leaks connection when destroying nvfbc, even if the monitor is connected (this is not an issue right now because exit is done, but if gsr was turned into a library it would be).
+
+Add option to set audio source volume, maybe by doing for example: -a "default_input|app:firefox;volume=50"
+
+Optimize v4l2 mjpeg by decompressing to yuv (tjDecompressToYUV) instead of rgb. This would allow removing the yuv to rgb conversion on cpu step (and rgb to yuv on the gpu as well) as well as reducing the cpu->gpu image data bandwidth as yuv is compressed.
+
+Do jpeg decoding on the gpu for v4l2 mjpeg capture (see https://github.com/negge/jpeg_gpu). Or use jpeg decoding from vaapi/nvdec.
+
+Support other v4l2 pixel formats, such as h264 and rgb/bgr. High-end cameras use h264 for high resolution high framerate option (4k 60fps or higher).
+
+AV1 medium quality on nvidia seems to be very high quality. The quality needs to be rescaled. Need to test on nvidia av1 gpu, but I dont have any such gpu.
+
+Support multiple -w, to record different sources to different video tracks. For example gameplay to video track 1 and webcam to video track 2.
+
+Update man page with info about v4l2 and new region capture format. Mention that -region is deprecated.
+
+Make multiple -w portal work with -restore-portal-session.
+
+Play with DRM_FORMAT_MOD_LINEAR or other linear formats to avoid cuda copy. If it's already in linear format then instead check the format of the target texture and use the same format.
+
+Give early error when using invalid v4l2 path like with monitor. Use gsr_capture_v4l2_list_devices for query. Or maybe remove the early error for monitor to simplify the code.
+
+Support camera capture with pipewire to support multiple applications recording camera at the same time. Might not be as efficient as V4L2.
+
+Taking a screenshot of camera with mjpeg doesn't work correctly because it updates buffer asynchronously. v4l2 capture should only return 0 if the copy of the data to the texture has finished.
+
+Make capture from multiple sources work on nvidia x11 when capturing monitor + window. It doesn't work right now because monitor requires glx (nvfbc) while window requires egl.
+
+Support v4l2 mplane on devices where it's supported (where it's more efficient). My camera doesn't support mplane.
+
+Implement v4l2 yuyv nvidia capture by capturing rg88 yuyv to rgb as is done now for screenshot, but also do that for video by creating an intermediate rgb texture for the camera. Then render that rgb texture to the video texture.
+    This is needed to properly scale the yuyv texture without messing it up (the texture indexing).
+
+Set v4l2 camera fps to video output fps (if lower than the camera fps) and the same for resolution.
+
+Support camera controls, such as white balance. Otherwise tell user to use cameractrl software.
+
+Camera capture doesn't work perfectly. The image gets glitched, need to properly wait for image to be done.
+
+Use one pipewire connection (pipewire video) instead of multiple ones when recording with portal multiple times (multiple sources).
+
+Close pipewire links or maybe there are file descriptor leaks?
+
+Make multiple capture sources work properly in regards to size. The size of the video should be the region size of each capture source.
+
+Support hdr camera capture.
+
+Return the max resolution of each codec in --info to display an error in the UI before capture starts. Right now its fine since the UI will report bad resolution after capture starts and fails but it doesn't say what the max resolution is.
+
+Should -low-power option also use vaapi/vulkan low power, if available?
+
+Should capture option x=bla;y=bla be scaled by -s (output resolution scale)? width and height is.
+
+Add option to capture all monitors automatically.
+
+Make -w optional, to only capture audio.
+
+Use GL_RGBA16F or GL_RGBA32F for hdr, that allows color values to be outside the 0.0 to 1.0 range.
+
+https://registry.khronos.org/EGL/extensions/EXT/EGL_EXT_surface_SMPTE2086_metadata.txt
+
+Doesn't work: sibs run --args -w "/dev/video0;camera_width=800;camera_height=600;pixfmt=yuyv" -fm content -o video.mp4
+
+Delay adding audio data until 1 frames time has passed.
+
+Allow av1 in the flatpak. Do that by patching ffmpeg to support multiple nvenc codepaths by using header versions, the same way gsr does in the nvenc query.
+
+Increase qp on av1 non-nvidia, decrease qp on h264 nvidia. For vulkan.
+
+Check if the vulkan codec query works on nvidia x11.
+
+Fix webcam capture on nvidia x11. It doesn't work when capturing a webcam at the same time as capturing the monitor (nvfbc) because nvfbc requires glx context active (in older nvfbc version, works with egl in newer version)
+    while v4l2 requires egl. All other capture methods require egl so they cant be used together with nvfbc.
+
+Make -fm content the default, but first make it record at no lower than 2 fps if nothing updates. This is to make sure live streaming works and seeking in video player doesn't get messed up.
+
+Fix camera capture on nvidia x11. It doesn't work with mjpeg either now because external shader compilation fails.
+
+Revert the revert of improving pipewire capture, for better cursor capture. It caused glitches for some, especially in kde plasma when hdr is enabled. Try marking test and moving the cursor and see.
+
+Add the option to use application audio with exectable name, or automatically check against both application name and executable name.
+    In the ui it should also list the application name beside the app audio.
+
+Region capture works incorrectly on gnome with hidpi, especially with 150% scaling. Same in gsr ui.
+
+-s works incorrectly with multiple capture sources, for example "screen|screen;x=3840" -s 3840x2160.
+    To fix this the capture methods need to store the original size of the capture source first, then loop through all capture sources and rescale them. Do the rescaling outside the capture methods code?
+
+Take color pipeline into consideration in kms hdr capture. Right now kde only uses that on intel.
+
+Maybe use 3D LUT for hdr tonemapping instead of per fragment math.
+
+Update cuda to the use the same device as the opengl context (egl device).

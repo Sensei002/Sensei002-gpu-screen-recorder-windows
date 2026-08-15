@@ -1,0 +1,26 @@
+# Upstream analysis snapshots (download-only, not part of the port)
+reference/
+
+# Build outputs (CI builds in temp dirs; local builds land here)
+build/
+build-*/
+dist/
+out/
+
+# CMake / MSVC noise
+.vs/
+CMakeFiles/
+CMakeCache.txt
+*.user
+*.suo
+
+# Editor noise
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS noise
+Thumbs.db
+Desktop.ini
+.DS_Store

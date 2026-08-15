@@ -1,0 +1,135 @@
+.TH GSR\-CLI 1 "2026-08-02" "5.15.3" "GPU Screen Recorder CLI Manual"
+.SH NAME
+gsr\-cli \- Control a running GPU Screen Recorder instance
+.SH SYNOPSIS
+.B gsr\-cli
+.B \-ipc
+.I socket_path
+.I command
+.RI [ command_arguments... ]
+.PP
+.B gsr\-cli
+.B \-h
+|
+.B \-\-help
+.SH DESCRIPTION
+.B gsr\-cli
+sends a command to a
+.BR gpu\-screen\-recorder (1)
+instance that was started with the
+.B \-ipc
+option and reports the reply. This gives the same control as sending signals to GPU Screen Recorder,
+except that a replay can be saved with an arbitrary number of seconds and that the result of the
+command is known instead of being sent blindly.
+.PP
+.B gsr\-cli
+exits with 0 when the command succeeded and 1 when it failed. When a command fails the reason
+is printed to stderr.
+.SH OPTIONS
+.TP
+.BI \-ipc " socket_path"
+The unix domain socket that GPU Screen Recorder was started with. Required.
+.SH COMMANDS
+.TP
+.B status
+Check if a GPU Screen Recorder instance is listening on the socket, which is done by connecting
+to the socket without sending a command. Prints
+.B running
+or
+.B "not running"
+and exits with 0 when it's running. A socket file that was left behind by a GPU Screen Recorder
+instance that was killed counts as not running.
+.TP
+.B stop
+Stop and save recording (stop without save in replay mode). Waits until the recording has been
+saved and prints the path of the saved file. Nothing is printed in replay mode since nothing is
+saved.
+.TP
+.B toggle-pause
+Pause/unpause recording (not for streaming/replay).
+.TP
+.BR set-paused " true|false"
+Pause/unpause recording (not for streaming/replay). Unlike
+.B toggle-pause
+this doesn't fail when the recording is already paused/unpaused, so the result doesn't depend on
+the current state.
+.TP
+.B toggle-replay-recording
+Start/stop regular recording during replay/streaming, which requires GPU Screen Recorder to run
+with the
+.B \-ro
+option.
+.TP
+.B start-replay-recording
+Start regular recording during replay/streaming, which requires GPU Screen Recorder to run
+with the
+.B \-ro
+option. Does nothing when a recording is already running.
+.TP
+.B stop-replay-recording
+Stop the regular recording that runs during replay/streaming. Waits until the recording has been
+saved and prints the path of the saved file. Fails when no recording is running.
+.TP
+.BR save-replay " [" \fIseconds\fR "] [" restart-replay=true|false ]
+Save replay (replay mode only). The number of seconds has to be larger than 0. The whole replay
+buffer is saved when no number of seconds is given. Waits until the replay has been saved and
+prints the path of the saved file.
+.B restart-replay
+overrides the
+.B \-restart\-replay\-on\-save
+option of GPU Screen Recorder for this save, which clears the replay buffer after the whole replay
+buffer has been saved.
+.SH EXAMPLES
+Start GPU Screen Recorder in replay mode with an ipc socket:
+.RS
+.nf
+gpu-screen-recorder -w screen -f 60 -c mp4 -r 60 -o ~/Videos -ipc "$XDG_RUNTIME_DIR/gsr.sock" &
+.fi
+.RE
+.PP
+Save the last 30 seconds:
+.RS
+.nf
+gsr-cli -ipc "$XDG_RUNTIME_DIR/gsr.sock" save-replay 30
+.fi
+.RE
+.PP
+Save the whole replay buffer and clear it:
+.RS
+.nf
+gsr-cli -ipc "$XDG_RUNTIME_DIR/gsr.sock" save-replay restart-replay=true
+.fi
+.RE
+.PP
+Start replay only when it isn't already running:
+.RS
+.nf
+gsr-cli -ipc "$XDG_RUNTIME_DIR/gsr.sock" status >/dev/null || start-replay.sh
+.fi
+.RE
+.SH NOTES
+.IP \(bu 3
+The socket can only be used by the user that started GPU Screen Recorder.
+.IP \(bu 3
+The
+.BR stop ", " save-replay " and " stop-replay-recording
+commands are replied to when the file has been saved and the script given with the
+.B \-sc
+option has been started, and the reply contains the path of the saved file. The other commands are
+replied to as soon as GPU Screen Recorder accepts them.
+.IP \(bu 3
+GPU Screen Recorder creates the socket before it has finished starting up, so a command that is
+sent while it's starting up is replied to when the recording starts.
+.SH AUTHORS
+gsr\-cli was written by the GPU Screen Recorder contributors.
+.SH REPORTING BUGS
+Report bugs to:
+.UR mailto:dec05eba@protonmail.com
+dec05eba@protonmail.com
+.UE .
+.SH COPYRIGHT
+Copyright © dec05eba. Licensed under GPL-3.0-only.
+.SH SEE ALSO
+.BR gpu\-screen\-recorder (1)
+.PP
+Project homepage: <https://git.dec05eba.com/gpu-screen-recorder/about/>
