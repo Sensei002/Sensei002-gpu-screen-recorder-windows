@@ -83,11 +83,11 @@ jobs:
             mingw-w64-x86_64-pkgconf
             mingw-w64-x86_64-make
             mingw-w64-x86_64-python
-            mingw-w64-python-pip
-            mingw-w64-python-lxml
-            mingw-w64-python-jinja
-            mingw-w64-python-pygments
-            mingw-w64-python-packaging
+            mingw-w64-x86_64-python-pip
+            mingw-w64-x86_64-python-lxml
+            mingw-w64-x86_64-python-jinja
+            mingw-w64-x86_64-python-pygments
+            mingw-w64-x86_64-python-packaging
             mingw-w64-x86_64-curl
             make
             patch
