@@ -82,10 +82,15 @@ jobs:
       # nv-codec-headers, pinned and sha256-verified, built from source by
       # scripts/build-ffmpeg-windows.sh) is cached as a whole directory:
       # sources, install prefix and per-library stamps. On a cache hit the
-      # stamp check makes the build a no-op. Restore and save are separate
-      # steps: the save runs even when a later step fails, so once the 5
-      # dependency libs are built they stay cached and an ffmpeg-stage
-      # failure is a ~2 min rebuild of only ffmpeg on the next run.
+      # stamp check makes the build a no-op. The cache key tracks the
+      # source pins (scripts/ffmpeg-sources.sh) and the upstream patches,
+      # but NOT the build script itself: the script's per-library stamps
+      # rebuild only what changed, so diagnostic iterations restore the
+      # built libs and re-run just the failing step. Restore and save are
+      # separate steps: the save runs even when a later step fails, so once
+      # the 5 dependency libs are built they stay cached and an
+      # ffmpeg-stage failure is a ~2 min rebuild of only ffmpeg on the
+      # next run.
       - name: Restore FFmpeg build cache
         uses: actions/cache/restore@v4
         with:
@@ -93,7 +98,7 @@ jobs:
             build/ffmpeg-prefix
             build/ffmpeg-sources
             build/ffmpeg-libs
-          key: ffmpeg-${{ hashFiles('scripts/build-ffmpeg-windows.sh', 'scripts/patches/*.patch') }}
+          key: ffmpeg-v2-${{ hashFiles('scripts/ffmpeg-sources.sh', 'scripts/patches/*.patch') }}
 
       - name: Build FFmpeg stack from source
         shell: msys2 {0}
@@ -111,7 +116,7 @@ jobs:
             build/ffmpeg-prefix
             build/ffmpeg-sources
             build/ffmpeg-libs
-          key: ffmpeg-${{ hashFiles('scripts/build-ffmpeg-windows.sh', 'scripts/patches/*.patch') }}
+          key: ffmpeg-v2-${{ hashFiles('scripts/ffmpeg-sources.sh', 'scripts/patches/*.patch') }}
 
       - name: Configure
         shell: msys2 {0}

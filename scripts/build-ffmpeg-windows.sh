@@ -88,12 +88,9 @@ fi
 # Hashes are the exact source_hash values from the upstream .wrap files.
 # Multiple URLs are tried in order (primary first); a download is only
 # accepted when its sha256 matches, so any mirror is safe to use.
-NVENC_HEADERS="nv-codec-headers|https://github.com/FFmpeg/nv-codec-headers/archive/refs/tags/n13.0.19.0.tar.gz|86d15d1a7c0ac73a0eafdfc57bebfeba7da8264595bf531cf4d8db1c22940116"
-X264="x264|https://code.videolan.org/videolan/x264/-/archive/b35605ace3ddf7c1a5d67a2eb553f034aef41d55/x264-b35605ace3ddf7c1a5d67a2eb553f034aef41d55.tar.bz2|6eeb82934e69fd51e043bd8c5b0d152839638d1ce7aa4eea65a3fedcf83ff224"
-OPUS="opus|https://downloads.xiph.org/releases/opus/opus-1.6.1.tar.gz;https://archive.mozilla.org/pub/opus/opus-1.6.1.tar.gz|6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1"
-MBEDTLS="mbedtls|https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.7/mbedtls-3.6.7.tar.bz2|a7e8bcbec0e6f761b4af24f25677626b35f762f68eef79c08677a363212d11f6"
-SRT="srt|https://github.com/Haivision/srt/archive/refs/tags/v1.5.6.tar.gz|2c4980c2c4cfd142d21b829d939dc51db9c6628af5967fff62fd7290769569c7"
-FFMPEG="ffmpeg|https://ffmpeg.org/releases/ffmpeg-9.0.tar.xz;https://mirrors.ustc.edu.cn/ffmpeg/ffmpeg-9.0.tar.xz;https://mirrors.tuna.tsinghua.edu.cn/ffmpeg/ffmpeg-9.0.tar.xz|7f607a00dd0d28a729d5a4811205812eef01cf6ef6155025febb6f36a9062d52"
+# The pins live in scripts/ffmpeg-sources.sh so the CI cache key can track
+# them independently of build-script changes.
+source "$SCRIPT_DIR/ffmpeg-sources.sh"
 
 # ---- download + verify + extract ---------------------------------------
 # ffmpeg.org and other release hosts are known to reset connections
@@ -166,17 +163,30 @@ build_lib() {
         nv-codec-headers) args="PREFIX=$PREFIX" ;;
         x264)             args="--prefix=$PREFIX --enable-static --enable-pic --enable-lto --disable-cli --disable-opencl" ;;
         opus)             args="--prefix=$PREFIX --disable-shared --enable-static --with-pic --disable-doc --disable-extra-programs" ;;
-        mbedtls)          args="-DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$PREFIX -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DENABLE_TESTING=OFF -DENABLE_PROGRAMS=OFF -DUSE_SHARED_MBEDTLS_LIBRARY=OFF -DUSE_STATIC_MBEDTLS_LIBRARY=ON" ;;
+        # NOTE: mbedtls is built WITHOUT LTO (unlike the other deps and
+        # upstream's recipe). Its slim-LTO static archives make ffmpeg's
+        # configure link test fail on Windows/MinGW bfd with "cannot find
+        # -lmbedcrypto" even though the archive is present in the -L dir
+        # (the srt check linking the same archive passes; the LTO plugin
+        # claim path is the difference). mbedtls is small (~1 MB), so the
+        # LTO size saving is negligible; plain archives link everywhere.
+        mbedtls)          args="-DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$PREFIX -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DENABLE_TESTING=OFF -DENABLE_PROGRAMS=OFF -DUSE_SHARED_MBEDTLS_LIBRARY=OFF -DUSE_STATIC_MBEDTLS_LIBRARY=ON" ;;
         srt)              args="-DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$PREFIX -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DENABLE_SHARED=OFF -DENABLE_STATIC=ON -DENABLE_APPS=OFF -DENABLE_EXAMPLES=OFF -DENABLE_TESTING=OFF -DENABLE_UNITTESTS=OFF -DUSE_ENCLIB=mbedtls -DMBEDTLS_PREFIX=$PREFIX -DSSL_REQUIRED_MODULES=mbedtls" ;;
         ffmpeg)           args="$(ffmpeg_configure_args)" ;;
     esac
 
     local stamp="$source_dir|$CC|$args"
+    if [ "$name" = "ffmpeg" ]; then
+        stamp="$stamp|patches:$(sha256sum "$PATCH_DIR"/*.patch | sha256sum | cut -d' ' -f1)"
+    fi
     if stamp_matches "$stamp_file" "$stamp"; then
         echo "== $name: up to date (stamp matches), skipping"
         return 0
     fi
 
+    # Clean rebuild: a changed stamp means different sources/args, and a
+    # half-finished previous attempt must not be reused.
+    rm -rf "$build_dir"
     mkdir -p "$build_dir"
     echo "== $name: building (see $log_file for details)"
 
@@ -245,8 +255,8 @@ build_lib() {
         echo "error: failed to build $name, see $log_file for details:" >&2
         tail -n 30 "$log_file" >&2
         if [ "$name" = "ffmpeg" ]; then
-            echo "--- ffbuild/config.log (pkg-config/error context) ---" >&2
-            grep -i -B2 -A8 'pkg-config\|not found' "$build_dir/ffbuild/config.log" 2>/dev/null | tail -n 50 >&2 || true
+            echo "--- ffbuild/config.log (tail) ---" >&2
+            (tail -n 80 "$build_dir/ffbuild/config.log" 2>&1 || true) >&2
         fi
         exit 1
     }
@@ -305,10 +315,17 @@ ffmpeg_configure_args() {
 # once, before the stamp is written.
 apply_ffmpeg_patches() {
     local source_dir="$SOURCES_DIR/ffmpeg-src"
-    local marker="$source_dir/.gsr-windows-patches-applied"
+    local patch_hash
+    patch_hash="$(sha256sum "$PATCH_DIR"/*.patch | sha256sum | cut -d' ' -f1)"
+    local marker="$source_dir/.gsr-windows-patches-applied-$patch_hash"
     if [ -f "$marker" ]; then
         return 0
     fi
+    # The patch set changed (or was never applied): rebuild the source tree
+    # fresh from the verified archive so the patches apply cleanly.
+    rm -rf "$source_dir"
+    mkdir -p "$source_dir"
+    tar -xf "$SOURCES_DIR/ffmpeg.tar" -C "$source_dir" --strip-components=1
     echo "== ffmpeg: applying upstream patches"
     patch -d "$source_dir" -p1 < "$PATCH_DIR/ffmpeg-nvenc-runtime-api-version.patch"
     patch -d "$source_dir" -p1 < "$PATCH_DIR/ffmpeg-mbedtls-default-ca-certs.patch"
@@ -391,6 +408,50 @@ for lib in $BUILD_LIBS; do
         else
             echo "   FAILED (see error above)"
         fi
+
+        # mbedtls link self-test: reproduces ffmpeg's configure check
+        # (`test_ld cc ... -lmbedtls -lmbedx509 -lmbedcrypto`) before ffmpeg
+        # runs, so a "cannot find -lmbedcrypto" style failure is diagnosed
+        # here with full context instead of buried in ffbuild/config.log.
+        echo "== mbedtls link self-test (reproduces ffmpeg's configure check)"
+        local_cc="${CC:-gcc}"
+        mbed_dir="$PWD/build/ffmpeg-libs"
+        cat > "$mbed_dir/mbedlinktest.c" <<'EOF'
+#include <mbedtls/ssl.h>
+#include <stdint.h>
+long check_mbedtls_ssl_init(void) { return (long) mbedtls_ssl_init; }
+int main(void) { return 0; }
+EOF
+        echo "   mbedtls .pc files:"
+        for f in mbedtls.pc mbedx509.pc mbedcrypto.pc; do
+            echo "   --- $f ---"
+            (cat "$PREFIX/lib/pkgconfig/$f" 2>&1 || true)
+        done
+        echo "   libmbedcrypto.a (first members):"
+        (ar t "$PREFIX/lib/libmbedcrypto.a" 2>&1 | head -5 || true)
+        if "$local_cc" -I"$PREFIX/include" -L"$PREFIX/lib" \
+            -lmbedtls -lmbedx509 -lmbedcrypto \
+            "$mbed_dir/mbedlinktest.c" -o "$mbed_dir/mbedlinktest.exe" \
+            2>"$mbed_dir/mbedlinktest.err"; then
+            echo "   exact ffmpeg flags: OK"
+        else
+            echo "   exact ffmpeg flags: FAILED"
+            (cat "$mbed_dir/mbedlinktest.err" 2>&1 || true)
+            echo "   --- retry with -Wl,-v (linker search paths) ---"
+            ("$local_cc" -Wl,-v -I"$PREFIX/include" -L"$PREFIX/lib" \
+                -lmbedtls -lmbedx509 -lmbedcrypto \
+                "$mbed_dir/mbedlinktest.c" -o "$mbed_dir/mbedlinktest.exe" 2>&1 \
+                | tail -n 12 || true)
+            echo "   --- retry with -fno-use-linker-plugin ---"
+            if "$local_cc" -fno-use-linker-plugin -I"$PREFIX/include" -L"$PREFIX/lib" \
+                -lmbedtls -lmbedx509 -lmbedcrypto \
+                "$mbed_dir/mbedlinktest.c" -o "$mbed_dir/mbedlinktest.exe" 2>&1; then
+                echo "   no-linker-plugin variant: OK (LTO plugin involvement confirmed)"
+            else
+                echo "   no-linker-plugin variant: FAILED too (not an LTO-plugin issue)"
+            fi
+        fi
+        rm -f "$mbed_dir/mbedlinktest.c" "$mbed_dir/mbedlinktest.exe" "$mbed_dir/mbedlinktest.err"
     fi
     build_lib "$lib"
 done
