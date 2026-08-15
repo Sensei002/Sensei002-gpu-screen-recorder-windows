@@ -301,17 +301,21 @@ done
 
 if [[ "$BUILD_LIBS" == *ffmpeg* ]]; then
     apply_ffmpeg_patches
-
-    echo "== ffmpeg: pkg-config diagnostics"
-    echo "   pkg-config: $(command -v pkg-config)"
-    echo "   PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
-    echo "   prefix pkgconfig dir:"
-    ls -la "$PREFIX/lib/pkgconfig" 2>&1
-    echo "   --modversion:"
-    pkg-config --modversion libopus libx264 libsrt mbedtls 2>&1 || true
 fi
 
 for lib in $BUILD_LIBS; do
+    # Right before ffmpeg is built, print pkg-config diagnostics so a
+    # resolution failure is self-explanatory. All commands are guarded: this
+    # script runs with `set -eu`.
+    if [[ "$lib" == "ffmpeg" ]]; then
+        echo "== ffmpeg: pkg-config diagnostics"
+        echo "   pkg-config: $(command -v pkg-config)"
+        echo "   PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
+        echo "   prefix pkgconfig dir:"
+        (ls -la "$PREFIX/lib/pkgconfig" 2>&1 || true)
+        echo "   --modversion:"
+        (pkg-config --modversion libopus libx264 libsrt mbedtls 2>&1 || true)
+    fi
     build_lib "$lib"
 done
 
