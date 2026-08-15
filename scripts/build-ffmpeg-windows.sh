@@ -319,12 +319,18 @@ for lib in $BUILD_LIBS; do
         # Windows-style paths joined with ';') or a wrapper converting
         # MSYS-style paths (':'-joined). Test the MSYS form first, then fall
         # back to the Windows form; whichever pkg-config accepts is exported.
-        if ! ( pkg-config --exists libopus libx264 2>/dev/null ); then
+        # NOTE: pkg-config module names come from the .pc *filenames* (opus,
+        # x264, srt, mbedtls), not the ffmpeg option names (libopus, libx264).
+        if ! ( pkg-config --exists opus x264 2>/dev/null ); then
             if [ -f "$PREFIX/lib/pkgconfig/opus.pc" ]; then
                 echo "   (switching PKG_CONFIG_PATH to Windows-style paths)"
                 export PKG_CONFIG_PATH="$(cygpath -m "$PREFIX/lib/pkgconfig");$(cygpath -m /mingw64/lib/pkgconfig)"
-                if ! ( pkg-config --exists libopus libx264 2>/dev/null ); then
-                    echo "error: pkg-config cannot resolve libopus/libx264 from either path style" >&2
+                if ! ( pkg-config --exists opus x264 2>/dev/null ); then
+                    echo "error: pkg-config cannot resolve opus/x264 from either path style" >&2
+                    echo "   pkg-config: $(command -v pkg-config)" >&2
+                    echo "   PKG_CONFIG_PATH: $PKG_CONFIG_PATH" >&2
+                    echo "   pkg-config --list-all (filtered):" >&2
+                    (pkg-config --list-all 2>&1 | grep -Ei 'opus|x264|srt|mbedtls|ffnvcodec' || true) >&2
                     exit 1
                 fi
             else
@@ -333,7 +339,7 @@ for lib in $BUILD_LIBS; do
             fi
         fi
         echo "   --modversion:"
-        (pkg-config --modversion libopus libx264 libsrt mbedtls 2>&1 || true)
+        (pkg-config --modversion opus x264 srt mbedtls 2>&1 || true)
     fi
     build_lib "$lib"
 done
