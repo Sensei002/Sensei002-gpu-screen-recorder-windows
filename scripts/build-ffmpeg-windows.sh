@@ -197,6 +197,29 @@ build_lib() {
                 cmake -S "$source_dir" -B "$build_dir" $args
                 cmake --build "$build_dir" -j"$JOBS"
                 cmake --install "$build_dir"
+                # The install must place all three static archives in the
+                # prefix. Observed on MinGW: libmbedtls.a/libmbedx509.a in
+                # place but libmbedcrypto.a missing, which makes ffmpeg's
+                # configure link test fail with "cannot find -lmbedcrypto".
+                # Verify, and if an archive landed elsewhere under the right
+                # name, copy it into place; otherwise fail with the inventory
+                # so the next iteration knows exactly what was installed.
+                for l in libmbedtls.a libmbedx509.a libmbedcrypto.a; do
+                    if [ ! -f "$PREFIX/lib/$l" ]; then
+                        found="$(find "$PREFIX" "$build_dir" -name "$l" 2>/dev/null | head -1 || true)"
+                        if [ -n "$found" ]; then
+                            echo "warning: $PREFIX/lib/$l missing; found at $found, copying" >&2
+                            cp "$found" "$PREFIX/lib/$l"
+                        else
+                            echo "error: $PREFIX/lib/$l was not produced by the mbedtls build" >&2
+                            echo "  $PREFIX/lib:" >&2
+                            (ls -la "$PREFIX/lib" 2>&1 || true) >&2
+                            echo "  mbed archives anywhere in the build tree:" >&2
+                            (find "$build_dir" "$PREFIX" -name "*mbed*.a" 2>/dev/null | head -20 || true) >&2
+                            exit 1
+                        fi
+                    fi
+                done
                 ;;
             srt)
                 cmake -S "$source_dir" -B "$build_dir" $args
@@ -358,6 +381,8 @@ for lib in $BUILD_LIBS; do
         fi
         echo "   --modversion:"
         (pkg-config --modversion opus x264 srt mbedtls 2>&1 || true)
+        echo "   prefix lib dir:"
+        (ls -la "$PREFIX/lib" 2>&1 | head -25 || true)
         echo "   srt.pc (post-install, normalized):"
         (grep -E '^(Version|Requires.private|Libs.private):' "$PREFIX/lib/pkgconfig/srt.pc" 2>&1 || true)
         echo "   ffmpeg's exact srt query (--exists \"srt >= 1.3.0\"):"
