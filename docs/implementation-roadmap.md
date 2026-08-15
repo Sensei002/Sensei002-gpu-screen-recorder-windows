@@ -121,7 +121,7 @@ Tasks:
 
 1. Define `platform/include/` interfaces (headers only):
    `capture.h`, `audio.h`, `hotkeys.h`, `ipc.h`, `filesystem.h`,
-   `process.h`, `display.h`, `notifications.h`, `startup.h`, `time.h`,
+   `process.h`, `display.h`, `notifications.h`, `startup.h`, `gsr_time.h`,
    `thread.h`.
 2. Map every upstream caller to these interfaces (from upstream-analysis §9).
 3. Test harness (`tests/`):

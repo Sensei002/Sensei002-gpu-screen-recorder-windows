@@ -1,4 +1,9 @@
-/* platform/include/time.h — time interfaces for the Windows port.
+/* platform/include/gsr_time.h — time interfaces for the Windows port.
+ *
+ * Named gsr_time.h (not time.h): this header is on the compiler's -I path,
+ * and a header literally named time.h would shadow the system <time.h>
+ * for every #include <time.h> in the codebase (the compat shim
+ * force-includes <time.h> into every translation unit).
  *
  * Phase 3 deliverable (headers only where noted; see
  * docs/platform-interfaces.md for the caller map).
@@ -14,8 +19,8 @@
  *
  * Implementation: platform/windows/gsr_utils_win32.c (Phase 2, QPC based).
  */
-#ifndef GSR_PLATFORM_TIME_H
-#define GSR_PLATFORM_TIME_H
+#ifndef GSR_PLATFORM_GSR_TIME_H
+#define GSR_PLATFORM_GSR_TIME_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -33,4 +38,4 @@ double gsr_platform_time_monotonic_seconds(void);
  * unaffected by suspend-to-RAM quirks). For UI timers and timeouts. */
 int64_t gsr_platform_time_wall_clock_ms(void);
 
-#endif /* GSR_PLATFORM_TIME_H */
+#endif /* GSR_PLATFORM_GSR_TIME_H */

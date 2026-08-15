@@ -18,7 +18,7 @@ platform/
 │   ├── process.h            #   CreateProcess wrapper (UI spawns engine, -sc scripts)
 │   ├── notifications.h      #   gsr-notification.exe invocation
 │   ├── startup.h            #   HKCU Run / Startup folder
-│   ├── time.h               #   QPC-based clock (CLOCK_MONOTONIC equivalent)
+│   ├── gsr_time.h            #   QPC-based clock (CLOCK_MONOTONIC equivalent)
 │   └── thread.h             #   pthread subset shim (mutex/thread/cond)
 ├── windows/                 # Windows implementations
 │   ├── capture_wgc.c        #   Windows Graphics Capture backend

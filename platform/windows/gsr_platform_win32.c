@@ -1,9 +1,9 @@
-/* gsr_platform_win32.c — small platform helpers: time (platform/include/time.h),
+/* gsr_platform_win32.c — small platform helpers: time (platform/include/gsr_time.h),
  * thread naming (thread.h) and capture backend identity/selection (capture.h).
  *
  * Phase 3 deliverable.
  */
-#include "../../platform/include/time.h"
+#include "../../platform/include/gsr_time.h"
 #include "../../platform/include/thread.h"
 #include "../../platform/include/capture.h"
 #include "../../platform/include/filesystem.h"

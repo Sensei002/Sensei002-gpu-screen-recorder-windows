@@ -17,7 +17,7 @@ serves), its Windows implementation, and the phase that implements it.
 
 | Interface (`platform/include/`) | Purpose | Upstream callers / replaced code | Windows implementation | Phase |
 |---|---|---|---|---|
-| `time.h` | ns-resolution monotonic clock, wall-clock ms | engine `utils.h` clock (seconds only), UI timers | `gsr_platform_win32.c` (QPC) | 3 ✅ |
+| `gsr_time.h` | ns-resolution monotonic clock, wall-clock ms | engine `utils.h` clock (seconds only), UI timers | `gsr_platform_win32.c` (QPC) | 3 ✅ |
 | `filesystem.h` | filename sanitization, path join, UTF-8↔UTF-16, Videos dir, save-filepath naming | `recorder/muxer.c` `gsr_create_new_recording_filepath_from_timestamp` (delegated to, not replaced), UI save-dir settings | `gsr_filesystem_win32.c` | 3 ✅ |
 | `display.h` | monitor model + `--list-monitors`/`--info` output format | `cli/commands.c` (`--list-monitors`, `--info` key\|value lines), UI monitor picker | `gsr_display_win32.c` (format) now; enumeration in `display.c` | 3 ✅ format, 4 enumeration |
 | `capture.h` | capture backend identity + auto-selection (WGC / DXGI) | engine `gsr_capture` vtable (kept unchanged) — this header is the *selection* layer | `gsr_platform_win32.c` (select/name) now; probes in Phase 5/6 | 3 ✅ logic, 5/6 probes |

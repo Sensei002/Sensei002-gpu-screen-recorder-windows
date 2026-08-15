@@ -23,7 +23,7 @@
 #include "display.h"
 #include "audio.h"
 #include "capture.h"
-#include "time.h"
+#include "gsr_time.h"
 #include "thread.h"
 
 #include "../../upstream/include/utils.h" /* gsr_get_date_only_str, create_directory_recursive, clock_get_monotonic_seconds */
