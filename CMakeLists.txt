@@ -89,9 +89,14 @@ separate_arguments(GSR_FFMPEG_LIBS_FLAGS_LIST UNIX_COMMAND "${GSR_FFMPEG_LIBS_FL
 #      crash. Filter all four; they are provided statically by the
 #      runtime block below and by -static-libgcc/-static-libstdc++ on the
 #      executable targets.
-foreach(bad_lib IN ITEMS "-lpthread" "-lstdc++" "-lgcc_s" "-latomic")
-    list(FILTER GSR_FFMPEG_LIBS_FLAGS_LIST EXCLUDE REGEX "^${bad_lib}$")
+set(GSR_FILTERED_RUNTIME_LIBS "-lpthread" "-lstdc++" "-lgcc_s" "-latomic")
+set(GSR_FFMPEG_LIBS_FLAGS_FILTERED "")
+foreach(flag IN LISTS GSR_FFMPEG_LIBS_FLAGS_LIST)
+    if(NOT flag IN_LIST GSR_FILTERED_RUNTIME_LIBS)
+        list(APPEND GSR_FFMPEG_LIBS_FLAGS_FILTERED "${flag}")
+    endif()
 endforeach()
+set(GSR_FFMPEG_LIBS_FLAGS_LIST ${GSR_FFMPEG_LIBS_FLAGS_FILTERED})
 
 # ---------------------------------------------------------------------------
 # gsr_core — the portable engine core (upstream sources + Windows shims).
