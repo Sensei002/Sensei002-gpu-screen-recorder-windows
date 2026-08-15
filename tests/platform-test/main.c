@@ -170,16 +170,23 @@ static void test_filesystem(void) {
     /* -df date folders: <dir>/YYYY-MM-DD/Replay_HH-MM-SS.ext */
     char date_only[32];
     gsr_get_date_only_str(date_only, sizeof(date_only));
+    NOTE("filesystem: -df date_only done\n");
     CHECK(gsr_platform_create_recording_filepath(filepath, sizeof(filepath), "test-save-path", "Replay", "mp4", true));
+    NOTE("filesystem: -df create done\n");
     char expected_dir[PATH_MAX];
     snprintf(expected_dir, sizeof(expected_dir), "test-save-path/%s", date_only);
+    NOTE("filesystem: -df expected_dir done\n");
     CHECK(gsr_string_starts_with(filepath, strlen(filepath), expected_dir));
+    NOTE("filesystem: -df starts_with done\n");
     CHECK(strchr(filepath + strlen(expected_dir), '/') != NULL);
+    NOTE("filesystem: -df strchr done\n");
     struct stat st;
     CHECK(stat(expected_dir, &st) == 0 && S_ISDIR(st.st_mode));
+    NOTE("filesystem: -df stat done\n");
     remove(filepath);
     _rmdir(expected_dir);
     _rmdir("test-save-path");
+    NOTE("filesystem: -df cleanup done\n");
 }
 
 /* ------------------------------------------------------------- ipc codec */
