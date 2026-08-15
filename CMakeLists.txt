@@ -159,9 +159,13 @@ target_link_libraries(gsr_core PUBLIC
     #     (encoder.c uses pthread mutexes).
     #   - atomic: pulled by deep FFmpeg members; link the static archive so
     #     no libatomic-1.dll is needed.
+    #   - stdc++: libsrt.a is C++; -static-libstdc++ is a no-op when linking
+    #     with the C driver (cc), so force the static archive here too or
+    #     the exe either fails to link or needs libstdc++-6.dll.
     "-Wl,-Bstatic"
     "-lwinpthread"
     "-latomic"
+    "-lstdc++"
     "-Wl,-Bdynamic")
 
 # ---------------------------------------------------------------------------
@@ -187,14 +191,13 @@ target_link_libraries(platform-test PRIVATE gsr_core)
 
 # Link the test executables against the static MinGW runtime so they can be
 # re-run by the workflow's `test` job without the MSYS2 environment.
-# -static-libgcc and -static-libstdc++: libstdc++ is linked dynamically by
-# default, and once a test pulls C++ code (srt, via muxer.o -> deeper FFmpeg
-# members) the exe would need libstdc++-6.dll on the plain runner.
-# winpthread is linked statically via the gsr_core PUBLIC link flags (gcc 16
-# no longer accepts -static-libwinpthread).
+# -static-libgcc works with the C driver; the C++ runtime (libstdc++.a),
+# winpthread and atomic are already linked statically via the gsr_core
+# PUBLIC link flags above (-static-libstdc++/-static-libwinpthread are
+# driver options that do nothing when linking with cc).
 foreach(target ci-smoke compat-probe gsr-core-test platform-test)
     set_target_properties(${target} PROPERTIES
-        LINK_FLAGS "-static-libgcc -static-libstdc++")
+        LINK_FLAGS "-static-libgcc")
 endforeach()
 
 enable_testing()
