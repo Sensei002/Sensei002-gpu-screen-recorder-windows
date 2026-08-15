@@ -132,6 +132,16 @@ future phases and upstream syncs should assume them:
   mingw-w64 gcc 16.1.0). Link winpthread statically with
   `-Wl,-Bstatic -lwinpthread -Wl,-Bdynamic` so executables run on machines
   without the MSYS2 runtime DLLs (what the workflow's `test` job relies on).
+  Related: **strip `-lpthread` from FFmpeg's pkg-config flags** — srt.pc's
+  `Libs.private` contributes `-lpthread`, which resolves to the winpthread
+  *DLL import library* (`libpthread.dll.a`). Linking the static
+  `libwinpthread.a` as well is usually harmless, but as soon as one more
+  FFmpeg member references a pthread symbol only the static lib provides,
+  both libraries end up in the link and every pthread symbol is a
+  `multiple definition` error (hit when `muxer.o` joined the build and
+  pulled deeper FFmpeg members). The fix in `CMakeLists.txt` filters
+  `-lpthread` out of the FFmpeg flags so the static archive is the sole
+  provider.
 * **The recording clock's pause is retroactive, not frozen.** Upstream
   contract (recorder.c): `gsr_recording_clock_get_time()` returns *absolute*
   monotonic time and keeps advancing while paused; the paused interval is

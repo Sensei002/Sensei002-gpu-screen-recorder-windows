@@ -77,6 +77,15 @@ execute_process(
 separate_arguments(GSR_FFMPEG_CFLAGS_LIST UNIX_COMMAND "${GSR_FFMPEG_CFLAGS}")
 separate_arguments(GSR_FFMPEG_LIBS_FLAGS_LIST UNIX_COMMAND "${GSR_FFMPEG_LIBS_FLAGS}")
 
+# srt.pc's Libs.private contributes -lpthread, which resolves to the
+# winpthread DLL import library (libpthread.dll.a). We link winpthread
+# statically below (-Wl,-Bstatic -lwinpthread), and once both the import
+# library AND a static member end up in the link (e.g. when an FFmpeg
+# member references a pthread symbol only the static lib provides) the
+# linker fails with `multiple definition of pthread_*`. Drop -lpthread so
+# the static archive is the sole pthread provider.
+list(FILTER GSR_FFMPEG_LIBS_FLAGS_LIST EXCLUDE REGEX "^-lpthread$")
+
 # ---------------------------------------------------------------------------
 # gsr_core — the portable engine core (upstream sources + Windows shims).
 # ---------------------------------------------------------------------------
