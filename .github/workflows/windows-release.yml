@@ -80,6 +80,14 @@ jobs:
             mingw-w64-x86_64-make
             mingw-w64-x86_64-python
             python-pip
+            # gcovr's runtime deps for the MSYS python (the pip in use).
+            # lxml has no prebuilt wheel for the MSYS python, so pip would
+            # build it from source and fail on missing libxml2 headers;
+            # pacman ships all four for the MSYS python directly.
+            python-lxml
+            python-jinja
+            python-pygments
+            python-packaging
             mingw-w64-x86_64-curl
             make
             patch
@@ -167,12 +175,14 @@ jobs:
       # Coverage (Phase 3 CI deliverable): a separate coverage-instrumented
       # build (never the release build) whose gcovr HTML report is uploaded
       # as an artifact. gcovr is python-based; the MSYS2 python-pip package
-      # above provides pip. --break-system-packages: MSYS2's python is
-      # PEP 668 externally-managed, and gcovr is only packaged for the
-      # clang64/ucrt64 repos, so a plain pip install is refused. The CI
-      # runner is ephemeral, so overriding is safe here. Coverage of the
-      # port's own code + vendored engine; tests and vendored externals are
-      # excluded from the report.
+      # above provides pip, and the MSYS python deps (lxml etc.) are
+      # installed via pacman in the setup step so pip only fetches gcovr
+      # itself. --break-system-packages: MSYS2's python is PEP 668
+      # externally-managed, and gcovr is only packaged for the clang64/
+      # ucrt64 repos, so a plain pip install is refused. The CI runner is
+      # ephemeral, so overriding is safe here. Coverage of the port's own
+      # code + vendored engine; tests and vendored externals are excluded
+      # from the report.
       - name: Install gcovr
         shell: msys2 {0}
         run: |
