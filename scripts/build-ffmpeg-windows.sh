@@ -83,18 +83,23 @@ if [ -z "$PYTHON" ]; then
     exit 1
 fi
 
-# ---- pinned sources: "name|url|sha256" --------------------------------
+# ---- pinned sources: "name|url1;url2;...|sha256" -----------------------
 # Hashes are the exact source_hash values from the upstream .wrap files.
+# Multiple URLs are tried in order (primary first); a download is only
+# accepted when its sha256 matches, so any mirror is safe to use.
 NVENC_HEADERS="nv-codec-headers|https://github.com/FFmpeg/nv-codec-headers/archive/refs/tags/n13.0.19.0.tar.gz|86d15d1a7c0ac73a0eafdfc57bebfeba7da8264595bf531cf4d8db1c22940116"
 X264="x264|https://code.videolan.org/videolan/x264/-/archive/b35605ace3ddf7c1a5d67a2eb553f034aef41d55/x264-b35605ace3ddf7c1a5d67a2eb553f034aef41d55.tar.bz2|6eeb82934e69fd51e043bd8c5b0d152839638d1ce7aa4eea65a3fedcf83ff224"
-OPUS="opus|https://downloads.xiph.org/releases/opus/opus-1.6.1.tar.gz|6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1"
+OPUS="opus|https://downloads.xiph.org/releases/opus/opus-1.6.1.tar.gz;https://archive.mozilla.org/pub/opus/opus-1.6.1.tar.gz|6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1"
 MBEDTLS="mbedtls|https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.7/mbedtls-3.6.7.tar.bz2|a7e8bcbec0e6f761b4af24f25677626b35f762f68eef79c08677a363212d11f6"
 SRT="srt|https://github.com/Haivision/srt/archive/refs/tags/v1.5.6.tar.gz|2c4980c2c4cfd142d21b829d939dc51db9c6628af5967fff62fd7290769569c7"
-FFMPEG="ffmpeg|https://ffmpeg.org/releases/ffmpeg-9.0.tar.xz|7f607a00dd0d28a729d5a4811205812eef01cf6ef6155025febb6f36a9062d52"
+FFMPEG="ffmpeg|https://ffmpeg.org/releases/ffmpeg-9.0.tar.xz;https://mirrors.ustc.edu.cn/ffmpeg/ffmpeg-9.0.tar.xz;https://mirrors.tuna.tsinghua.edu.cn/ffmpeg/ffmpeg-9.0.tar.xz|7f607a00dd0d28a729d5a4811205812eef01cf6ef6155025febb6f36a9062d52"
 
 # ---- download + verify + extract ---------------------------------------
+# ffmpeg.org and other release hosts are known to reset connections
+# intermittently, so every attempt gets aggressive curl retries and each
+# source has mirror fallbacks. The sha256 check decides what is accepted.
 fetch_source() {
-    local name="$1" url="$2" sha256="$3"
+    local name="$1" urls="$2" sha256="$3"
     local archive="$SOURCES_DIR/$name.tar"
     local tmp_archive="$archive.tmp"
 
@@ -103,12 +108,29 @@ fetch_source() {
         return 0
     fi
 
-    echo "== $name: downloading $url"
-    curl -fSL --retry 3 -o "$tmp_archive" "$url"
-    local actual_sha
-    actual_sha="$(sha256sum "$tmp_archive" | cut -d' ' -f1)"
-    if [ "$actual_sha" != "$sha256" ]; then
-        echo "error: sha256 mismatch for $name: expected $sha256, got $actual_sha" >&2
+    local ok=0
+    local IFS=';'
+    for url in $urls; do
+        echo "== $name: downloading $url"
+        if curl -fSL --connect-timeout 30 --max-time 300 \
+            --retry 5 --retry-all-errors --retry-delay 3 \
+            -o "$tmp_archive" "$url"; then
+            local actual_sha
+            actual_sha="$(sha256sum "$tmp_archive" | cut -d' ' -f1)"
+            if [ "$actual_sha" = "$sha256" ]; then
+                ok=1
+                break
+            else
+                echo "warning: sha256 mismatch from $url (expected $sha256, got $actual_sha); trying next mirror" >&2
+            fi
+        else
+            echo "warning: download failed from $url; trying next mirror" >&2
+        fi
+    done
+    unset IFS
+
+    if [ "$ok" != "1" ]; then
+        echo "error: could not download $name from any mirror (expected sha256 $sha256)" >&2
         exit 1
     fi
     mv "$tmp_archive" "$archive"
@@ -272,8 +294,8 @@ declare -A SOURCES=(
     [ffmpeg]="$FFMPEG"
 )
 for lib in $BUILD_LIBS; do
-    IFS='|' read -r name url sha256 <<< "${SOURCES[$lib]}"
-    fetch_source "$name" "$url" "$sha256"
+    IFS='|' read -r name urls sha256 <<< "${SOURCES[$lib]}"
+    fetch_source "$name" "$urls" "$sha256"
 done
 
 if [[ "$BUILD_LIBS" == *ffmpeg* ]]; then
