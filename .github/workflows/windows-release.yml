@@ -91,6 +91,10 @@ jobs:
             build/ffmpeg-sources
             build/ffmpeg-libs
           key: ffmpeg-${{ hashFiles('scripts/build-ffmpeg-windows.sh', 'scripts/patches/*.patch') }}
+          # Save the cache even when a later step fails: once the 5 dependency
+          # libs are built they stay cached, so an ffmpeg-stage failure is a
+          # ~2 min rebuild of only ffmpeg on the next run, not a full one.
+          save-always: true
 
       - name: Build FFmpeg stack from source
         shell: msys2 {0}

@@ -202,11 +202,29 @@ build_lib() {
                 cmake -S "$source_dir" -B "$build_dir" $args
                 cmake --build "$build_dir" -j"$JOBS"
                 cmake --install "$build_dir"
+                # SRT's cmake writes mbedtls into srt.pc both as
+                # `Requires.private: mbedtls` and as absolute-path .a files in
+                # Libs.private. ffmpeg's `pkg-config --exists "srt >= 1.3.0"`
+                # check fails on this form on Windows/MSYS2, and GNU ld (bfd)
+                # also chokes on the absolute paths at link time (see
+                # mpv-winbuild-cmake issue #467 / PR #468). Normalize to -l
+                # flags and drop Requires.private so both the ffmpeg check and
+                # the final static link work.
+                sed -i -e 's/Requires\.private: mbedtls/Requires.private:/' \
+                    -e 's@[^ ]*libmbedtls\.a@-lmbedtls@g' \
+                    -e 's@[^ ]*libmbedcrypto\.a@-lmbedcrypto@g' \
+                    -e 's@[^ ]*libmbedx509\.a@-lmbedx509@g' \
+                    "$PREFIX/lib/pkgconfig/srt.pc" \
+                    "$PREFIX/lib/pkgconfig/haisrt.pc"
                 ;;
         esac
     ) >"$log_file" 2>&1 || {
         echo "error: failed to build $name, see $log_file for details:" >&2
         tail -n 30 "$log_file" >&2
+        if [ "$name" = "ffmpeg" ]; then
+            echo "--- ffbuild/config.log (pkg-config/error context) ---" >&2
+            grep -i -B2 -A8 'pkg-config\|not found' "$build_dir/ffbuild/config.log" 2>/dev/null | tail -n 50 >&2 || true
+        fi
         exit 1
     }
 
@@ -340,6 +358,14 @@ for lib in $BUILD_LIBS; do
         fi
         echo "   --modversion:"
         (pkg-config --modversion opus x264 srt mbedtls 2>&1 || true)
+        echo "   srt.pc (post-install, normalized):"
+        (grep -E '^(Version|Requires.private|Libs.private):' "$PREFIX/lib/pkgconfig/srt.pc" 2>&1 || true)
+        echo "   ffmpeg's exact srt query (--exists \"srt >= 1.3.0\"):"
+        if pkg-config --exists --print-errors "srt >= 1.3.0" 2>&1; then
+            echo "   OK"
+        else
+            echo "   FAILED (see error above)"
+        fi
     fi
     build_lib "$lib"
 done
