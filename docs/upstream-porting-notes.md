@@ -94,6 +94,57 @@ vendored at `upstream/` (engine 6.0.0, r1467). Files are **unmodified except**:
 * **`remove()` on directories** (replay buffer disk cleanup): relies on
   UCRT semantics; verified in CI via the disk replay buffer test.
 
+## 3c. Phase 2 CI validation lessons (Windows build knowledge)
+
+Hard-won findings from getting the Phase 2 pipeline green (13 CI runs).
+These are *Windows-specific build facts*, not behavioral differences —
+future phases and upstream syncs should assume them:
+
+* **Two pkg-config worlds in MSYS2.** The provisioning script runs MSYS2's
+  `pkg-config` wrapper, which needs the canonical **MSYS-style**
+  `PKG_CONFIG_PATH` (`/path/lib/pkgconfig`, `:`-joined). CMake finds the
+  **native `pkgconf.exe`** (it cannot execute the shell wrapper), which needs
+  **Windows-style paths joined with `;`** (`cygpath -m`). Mixing the two is
+  the #1 silent failure.
+* **cmake-generated `.pc` files need Windows fixes before ffmpeg's configure
+  can consume them** (`normalize_pkgconfig_files()` in
+  `scripts/build-ffmpeg-windows.sh`, run unconditionally before the ffmpeg
+  build — stamp/cache hits skip the per-lib build steps, so cached prefixes
+  get normalized too):
+  - `srt.pc` / `haisrt.pc`: SRT's cmake writes `Requires.private: mbedtls`
+    and absolute-path `.a` entries into `Libs.private`; on Windows this
+    breaks both `pkg-config --exists "srt >= 1.3.0"` and the bfd static
+    link. Normalize to `-l` flags and drop `Requires.private` (the same fix
+    as mpv-winbuild-cmake issue #467 / PR #468).
+  - `mbedtls.pc` / `mbedx509.pc` / `mbedcrypto.pc`: the static archives
+    reference Windows system libs the generated `.pc` files omit
+    (`BCryptGenRandom` → `-lbcrypt`, `inet_pton` → `-lws2_32`). Append
+    `Libs.private: -lbcrypt -lws2_32` (what the official MSYS2 mbedtls
+    package ships). Without it, ffmpeg's configure link test fails with
+    `undefined reference to BCryptGenRandom / __imp_inet_pton`.
+* **mbedtls is built WITHOUT LTO** — a deliberate divergence from upstream's
+  LTO-everywhere recipe. Slim-LTO static archives make GNU ld/bfd on Windows
+  report `cannot find -lmbedcrypto` during ffmpeg's configure link tests even
+  though the archive is present in the `-L` dir (the LTO plugin claim path
+  fails). Plain archives link everywhere; mbedtls is ~1 MB, so the size cost
+  is negligible. x264/opus/srt/ffmpeg keep LTO.
+* **GCC 16 dropped the `-static-libwinpthread` driver flag** (MSYS2
+  mingw-w64 gcc 16.1.0). Link winpthread statically with
+  `-Wl,-Bstatic -lwinpthread -Wl,-Bdynamic` so executables run on machines
+  without the MSYS2 runtime DLLs (what the workflow's `test` job relies on).
+* **The recording clock's pause is retroactive, not frozen.** Upstream
+  contract (recorder.c): `gsr_recording_clock_get_time()` returns *absolute*
+  monotonic time and keeps advancing while paused; the paused interval is
+  subtracted from the clock's offset when unpausing. The engine reads the
+  clock only while not paused (frames are not captured during a pause), so a
+  unit test asserting "time freezes while paused" is wrong.
+* **CI cache key = source pins + patches, not the build script.** The
+  script's per-library stamps rebuild only what changed, so diagnostic
+  iterations restore the built libs and re-run only the failing step (~2 min)
+  instead of a full ~8 min rebuild. Source pins live in
+  `scripts/ffmpeg-sources.sh` precisely so the cache key can track them
+  independently of build-script changes.
+
 ## 4. Known behavioral differences (kept up to date per phase)
 
 See `docs/windows-port-parity.md` for the full matrix. Summary of *inherent*

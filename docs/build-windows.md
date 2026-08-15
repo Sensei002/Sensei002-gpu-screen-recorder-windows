@@ -65,7 +65,12 @@ This mirrors the upstream recipe (`extra/build_ffmpeg.sh` + the
 - Component list matches upstream's `--disable-everything` recipe (same
   encoders/muxers/protocols/filters/bsf) **minus the Linux-only backends**
   (no `vaapi`, no `vulkan`). NVENC (`h264_nvenc`, `hevc_nvenc`, `av1_nvenc`)
-  is enabled. LTO static build, same as upstream.
+  is enabled. LTO static build, same as upstream, with two Windows-specific
+  adjustments: **mbedtls is built without LTO** (GNU ld/bfd cannot claim its
+  slim-LTO archives in ffmpeg's configure link tests on Windows), and the
+  srt/mbedtls `.pc` files are normalized for Windows system libs
+  (`-lbcrypt -lws2_32`) before ffmpeg configures. See
+  `docs/upstream-porting-notes.md` §3c for the full list of lessons.
 - The build is **stamp-based and idempotent**: re-running with unchanged
   sources/compiler/args is a no-op, so CI caches the whole
   `build/ffmpeg-{prefix,sources,libs}` tree.
@@ -119,9 +124,11 @@ device validation), the recording clock (pause semantics), the replay buffers
 JSON helpers, and the portable utils (including the LLP64 `strtoll` fix for
 `gsr_string_to_int64`).
 
-The three test executables link `-static-libgcc -static-libwinpthread`, so
-they run on any Windows system without MSYS2 — that is how the workflow's
-`test` job re-runs them from the build artifact.
+The three test executables link `-static-libgcc` and winpthread statically
+(`-Wl,-Bstatic -lwinpthread -Wl,-Bdynamic`; MSYS2's GCC 16 dropped the
+`-static-libwinpthread` driver flag), so they run on any Windows system
+without MSYS2 — that is how the workflow's `test` job re-runs them from the
+build artifact.
 
 ## What CI does (and what it can't do)
 

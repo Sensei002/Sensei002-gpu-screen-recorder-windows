@@ -68,8 +68,10 @@ Deliverables:
       upstream-pinned stack from source — ffmpeg 9.0, x264, opus 1.6.1,
       mbedtls 3.6.7, srt 1.5.6, nv-codec-headers n13.0.19.0 — with
       sha256-verified downloads, the two upstream ffmpeg patches applied
-      verbatim (`scripts/patches/`), LTO static build mirroring upstream,
-      minus Linux-only backends (no vaapi/vulkan). Stamp-based + cached in CI.
+      verbatim (`scripts/patches/`), LTO static build mirroring upstream
+      **except mbedtls** (built without LTO — a Windows/bfd limitation, see
+      porting notes §3c), minus Linux-only backends (no vaapi/vulkan).
+      Stamp-based + cached in CI.
 - [x] **`gsr_core` static library** (CMake): 16 portable upstream sources
       (args_parser, json, log, utils, encoder, replay buffer RAM+disk,
       audio_input, audio_codec, video_codec, recording_clock, audio_capture,
@@ -86,12 +88,21 @@ Deliverables:
         provided by MinGW-w64 (clock_gettime, PATH_MAX, ssize_t, S_IS*,
         dlopen, dirname, strcasecmp).
       - `ci-smoke` — Phase 1 toolchain smoke test.
-      All three link `-static-libgcc -static-libwinpthread` so the `test` job
-      re-runs them on a plain `windows-latest` runner without MSYS2.
+      All three link `-static-libgcc` + winpthread statically
+      (`-Wl,-Bstatic -lwinpthread -Wl,-Bdynamic`; GCC 16 dropped
+      `-static-libwinpthread`) so the `test` job re-runs them on a plain
+      `windows-latest` runner without MSYS2.
 
 **CI deliverables:** build job green (toolchain → FFmpeg → gsr_core → tests);
 test job green (re-runs the static binaries); FFmpeg cached. Full recipe in
 `docs/build-windows.md`.
+
+**Validated green in CI (run 13):** FFmpeg stack from source, engine-core
+build, 140 unit-test checks, and the plain-runner re-run all pass. The
+hard-won Windows build knowledge from the 13-run grind (pkg-config path
+styles, `.pc` normalization, mbedtls LTO exception, GCC 16's dropped
+`-static-libwinpthread`, the recording clock's retroactive pause semantics)
+is documented in `docs/upstream-porting-notes.md` §3c.
 
 **Windows-specific behavior differences found in this phase** (documented in
 docs/upstream-porting-notes.md): `long` is 32-bit on Windows (LLP64) so
