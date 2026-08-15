@@ -171,12 +171,14 @@ target_link_libraries(platform-test PRIVATE gsr_core)
 
 # Link the test executables against the static MinGW runtime so they can be
 # re-run by the workflow's `test` job without the MSYS2 environment.
-# Note: only -static-libgcc goes here; winpthread is linked statically via
-# the gsr_core PUBLIC link flags (gcc 16 no longer accepts
-# -static-libwinpthread).
+# -static-libgcc and -static-libstdc++: libstdc++ is linked dynamically by
+# default, and once a test pulls C++ code (srt, via muxer.o -> deeper FFmpeg
+# members) the exe would need libstdc++-6.dll on the plain runner.
+# winpthread is linked statically via the gsr_core PUBLIC link flags (gcc 16
+# no longer accepts -static-libwinpthread).
 foreach(target ci-smoke compat-probe gsr-core-test platform-test)
     set_target_properties(${target} PROPERTIES
-        LINK_FLAGS "-static-libgcc")
+        LINK_FLAGS "-static-libgcc -static-libstdc++")
 endforeach()
 
 enable_testing()

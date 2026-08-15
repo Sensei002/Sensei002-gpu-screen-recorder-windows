@@ -142,6 +142,15 @@ future phases and upstream syncs should assume them:
   pulled deeper FFmpeg members). The fix in `CMakeLists.txt` filters
   `-lpthread` out of the FFmpeg flags so the static archive is the sole
   provider.
+* **`-static-libgcc` is not enough: also pass `-static-libstdc++`.**
+  MinGW links libstdc++ dynamically by default. The engine core itself is
+  C-only, but as soon as an executable pulls C++ code (SRT is C++; a test
+  that touches `muxer.o` pulls deeper FFmpeg members that reference srt)
+  the exe gets a `libstdc++-6.dll` dependency and dies with a silent
+  missing-DLL failure on the plain runner (`Run tests directly` — ~6s of
+  no output before exit). The symptom is easy to miss because binaries that
+  don't reference C++ symbols run fine. Keep both flags on every
+  distributable executable.
 * **The recording clock's pause is retroactive, not frozen.** Upstream
   contract (recorder.c): `gsr_recording_clock_get_time()` returns *absolute*
   monotonic time and keeps advancing while paused; the paused interval is
