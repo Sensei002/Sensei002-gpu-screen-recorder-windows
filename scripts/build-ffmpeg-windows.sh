@@ -235,20 +235,9 @@ build_lib() {
                 cmake -S "$source_dir" -B "$build_dir" $args
                 cmake --build "$build_dir" -j"$JOBS"
                 cmake --install "$build_dir"
-                # SRT's cmake writes mbedtls into srt.pc both as
-                # `Requires.private: mbedtls` and as absolute-path .a files in
-                # Libs.private. ffmpeg's `pkg-config --exists "srt >= 1.3.0"`
-                # check fails on this form on Windows/MSYS2, and GNU ld (bfd)
-                # also chokes on the absolute paths at link time (see
-                # mpv-winbuild-cmake issue #467 / PR #468). Normalize to -l
-                # flags and drop Requires.private so both the ffmpeg check and
-                # the final static link work.
-                sed -i -e 's/Requires\.private: mbedtls/Requires.private:/' \
-                    -e 's@[^ ]*libmbedtls\.a@-lmbedtls@g' \
-                    -e 's@[^ ]*libmbedcrypto\.a@-lmbedcrypto@g' \
-                    -e 's@[^ ]*libmbedx509\.a@-lmbedx509@g' \
-                    "$PREFIX/lib/pkgconfig/srt.pc" \
-                    "$PREFIX/lib/pkgconfig/haisrt.pc"
+                # srt.pc/haisrt.pc are normalized by normalize_pkgconfig_files()
+                # (runs unconditionally before the ffmpeg build, so cached
+                # prefixes get fixed too).
                 ;;
         esac
     ) >"$log_file" 2>&1 || {
@@ -332,6 +321,41 @@ apply_ffmpeg_patches() {
     touch "$marker"
 }
 
+# ---- pkg-config file normalization --------------------------------------
+# The cmake-generated .pc files from srt and mbedtls need Windows-specific
+# fixes before ffmpeg's configure can consume them. This runs unconditionally
+# before the ffmpeg build (NOT inside the per-lib build step, which is
+# skipped on stamp/cache hits) so cached prefixes are normalized too.
+normalize_pkgconfig_files() {
+    local pcdir="$PREFIX/lib/pkgconfig"
+    # SRT: cmake writes mbedtls into srt.pc both as `Requires.private:
+    # mbedtls` and as absolute-path .a files in Libs.private. ffmpeg's
+    # `pkg-config --exists "srt >= 1.3.0"` check fails on this form on
+    # Windows/MSYS2, and GNU ld (bfd) also chokes on the absolute paths at
+    # link time (see mpv-winbuild-cmake issue #467 / PR #468). Normalize to
+    # -l flags and drop Requires.private so both the ffmpeg check and the
+    # final static link work. Idempotent: already-normalized files match no
+    # patterns and are left untouched.
+    if [ -f "$pcdir/srt.pc" ]; then
+        sed -i -e 's/Requires\.private: mbedtls/Requires.private:/' \
+            -e 's@[^ ]*libmbedtls\.a@-lmbedtls@g' \
+            -e 's@[^ ]*libmbedcrypto\.a@-lmbedcrypto@g' \
+            -e 's@[^ ]*libmbedx509\.a@-lmbedx509@g' \
+            "$pcdir/srt.pc" \
+            "$pcdir/haisrt.pc"
+    fi
+    # MBEDTLS: the static archives reference Windows system libs that the
+    # generated .pc files omit (BCryptGenRandom -> bcrypt, inet_pton ->
+    # ws2_32), so ffmpeg's configure link test fails with undefined
+    # references. The official MSYS2 mbedtls package ships the same
+    # Libs.private; harmless for non-static consumers.
+    for f in mbedtls.pc mbedx509.pc mbedcrypto.pc; do
+        if [ -f "$pcdir/$f" ] && ! grep -q '^Libs.private:' "$pcdir/$f"; then
+            printf 'Libs.private: -lbcrypt -lws2_32\n' >> "$pcdir/$f"
+        fi
+    done
+}
+
 # ---- build everything ---------------------------------------------------
 BUILD_LIBS="${BUILD_LIBS:-nv-codec-headers x264 opus mbedtls srt ffmpeg}"
 
@@ -367,6 +391,7 @@ for lib in $BUILD_LIBS; do
     # script runs with `set -eu`.
     if [[ "$lib" == "ffmpeg" ]]; then
         echo "== ffmpeg: pkg-config diagnostics"
+        normalize_pkgconfig_files
         echo "   pkg-config: $(command -v pkg-config)"
         echo "   PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
         echo "   prefix pkgconfig dir:"
@@ -410,9 +435,11 @@ for lib in $BUILD_LIBS; do
         fi
 
         # mbedtls link self-test: reproduces ffmpeg's configure check
-        # (`test_ld cc ... -lmbedtls -lmbedx509 -lmbedcrypto`) before ffmpeg
-        # runs, so a "cannot find -lmbedcrypto" style failure is diagnosed
-        # here with full context instead of buried in ffbuild/config.log.
+        # (`test_ld cc test.o -lmbedtls -lmbedx509 -lmbedcrypto ...`) before
+        # ffmpeg runs, so a failure is diagnosed here with full context
+        # instead of buried in ffbuild/config.log. Note the test source is
+        # placed BEFORE the libraries (link order matters for static
+        # archives; ffmpeg does the same).
         echo "== mbedtls link self-test (reproduces ffmpeg's configure check)"
         local_cc="${CC:-gcc}"
         mbed_dir="$PWD/build/ffmpeg-libs"
@@ -422,30 +449,21 @@ for lib in $BUILD_LIBS; do
 long check_mbedtls_ssl_init(void) { return (long) mbedtls_ssl_init; }
 int main(void) { return 0; }
 EOF
-        echo "   mbedtls .pc files:"
-        for f in mbedtls.pc mbedx509.pc mbedcrypto.pc; do
-            echo "   --- $f ---"
-            (cat "$PREFIX/lib/pkgconfig/$f" 2>&1 || true)
-        done
-        echo "   libmbedcrypto.a (first members):"
-        (ar t "$PREFIX/lib/libmbedcrypto.a" 2>&1 | head -5 || true)
-        if "$local_cc" -I"$PREFIX/include" -L"$PREFIX/lib" \
-            -lmbedtls -lmbedx509 -lmbedcrypto \
-            "$mbed_dir/mbedlinktest.c" -o "$mbed_dir/mbedlinktest.exe" \
-            2>"$mbed_dir/mbedlinktest.err"; then
+        mbed_flags="$(pkg-config --static --cflags --libs mbedtls 2>/dev/null || true)"
+        echo "   pkg-config --static --cflags --libs mbedtls:"
+        echo "   $mbed_flags"
+        if "$local_cc" "$mbed_dir/mbedlinktest.c" $mbed_flags \
+            -o "$mbed_dir/mbedlinktest.exe" 2>"$mbed_dir/mbedlinktest.err"; then
             echo "   exact ffmpeg flags: OK"
         else
             echo "   exact ffmpeg flags: FAILED"
             (cat "$mbed_dir/mbedlinktest.err" 2>&1 || true)
             echo "   --- retry with -Wl,-v (linker search paths) ---"
-            ("$local_cc" -Wl,-v -I"$PREFIX/include" -L"$PREFIX/lib" \
-                -lmbedtls -lmbedx509 -lmbedcrypto \
-                "$mbed_dir/mbedlinktest.c" -o "$mbed_dir/mbedlinktest.exe" 2>&1 \
-                | tail -n 12 || true)
+            ("$local_cc" -Wl,-v "$mbed_dir/mbedlinktest.c" $mbed_flags \
+                -o "$mbed_dir/mbedlinktest.exe" 2>&1 | tail -n 12 || true)
             echo "   --- retry with -fno-use-linker-plugin ---"
-            if "$local_cc" -fno-use-linker-plugin -I"$PREFIX/include" -L"$PREFIX/lib" \
-                -lmbedtls -lmbedx509 -lmbedcrypto \
-                "$mbed_dir/mbedlinktest.c" -o "$mbed_dir/mbedlinktest.exe" 2>&1; then
+            if "$local_cc" -fno-use-linker-plugin "$mbed_dir/mbedlinktest.c" $mbed_flags \
+                -o "$mbed_dir/mbedlinktest.exe" 2>&1; then
                 echo "   no-linker-plugin variant: OK (LTO plugin involvement confirmed)"
             else
                 echo "   no-linker-plugin variant: FAILED too (not an LTO-plugin issue)"
