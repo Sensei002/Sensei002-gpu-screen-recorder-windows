@@ -167,12 +167,16 @@ jobs:
       # Coverage (Phase 3 CI deliverable): a separate coverage-instrumented
       # build (never the release build) whose gcovr HTML report is uploaded
       # as an artifact. gcovr is python-based; the MSYS2 python-pip package
-      # above provides pip. Coverage of the port's own code + vendored
-      # engine; tests and vendored externals are excluded from the report.
+      # above provides pip. --break-system-packages: MSYS2's python is
+      # PEP 668 externally-managed, and gcovr is only packaged for the
+      # clang64/ucrt64 repos, so a plain pip install is refused. The CI
+      # runner is ephemeral, so overriding is safe here. Coverage of the
+      # port's own code + vendored engine; tests and vendored externals are
+      # excluded from the report.
       - name: Install gcovr
         shell: msys2 {0}
         run: |
-          pip install --quiet gcovr
+          pip install --quiet --break-system-packages gcovr
           gcovr --version
 
       - name: Configure (coverage build)
