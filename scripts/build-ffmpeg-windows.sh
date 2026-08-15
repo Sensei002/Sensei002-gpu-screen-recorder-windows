@@ -53,10 +53,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PATCH_DIR="$SCRIPT_DIR/patches"
 
 export CC
-# MSYS2 ships pkg-config as a wrapper that converts MSYS-style paths for the
-# native pkgconf.exe underneath it, so the canonical MSYS2 form (MSYS paths
-# joined with ':') is what works here. The diagnostic right before the ffmpeg
-# build confirms it resolves libopus/libx264/libsrt/mbedtls.
+# Default for pkg-config: the canonical MSYS2 form (MSYS paths joined with
+# ':'). Right before the ffmpeg build the script re-verifies this and falls
+# back to Windows-style ';'-joined paths if the installed pkg-config (which
+# may be native pkgconf.exe) cannot read the MSYS form.
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:/mingw64/lib/pkgconfig"
 
 mkdir -p "$PREFIX" "$SOURCES_DIR"
@@ -313,6 +313,25 @@ for lib in $BUILD_LIBS; do
         echo "   PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
         echo "   prefix pkgconfig dir:"
         (ls -la "$PREFIX/lib/pkgconfig" 2>&1 || true)
+
+        # ffmpeg's configure resolves libx264/libopus/libsrt/mbedtls through
+        # pkg-config. MSYS2's pkg-config can be native pkgconf.exe (needs
+        # Windows-style paths joined with ';') or a wrapper converting
+        # MSYS-style paths (':'-joined). Test the MSYS form first, then fall
+        # back to the Windows form; whichever pkg-config accepts is exported.
+        if ! ( pkg-config --exists libopus libx264 2>/dev/null ); then
+            if [ -f "$PREFIX/lib/pkgconfig/opus.pc" ]; then
+                echo "   (switching PKG_CONFIG_PATH to Windows-style paths)"
+                export PKG_CONFIG_PATH="$(cygpath -m "$PREFIX/lib/pkgconfig");$(cygpath -m /mingw64/lib/pkgconfig)"
+                if ! ( pkg-config --exists libopus libx264 2>/dev/null ); then
+                    echo "error: pkg-config cannot resolve libopus/libx264 from either path style" >&2
+                    exit 1
+                fi
+            else
+                echo "error: opus.pc is missing from $PREFIX/lib/pkgconfig" >&2
+                exit 1
+            fi
+        fi
         echo "   --modversion:"
         (pkg-config --modversion libopus libx264 libsrt mbedtls 2>&1 || true)
     fi
