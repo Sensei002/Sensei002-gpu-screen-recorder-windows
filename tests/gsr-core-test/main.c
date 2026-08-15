@@ -187,24 +187,31 @@ static void test_recording_clock(void) {
     CHECK(clock != NULL);
 
     gsr_recording_clock_start(clock);
+    const double start_time = gsr_recording_clock_get_start_time(clock);
     Sleep(30);
     const double t1 = gsr_recording_clock_get_time(clock);
-    CHECK(t1 >= 0.02);
+    /* get_time() returns absolute monotonic time; elapsed = t1 - start_time */
+    CHECK(t1 - start_time >= 0.02);
 
-    /* Paused time must not advance */
+    /* Upstream pause semantics: get_time() is real-time based, so it keeps
+       advancing while paused; the paused interval is subtracted from the
+       clock retroactively when unpausing. The engine only reads the clock
+       while not paused (frames are not captured during a pause), so this
+       is the contract that matters. */
     gsr_recording_clock_set_paused(clock, true);
     CHECK(gsr_recording_clock_is_paused(clock));
     const double paused_t1 = gsr_recording_clock_get_time(clock);
     Sleep(50);
-    const double paused_t2 = gsr_recording_clock_get_time(clock);
-    CHECK(fabs(paused_t2 - paused_t1) < 0.01);
+    const double mid_pause = gsr_recording_clock_get_time(clock);
+    CHECK(mid_pause - paused_t1 >= 0.03); /* real time keeps flowing */
 
     gsr_recording_clock_set_paused(clock, false);
     CHECK(!gsr_recording_clock_is_paused(clock));
-    Sleep(30);
     const double t2 = gsr_recording_clock_get_time(clock);
-    CHECK(t2 >= paused_t1 + 0.02);
-    CHECK(t2 >= t1);
+    /* The paused 50ms must not count: after unpausing the clock jumps back
+       to (approximately) where it was when the pause started. */
+    CHECK(fabs(t2 - paused_t1) < 0.02);
+    CHECK(t2 - start_time >= 0.02); /* pre-pause elapsed still counts */
 
     gsr_recording_clock_destroy(clock);
 }
