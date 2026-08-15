@@ -210,16 +210,12 @@ jobs:
         shell: msys2 {0}
         run: |
           mkdir -p build/coverage-report
-          echo "=== gcno/gcda files found ==="
-          find build/coverage -name '*.gcno' | head -20
-          find build/coverage -name '*.gcda' | head -20
-          echo "=== gcovr verbose ==="
-          gcovr --root . --object-directory build/coverage --verbose \
-            --exclude 'upstream/external/.*' \
-            --exclude 'tests/.*' \
-            2>&1 | grep -iE "Processing|gcno|gcda|found|filter|exclude" | head -40
-          echo "=== gcovr report ==="
-          gcovr --root . --object-directory build/coverage \
+          # --root must be the Windows-style path: the .gcno files embed the
+          # Windows paths passed to cc.exe, while gcovr (MSYS python)
+          # resolves '--root .' to /d/a/... (MSYS style), so the prefix
+          # filter matches nothing and all data is dropped.
+          GCOVR_ROOT="$(cygpath -m "$PWD")"
+          gcovr --root "$GCOVR_ROOT" --object-directory build/coverage \
             --html --html-details -o build/coverage-report/index.html \
             --exclude 'upstream/external/.*' \
             --exclude 'tests/.*' \
