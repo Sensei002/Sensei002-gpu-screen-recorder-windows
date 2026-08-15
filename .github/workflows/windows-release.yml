@@ -212,7 +212,6 @@ jobs:
           mkdir -p build/coverage-report
           gcovr --root . --object-directory build/coverage \
             --html --html-details -o build/coverage-report/index.html \
-            --exclude 'build/.*' \
             --exclude 'upstream/external/.*' \
             --exclude 'tests/.*' \
             --print-summary
