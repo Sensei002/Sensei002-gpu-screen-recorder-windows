@@ -23,6 +23,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 /* These system headers must be included BEFORE the feature checks below:
    the shim is force-included into every translation unit ahead of the

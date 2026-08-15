@@ -36,8 +36,9 @@ int main(void) {
     if (ntdll) {
         RtlGetVersion_t fn = (RtlGetVersion_t)(void *)GetProcAddress(ntdll, "RtlGetVersion");
         if (fn && fn(&ovi) == 0)
-            printf("windows: %u.%u.%u (build %u)\n", ovi.dwMajorVersion, ovi.dwMinorVersion,
-                   ovi.dwBuildNumber, ovi.dwBuildNumber);
+            /* DWORD is unsigned long on Windows (LLP64), so %lu is correct. */
+            printf("windows: %lu.%lu.%lu (build %lu)\n", (unsigned long)ovi.dwMajorVersion, (unsigned long)ovi.dwMinorVersion,
+                   (unsigned long)ovi.dwBuildNumber, (unsigned long)ovi.dwBuildNumber);
     }
 #endif
 

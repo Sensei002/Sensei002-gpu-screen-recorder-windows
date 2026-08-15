@@ -10,6 +10,10 @@
 #include "../../upstream/include/utils.h"
 #include "../../upstream/include/log.h"
 #include "../../upstream/include/window/window.h"
+/* gsr_capture_get_target_position() needs the full gsr_capture_metadata
+   definition and the GSR_CAPTURE_ALIGN_* enums; utils.h only forward-
+   declares the typedef. Same include set as upstream's src/utils.c. */
+#include "../../upstream/include/capture/capture.h"
 
 #include <windows.h>
 #include <time.h>
