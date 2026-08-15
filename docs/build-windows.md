@@ -75,15 +75,22 @@ Result: `build/ffmpeg-prefix/lib/pkgconfig/*.pc` (static libs).
 ## 2. Configure and build the engine core
 
 ```sh
-export PKG_CONFIG_PATH="$(cygpath -m "$PWD/build/ffmpeg-prefix/lib/pkgconfig"):$(cygpath -m /mingw64/lib/pkgconfig)"
-cmake -S . -B build/cmake -G Ninja -DCMAKE_BUILD_TYPE=Release
+export PKG_CONFIG_PATH="$(cygpath -m "$PWD/build/ffmpeg-prefix/lib/pkgconfig");$(cygpath -m /mingw64/lib/pkgconfig)"
+cmake -S . -B build/cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DPKG_CONFIG_EXECUTABLE="$(cygpath -m "$(command -v pkgconf.exe)")"
 cmake --build build/cmake --parallel
 ```
 
 Notes:
 
-- `PKG_CONFIG_PATH` must use **Windows-style paths** (`cygpath -m`) — native
-  pkg-config cannot read MSYS-style paths.
+- Two different pkg-config worlds exist in MSYS2 (both matter):
+  - The **FFmpeg provisioning script** runs `pkg-config` (MSYS2's wrapper
+    that converts MSYS paths for the native pkgconf), so it exports the
+    canonical **MSYS-style** `PKG_CONFIG_PATH` (`/path/lib/pkgconfig` joined
+    with `:`).
+  - **CMake** resolves the native `pkgconf.exe` (it cannot execute the shell
+    wrapper), so the configure step passes it explicitly and gives it
+    **Windows-style paths joined with `;`** (`cygpath -m`).
 - The build compiles the *portable engine core* (`gsr_core`):
   16 upstream sources + the Windows portability shims. Capture/audio/IPC/
   windowing backends arrive in later phases behind the abstractions in

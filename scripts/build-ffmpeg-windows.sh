@@ -53,10 +53,11 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PATCH_DIR="$SCRIPT_DIR/patches"
 
 export CC
-# Native Windows pkg-config cannot read MSYS-style paths, so convert to a
-# Windows path (mixed mode) with cygpath. The MSYS2 mingw64 default
-# pkgconfig dir is appended explicitly for the same reason.
-export PKG_CONFIG_PATH="$(cygpath -m "$PREFIX/lib/pkgconfig"):$(cygpath -m /mingw64/lib/pkgconfig)"
+# MSYS2 ships pkg-config as a wrapper that converts MSYS-style paths for the
+# native pkgconf.exe underneath it, so the canonical MSYS2 form (MSYS paths
+# joined with ':') is what works here. The diagnostic right before the ffmpeg
+# build confirms it resolves libopus/libx264/libsrt/mbedtls.
+export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:/mingw64/lib/pkgconfig"
 
 mkdir -p "$PREFIX" "$SOURCES_DIR"
 
@@ -300,6 +301,14 @@ done
 
 if [[ "$BUILD_LIBS" == *ffmpeg* ]]; then
     apply_ffmpeg_patches
+
+    echo "== ffmpeg: pkg-config diagnostics"
+    echo "   pkg-config: $(command -v pkg-config)"
+    echo "   PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
+    echo "   prefix pkgconfig dir:"
+    ls -la "$PREFIX/lib/pkgconfig" 2>&1
+    echo "   --modversion:"
+    pkg-config --modversion libopus libx264 libsrt mbedtls 2>&1 || true
 fi
 
 for lib in $BUILD_LIBS; do

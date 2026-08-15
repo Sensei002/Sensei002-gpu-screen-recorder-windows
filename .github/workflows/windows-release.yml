@@ -100,9 +100,11 @@ jobs:
       - name: Configure
         shell: msys2 {0}
         run: |
-          # Native pkg-config needs Windows-style paths (cygpath -m).
-          export PKG_CONFIG_PATH="$(cygpath -m "$PWD/build/ffmpeg-prefix/lib/pkgconfig"):$(cygpath -m /mingw64/lib/pkgconfig)"
-          cmake -S . -B build/cmake -G Ninja -DCMAKE_BUILD_TYPE=Release
+          # CMake finds the native pkgconf.exe (not MSYS2's pkg-config shell
+          # wrapper), so it needs Windows-style paths joined with ';'.
+          export PKG_CONFIG_PATH="$(cygpath -m "$PWD/build/ffmpeg-prefix/lib/pkgconfig");$(cygpath -m /mingw64/lib/pkgconfig)"
+          cmake -S . -B build/cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DPKG_CONFIG_EXECUTABLE="$(cygpath -m "$(command -v pkgconf.exe)")"
 
       - name: Build
         shell: msys2 {0}
