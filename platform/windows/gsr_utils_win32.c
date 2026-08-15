@@ -67,10 +67,18 @@ bool generate_random_characters_standard_alphabet(char *buffer, int buffer_size)
 /* ---- filesystem -------------------------------------------------------- */
 int create_directory_recursive(char *path) {
     /* Same algorithm as upstream, but accepts both '/' and '\\' separators
-       (Windows paths use '\\'; the upstream code only handles '/'). */
-    int path_len = strlen(path);
-    char *p = path;
-    char *end = path + path_len;
+       (Windows paths use '\\'; the upstream code only handles '/').
+
+       Work on a copy: the algorithm temporarily NUL-terminates the path at
+       each separator, and upstream only ever passes writable stack buffers.
+       On Windows a caller may pass a string literal (read-only .rdata), so
+       writing through the argument would fault; copying makes any input
+       safe. */
+    char path_copy[PATH_MAX];
+    snprintf(path_copy, sizeof(path_copy), "%s", path);
+
+    char *p = path_copy;
+    char *end = path_copy + strlen(path_copy);
     for(;;) {
         char *slash_p = strchr(p, '/');
         char *backslash_p = strchr(p, '\\');
@@ -79,7 +87,7 @@ int create_directory_recursive(char *path) {
             sep = backslash_p;
 
         // Skips first separator, we don't want to try and create the root
-        if(sep == path) {
+        if(sep == path_copy) {
             ++p;
             continue;
         }
@@ -89,7 +97,7 @@ int create_directory_recursive(char *path) {
 
         char prev_char = *sep;
         *sep = '\0';
-        int err = _mkdir(path);
+        int err = _mkdir(path_copy);
         *sep = prev_char;
 
         if(err == -1 && errno != EEXIST)
