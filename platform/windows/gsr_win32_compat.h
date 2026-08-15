@@ -58,11 +58,15 @@ typedef intptr_t ssize_t;
  * A few upstream headers compiled on Windows for their portable parts
  * (cursor.h, recorder/capture_setup.h) reference X11 types in function
  * signatures. Display/Window/XID/Bool are provided by egl.h's _WIN32
- * branch; XEvent is not, so it is declared here as an opaque type (the
- * port never dereferences it; see also the stubs/ include dir). */
+ * branch; XEvent is not, so it is declared here — as an OPAQUE UNION,
+ * exactly matching the real X11 definition and upstream window.h's own
+ * `typedef union _XEvent XEvent;`. With identical declarations, window.h's
+ * later (re)definition is a legal C11 typedef redeclaration; a `struct`
+ * tag instead of `union` is a hard conflict. The port never dereferences
+ * it (see also the stubs/ include dir). */
 #ifndef GSR_STUB_XEVENT_DEFINED
 #define GSR_STUB_XEVENT_DEFINED
-typedef struct _XEvent XEvent;
+typedef union _XEvent XEvent;
 #endif
 
 /* ---- S_IS* / permission macros (MinGW-w64 defines S_IF* but not these) - */
