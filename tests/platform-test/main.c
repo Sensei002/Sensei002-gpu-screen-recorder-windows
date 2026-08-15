@@ -74,8 +74,9 @@ static void test_filesystem(void) {
     CHECK(gsr_platform_path_sanitize_filename("a<b>c:d\"e/f\\g|h?i*j", out, sizeof(out)));
     CHECK(strcmp(out, "a_b_c_d_e_f_g_h_i_j") == 0);
 
-    /* Control characters -> '_' */
-    CHECK(gsr_platform_path_sanitize_filename("a\x01\x1fb", out, sizeof(out)));
+    /* Control characters -> '_' (split the hex escapes so the following
+       'b' is not swallowed into a single out-of-range hex value) */
+    CHECK(gsr_platform_path_sanitize_filename("a\x01\x1f" "b", out, sizeof(out)));
     CHECK(strcmp(out, "a__b") == 0);
 
     /* Trailing dots/spaces are trimmed */
