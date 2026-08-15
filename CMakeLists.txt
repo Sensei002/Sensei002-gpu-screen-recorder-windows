@@ -28,6 +28,15 @@ add_compile_options(-std=gnu11 -Wshadow -Wall -Wextra)
 # The engine version string (upstream meson passes -DGSR_VERSION="...").
 add_compile_definitions(GSR_VERSION="6.0.0-w1")
 
+# Optional gcov coverage instrumentation (Phase 3 CI deliverable: a
+# coverage report artifact). Enabled in a separate build dir by the
+# workflow; never in the release build.
+option(GSR_ENABLE_COVERAGE "Build with gcov coverage instrumentation" OFF)
+if(GSR_ENABLE_COVERAGE)
+    add_compile_options(--coverage -O0 -g)
+    add_link_options(--coverage)
+endif()
+
 # Force-include the Windows portability shim into every translation unit.
 add_compile_options("-include" "${CMAKE_SOURCE_DIR}/platform/windows/gsr_win32_compat.h")
 
@@ -88,14 +97,27 @@ set(GSR_CORE_SOURCES
     upstream/src/recorder/audio_capture.c
     upstream/src/recorder/audio_input.c
     upstream/src/recorder/capture_source.c
+    # recorder/muxer.c: the real upstream save-filepath naming function
+    # (gsr_create_new_recording_filepath_from_timestamp) that the
+    # platform filesystem layer delegates to.
+    upstream/src/recorder/muxer.c
+    # Phase 2 shims.
     platform/windows/gsr_win32_compat.c
     platform/windows/gsr_utils_win32.c
+    # Phase 3 platform layer (pure-logic backends + small helpers).
+    platform/windows/gsr_filesystem_win32.c
+    platform/windows/gsr_ipc_protocol.c
+    platform/windows/gsr_config_win32.c
+    platform/windows/gsr_codec_caps_win32.c
+    platform/windows/gsr_display_win32.c
+    platform/windows/gsr_platform_win32.c
 )
 
 add_library(gsr_core STATIC ${GSR_CORE_SOURCES})
 # platform/windows is on the include path so that the <libgen.h> and
 # <dlfcn.h> shims (MinGW-w64 ships neither) resolve for the upstream sources.
 target_include_directories(gsr_core PUBLIC
+    ${CMAKE_SOURCE_DIR}/platform/include   # the port's own interfaces (Phase 3)
     ${CMAKE_SOURCE_DIR}/upstream/include
     ${CMAKE_SOURCE_DIR}/platform/windows)
 target_compile_options(gsr_core PUBLIC ${GSR_FFMPEG_CFLAGS_LIST})
@@ -103,6 +125,8 @@ target_link_libraries(gsr_core PUBLIC
     m
     ${GSR_FFMPEG_LIBS_FLAGS_LIST}
     advapi32 # SystemFunction036 (RtlGenRandom) for generate_random_characters
+    shell32  # SHGetKnownFolderPath (gsr_platform_get_videos_dir)
+    ole32    # CoTaskMemFree (gsr_platform_get_videos_dir)
     # winpthreads: MSYS2's gcc 16 dropped the -static-libwinpthread driver
     # flag, so force the static archive at the linker level (encoder.c uses
     # pthread mutexes; the executables must run without the MSYS2 runtime
@@ -126,12 +150,18 @@ target_link_libraries(compat-probe PRIVATE gsr_core)
 add_executable(gsr-core-test tests/gsr-core-test/main.c)
 target_link_libraries(gsr-core-test PRIVATE gsr_core)
 
+# Phase 3 platform-layer unit tests: filesystem naming/sanitization, the
+# IPC protocol codec, config round-trip, codec capability logic, and the
+# --list-monitors/--info output formats.
+add_executable(platform-test tests/platform-test/main.c)
+target_link_libraries(platform-test PRIVATE gsr_core)
+
 # Link the test executables against the static MinGW runtime so they can be
 # re-run by the workflow's `test` job without the MSYS2 environment.
 # Note: only -static-libgcc goes here; winpthread is linked statically via
 # the gsr_core PUBLIC link flags (gcc 16 no longer accepts
 # -static-libwinpthread).
-foreach(target ci-smoke compat-probe gsr-core-test)
+foreach(target ci-smoke compat-probe gsr-core-test platform-test)
     set_target_properties(${target} PROPERTIES
         LINK_FLAGS "-static-libgcc")
 endforeach()
@@ -139,3 +169,4 @@ endforeach()
 enable_testing()
 add_test(NAME ci-smoke COMMAND ci-smoke)
 add_test(NAME gsr-core-test COMMAND gsr-core-test)
+add_test(NAME platform-test COMMAND platform-test)
