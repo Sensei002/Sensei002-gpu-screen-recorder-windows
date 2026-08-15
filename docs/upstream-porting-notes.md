@@ -108,7 +108,7 @@ differences (not fixable, by design):
   on X11) map to Windows equivalents where possible or are reported with a
   clear error (never silently ignored — brief §32).
 * App-audio (`-a app:name`) depends on the WASAPI feasibility result
-  (Phase 10).
+  (Phase 8).
 * Per-window capture uses WGC window items (no XComposite texture path).
 * The UI's game-name detection uses the foreground window/process on Windows
   (no GNOME/KDE extensions).

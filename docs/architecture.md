@@ -69,7 +69,7 @@ Decision notes:
 | Upstream interface | Windows implementation |
 |---|---|
 | `gsr_capture` (vtable) | `gsr_capture_windows_graphics_capture` (primary), `gsr_capture_dxgi_duplication` (fallback), window capture via WGC items |
-| `gsr_video_encoder` (vtable) | `gsr_video_encoder_nvenc` (via FFmpeg `*_nvenc` + d3d11va), `gsr_video_encoder_amf`, `gsr_video_encoder_qsv`, `gsr_video_encoder_software` |
+| `gsr_video_encoder` (vtable) | `gsr_video_encoder_nvenc` (via FFmpeg `*_nvenc` + d3d11va), `gsr_video_encoder_software` — NVIDIA-only port (AMD/Intel dropped, 2026-08-15) |
 | `gsr_replay_buffer` (vtable) | **unchanged** (RAM/disk encoded-packet buffers) |
 | `sound_device_*` (`include/sound.h`) | WASAPI implementation |
 | `gsr_windowing` / `gsr_window` | Win32 window + event pump (replaces X11 window; EGL replaced per §3.3) |
@@ -109,7 +109,7 @@ Two candidate pipelines; **the decision is made in Phase 5 after a CI spike**:
 
 * **Option A (preferred): D3D11-native.** WGC/DXGI → D3D11 texture →
   FFmpeg `d3d11va` hwframe (`av_hwframe_ctx` with `AV_HWDEVICE_TYPE_D3D11VA`)
-  → `h264_nvenc` / `hevc_amf` / `h264_qsv` / `libx264`. Color conversion and
+  → `h264_nvenc` / `hevc_nvenc` / `av1_nvenc` / `libx264`. Color conversion and
   scaling are done with D3D11 shaders (re-implement `color_conversion.c`
   against D3D11) or with GPU-side FFmpeg filters. This removes GL entirely
   from the engine hot path and is the closest Windows analogue of upstream's
@@ -142,7 +142,7 @@ the parity matrix as PARTIAL (rendering API may differ in backend).
   (`IAudioSessionManager2`/`IAudioSessionControl`) to capture a specific
   process's audio, or an audio-session group; if a faithful equivalent is
   impossible, provide "all desktop audio minus named app" where feasible and
-  document the limitation. (Investigated in Phase 10 with a spike.)
+  document the limitation. (Investigated in Phase 8 with a spike.)
 * Sample format conversion (F32/S16/S32) and resampling happen via
   `libswresample` exactly as upstream does; `sound_device_read_next_chunk`
   keeps its contract (chunk + latency in seconds).
@@ -237,7 +237,7 @@ The only *required* UI-layer port is a new mgl platform backend:
 * Tray: upstream UI has a TODO for systray and the gtk frontend (deprecated)
   owns the tray today. The port ships a minimal tray icon in the UI
   (idle/recording/paused) only if it doesn't distort the upstream UX;
-  otherwise documented as WINDOWS-SPECIFIC addition. Decision in Phase 12.
+  otherwise documented as WINDOWS-SPECIFIC addition. Decision in Phase 10.
 
 ### 4.4 Overlay behavior on Windows
 
@@ -254,9 +254,6 @@ The only *required* UI-layer port is a new mgl platform backend:
   * NVIDIA: `nvEncodeAPI`/FFmpeg nvenc support + driver version; expose
     H264/HEVC/AV1 per capability; older GPUs get graceful degradation
     (no AV1 on pre-RTX; HEVC limits on GTX 9xx/10xx documented).
-  * AMD: AMF via FFmpeg (`h264_amf`, `hevc_amf`, `av1_amf`); check
-    `AMFInit`/runtime.
-  * Intel: QSV (`h264_qsv`, `hevc_qsv`, `av1_qsv`) via FFmpeg.
   * Software: `libx264` (+ libx265/libsvtav1 only if upstream parity requires;
     upstream currently restricts `-encoder cpu` to H264 — keep that).
 * Only expose codecs the current GPU actually supports (`--info` output stays
@@ -292,7 +289,7 @@ upstream (with Windows-specific sections documented).
 * Bounded queues; the recorder loop already paces via the recording clock.
 * Measure in CI where possible (CPU% of smoke recording on runner hardware
   where a GPU exists is not guaranteed — see roadmap §“CI hardware limits”);
-  document methodology in `docs/performance.md` (Phase 18).
+  document methodology in `docs/performance.md` (Phase 15).
 
 ## 9. Non-goals (explicit)
 
@@ -311,8 +308,8 @@ upstream (with Windows-specific sections documented).
    to upstream's versions, cached.
 3. Render/encode pipeline: Option A (D3D11-native) vs Option B (GL-on-Windows)
    (Phase 5).
-4. Per-app audio feasibility on WASAPI (Phase 10).
-5. Installer tech: NSIS vs Inno Setup vs WiX (Phase 16).
-6. Tray icon scope (Phase 12).
+4. Per-app audio feasibility on WASAPI (Phase 8).
+5. Installer tech: NSIS vs Inno Setup vs WiX (Phase 13).
+6. Tray icon scope (Phase 10).
 7. Webcam capture scope (Media Foundation) — parity or documented limitation
-   (Phase 5/13).
+   (Phase 5/11).

@@ -182,12 +182,12 @@ jobs:
       - name: Build installer + portable zip
         shell: pwsh
         run: |
-          # TODO(phase 16): produce
+          # TODO(phase 13): produce
           #   GPU-Screen-Recorder-Windows-x64-Setup.exe
           #   GPU-Screen-Recorder-Windows-x64-Portable.zip
           # and validate: executables present, DLLs present, LICENSE present,
           # --help/--version works, archive extracts.
-          Write-Host "Package stage not yet implemented (Phase 16)."
+          Write-Host "Package stage not yet implemented (Phase 13)."
           exit 1
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4

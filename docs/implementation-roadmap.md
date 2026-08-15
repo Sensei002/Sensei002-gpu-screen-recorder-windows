@@ -5,6 +5,10 @@ brief defines. Every phase ends with a **CI green build/test in GitHub
 Actions** — nothing is validated on a local machine. This document is the
 living plan; each phase updates it with results.
 
+**Phase numbering:** the brief's 20-phase list minus the two dropped phases
+(AMD AMF, Intel QSV — NVIDIA-only scope decision, see the note after Phase 7);
+all later phases are renumbered accordingly.
+
 **Development model (from the brief):** `edit → commit → push → GitHub Actions
 (build → test → package → validate → release)`. All compilation, testing,
 packaging and releasing happens in CI. The user's machine is for editing and
@@ -155,7 +159,7 @@ Tasks:
 1. D3D11 device + WGC `GraphicsCaptureSession` for monitor items and window
    items; cursor capture via WGC cursor APIs.
 2. Render/encode pipeline decision (architecture §3.3):
-   - Option A spike: D3D11 texture → FFmpeg d3d11va hwframe → nvenc/amf/qsv.
+   - Option A spike: D3D11 texture → FFmpeg d3d11va hwframe → nvenc.
    - Option B spike: GL-on-Windows (EGL/WGL) with imported textures.
    - Choose, document, and implement the color-conversion path accordingly.
 3. `gsr_capture_windows_graphics_capture.c` implements the `gsr_capture`
@@ -206,22 +210,18 @@ is unit-tested, and a real-GPU validation checklist is documented
 
 ---
 
-## Phase 8 — AMD AMF
-
-Tasks: AMF via FFmpeg (`h264_amf`/`hevc_amf`/`av1_amf`) over d3d11va;
-capability detection via `AMFInit`; same option mapping; HDR metadata path;
-unit tests as Phase 7.
-
----
-
-## Phase 9 — Intel encoding (QSV)
-
-Tasks: FFmpeg `*_qsv` encoders over d3d11va (`AV_HWDEVICE_TYPE_QSV`);
-integrated + Arc detection; same option mapping; unit tests.
+> **Scope decision (user, 2026-08-15): NVIDIA-only port.** The brief's
+> phases 8 (AMD AMF) and 9 (Intel QSV) are intentionally dropped; later
+> phases are renumbered (so WASAPI is Phase 8 here). Hardware encoding is
+> NVIDIA NVENC only; non-NVIDIA machines fall back to software encoding
+> (`-encoder cpu`, libx264 — upstream behavior, brief §57: never fake
+> support). Capture stays GPU-agnostic (WGC/DXGI are adapter-neutral); only
+> *encoding* is NVIDIA-only. Recorded in `docs/windows-port-parity.md` and
+> `docs/architecture.md`.
 
 ---
 
-## Phase 10 — WASAPI audio
+## Phase 8 — WASAPI audio
 
 Tasks:
 
@@ -238,7 +238,7 @@ Tasks:
 
 ---
 
-## Phase 11 — Replay
+## Phase 9 — Replay
 
 Tasks: replay is already portable; verify end-to-end on Windows:
 RAM + disk buffers, save full/N-seconds, `-restart-replay-on-save`, `-df`,
@@ -247,7 +247,7 @@ keyframe boundaries, save-path naming, temp-file cleanup on crash (simulated).
 
 ---
 
-## Phase 12 — UI
+## Phase 10 — UI
 
 Tasks:
 
@@ -265,7 +265,7 @@ Tasks:
 
 ---
 
-## Phase 13 — Hotkeys + notifications + IPC integration
+## Phase 11 — Hotkeys + notifications + IPC integration
 
 Tasks:
 
@@ -280,7 +280,7 @@ Tasks:
 
 ---
 
-## Phase 14 — Startup + Windows integration
+## Phase 12 — Startup + Windows integration
 
 Tasks: startup option implementation; clean shutdown on session end/logoff;
 file associations (optional, documented); `-sc` script execution on Windows
@@ -288,14 +288,7 @@ file associations (optional, documented); `-sc` script execution on Windows
 
 ---
 
-## Phase 15 — (was notifications/startup detail) fold into 13/14.
-
-*(Phase numbering follows the brief's 20-phase list; notification/startup work
-lives in Phases 13–14.)*
-
----
-
-## Phase 16 — Installer + portable ZIP
+## Phase 13 — Installer + portable ZIP
 
 Tasks:
 
@@ -310,7 +303,7 @@ Tasks:
 
 ---
 
-## Phase 17 — GitHub Actions (single workflow, full pipeline)
+## Phase 14 — GitHub Actions (single workflow, full pipeline)
 
 Tasks: complete `windows-release.yml`:
 
@@ -333,7 +326,7 @@ changes, limitations, hardware notes, attribution.
 
 ---
 
-## Phase 18 — Performance
+## Phase 15 — Performance
 
 Tasks: measure CPU/GPU overhead with documented methodology
 (`docs/performance.md`); compare against OBS/NVIDIA/Game Bar where hardware
@@ -342,7 +335,7 @@ replay buffer sizing; publish real measurements only.
 
 ---
 
-## Phase 19 — Parity testing
+## Phase 16 — Parity testing
 
 Tasks: walk `docs/windows-port-parity.md` to FULL/PARTIAL per feature; fix
 gaps; document every PARTIAL/NOT-POSSIBLE with a reason (brief §57: never fake
@@ -350,7 +343,7 @@ support).
 
 ---
 
-## Phase 20 — Release packaging
+## Phase 17 — Release packaging
 
 Tasks: final validation gate (build→test→package→release all green),
 release notes, installer + zip published. Acceptance checklist from the brief
@@ -361,7 +354,7 @@ release notes, installer + zip published. Acceptance checklist from the brief
 ## CI hardware reality (brief §64 — honored, not hidden)
 
 * GitHub-hosted Windows runners have a virtual display and (as of writing) no
-  guaranteed physical GPU. NVENC/AMF/QSV/WGC-against-real-desktop,
+  guaranteed physical GPU. NVENC/WGC-against-real-desktop,
   multi-monitor, HDR and high-refresh capture **cannot be claimed as CI-tested**.
 * Mitigations: (1) the production build always compiles the *real* capture and
   encoder backends (no crippled CI build); (2) all pure logic (capability
@@ -381,16 +374,13 @@ release notes, installer + zip published. Acceptance checklist from the brief
 | 5 | Windows Graphics Capture | pending |
 | 6 | DXGI fallback | pending |
 | 7 | NVIDIA NVENC | pending |
-| 8 | AMD AMF | pending |
-| 9 | Intel encoding | pending |
-| 10 | WASAPI | pending |
-| 11 | Replay | pending |
-| 12 | UI | pending |
-| 13 | Hotkeys/notifications/IPC | pending |
-| 14 | Startup/integration | pending |
-| 15 | — (folded into 13–14) | — |
-| 16 | Installer + portable zip | pending |
-| 17 | GitHub Actions full pipeline | pending |
-| 18 | Performance | pending |
-| 19 | Parity testing | pending |
-| 20 | Release packaging | pending |
+| 8 | WASAPI | pending |
+| 9 | Replay | pending |
+| 10 | UI | pending |
+| 11 | Hotkeys/notifications/IPC | pending |
+| 12 | Startup/integration | pending |
+| 13 | Installer + portable zip | pending |
+| 14 | GitHub Actions full pipeline | pending |
+| 15 | Performance | pending |
+| 16 | Parity testing | pending |
+| 17 | Release packaging | pending |

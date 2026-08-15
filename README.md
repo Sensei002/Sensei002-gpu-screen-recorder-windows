@@ -33,7 +33,7 @@ with native Windows implementations.
 | Linux | Windows |
 |---|---|
 | X11 / Wayland / DRM-KMS capture | Windows Graphics Capture (primary) + DXGI Desktop Duplication (fallback) |
-| VAAPI / Vulkan encoders | NVENC (NVIDIA), AMF (AMD), QSV (Intel), software fallback — all via FFmpeg |
+| VAAPI / Vulkan encoders | NVENC (NVIDIA) + software fallback — via FFmpeg; AMD/Intel encoders intentionally out of scope (NVIDIA-only port) |
 | PulseAudio / PipeWire | WASAPI (loopback + capture) |
 | POSIX signals / unix sockets | named events + named-pipe IPC (same JSON protocol) |
 | systemd / XDG autostart | HKCU Run / Startup folder |
