@@ -77,14 +77,21 @@ execute_process(
 separate_arguments(GSR_FFMPEG_CFLAGS_LIST UNIX_COMMAND "${GSR_FFMPEG_CFLAGS}")
 separate_arguments(GSR_FFMPEG_LIBS_FLAGS_LIST UNIX_COMMAND "${GSR_FFMPEG_LIBS_FLAGS}")
 
-# srt.pc's Libs.private contributes -lpthread, which resolves to the
-# winpthread DLL import library (libpthread.dll.a). We link winpthread
-# statically below (-Wl,-Bstatic -lwinpthread), and once both the import
-# library AND a static member end up in the link (e.g. when an FFmpeg
-# member references a pthread symbol only the static lib provides) the
-# linker fails with `multiple definition of pthread_*`. Drop -lpthread so
-# the static archive is the sole pthread provider.
-list(FILTER GSR_FFMPEG_LIBS_FLAGS_LIST EXCLUDE REGEX "^-lpthread$")
+# srt.pc's Libs.private contributes MinGW runtime flags that resolve to
+# DLL import libraries: -lpthread (libpthread.dll.a), -lstdc++
+# (libstdc++-6.dll), -lgcc_s (libgcc_s_seh-1.dll), -latomic
+# (libatomic-1.dll). Two problems:
+#   1. -lpthread next to our static winpthread gives `multiple definition
+#      of pthread_*` once a member of both ends up in the link.
+#   2. The others only become DLL dependencies when a member is pulled;
+#      binaries that pull deep FFmpeg members (via muxer.o, which touches
+#      SRT/C++) then fail on the plain runner with a silent missing-DLL
+#      crash. Filter all four; they are provided statically by the
+#      runtime block below and by -static-libgcc/-static-libstdc++ on the
+#      executable targets.
+foreach(bad_lib IN ITEMS "-lpthread" "-lstdc++" "-lgcc_s" "-latomic")
+    list(FILTER GSR_FFMPEG_LIBS_FLAGS_LIST EXCLUDE REGEX "^${bad_lib}$")
+endforeach()
 
 # ---------------------------------------------------------------------------
 # gsr_core — the portable engine core (upstream sources + Windows shims).
@@ -140,12 +147,16 @@ target_link_libraries(gsr_core PUBLIC
     advapi32 # SystemFunction036 (RtlGenRandom) for generate_random_characters
     shell32  # SHGetKnownFolderPath (gsr_platform_get_videos_dir)
     ole32    # CoTaskMemFree (gsr_platform_get_videos_dir)
-    # winpthreads: MSYS2's gcc 16 dropped the -static-libwinpthread driver
-    # flag, so force the static archive at the linker level (encoder.c uses
-    # pthread mutexes; the executables must run without the MSYS2 runtime
-    # DLLs, which the workflow's `test` job relies on).
+    # MinGW runtime libs, statically (the executables must run without the
+    # MSYS2 runtime DLLs, which the workflow's `test` job relies on):
+    #   - winpthreads: MSYS2's gcc 16 dropped the -static-libwinpthread
+    #     driver flag, so force the static archive at the linker level
+    #     (encoder.c uses pthread mutexes).
+    #   - atomic: pulled by deep FFmpeg members; link the static archive so
+    #     no libatomic-1.dll is needed.
     "-Wl,-Bstatic"
     "-lwinpthread"
+    "-latomic"
     "-Wl,-Bdynamic")
 
 # ---------------------------------------------------------------------------
