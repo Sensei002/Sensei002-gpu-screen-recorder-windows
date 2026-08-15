@@ -74,7 +74,10 @@ jobs:
             mingw-w64-x86_64-pkgconf
             mingw-w64-x86_64-make
             mingw-w64-x86_64-python
-            mingw-w64-x86_64-python-pip   # for gcovr (coverage report, Phase 3)
+            # python-pip is the MSYS package (like make/patch below): it
+            # provides pip for the MSYS python, which is used only to run
+            # gcovr (pure python) for the Phase 3 coverage report.
+            python-pip
             mingw-w64-x86_64-curl
             make
             patch
@@ -166,7 +169,9 @@ jobs:
       # engine; tests and vendored externals are excluded from the report.
       - name: Install gcovr
         shell: msys2 {0}
-        run: pip install --quiet gcovr
+        run: |
+          pip install --quiet gcovr
+          gcovr --version
 
       - name: Configure (coverage build)
         shell: msys2 {0}
