@@ -30,7 +30,9 @@ bool gsr_platform_ipc_parse_request(const char *data, size_t size, int64_t *id, 
     if(has_data)
         *has_data = false;
 
-    sj_Reader reader = sj_reader(data, size);
+    /* sj takes a mutable char*; the reader never writes back (upstream
+       passes its read buffer the same way). */
+    sj_Reader reader = sj_reader((char*)data, size);
     const sj_Value root = sj_read(&reader);
     if(root.type != SJ_OBJECT) {
         snprintf(error_message, error_message_size, "expected the request to be a json object");

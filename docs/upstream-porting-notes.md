@@ -144,6 +144,24 @@ future phases and upstream syncs should assume them:
   instead of a full ~8 min rebuild. Source pins live in
   `scripts/ffmpeg-sources.sh` precisely so the cache key can track them
   independently of build-script changes.
+* **A header literally named `time.h` on the compiler's `-I` path shadows
+  the system `<time.h>`.** Every `#include <time.h>` (including the one the
+  compat shim force-includes into every translation unit) resolves to the
+  `-I` copy first, silently stripping `time()`/`localtime()`/`strftime()`
+  and the `_timespec64` machinery winpthreads' `pthread.h` depends on. The
+  port's own time header is therefore `platform/include/gsr_time.h`, and no
+  other port header is named after a system header.
+* **Upstream headers that drag in X11/KMS/DRM compile on Windows via stub
+  headers, not by editing upstream.** `recorder/muxer.h` →
+  `capture_setup.h` pulls in `cursor.h` (XEvent), `kms/kms_shared.h`
+  (`<drm_mode.h>` — not even present on Windows) and `<X11/Xlib.h>`. The
+  port provides `platform/windows/stubs/X11/Xlib.h` (empty: the X11 types
+  come from egl.h's `_WIN32` branch) and `platform/windows/stubs/drm_mode.h`
+  (a dummy `struct hdr_output_metadata`), plus an opaque `XEvent` typedef in
+  the compat shim, so the *real* upstream `muxer.c` compiles and its naming
+  contract is tested against upstream code rather than a reimplementation.
+  These stubs will be needed again whenever more of the recorder pipeline
+  (recorder.c etc.) joins the Windows build.
 
 ## 4. Known behavioral differences (kept up to date per phase)
 

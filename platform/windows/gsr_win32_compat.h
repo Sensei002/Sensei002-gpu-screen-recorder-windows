@@ -54,6 +54,17 @@
 typedef intptr_t ssize_t;
 #endif
 
+/* ---- X11 types used by upstream headers --------------------------------
+ * A few upstream headers compiled on Windows for their portable parts
+ * (cursor.h, recorder/capture_setup.h) reference X11 types in function
+ * signatures. Display/Window/XID/Bool are provided by egl.h's _WIN32
+ * branch; XEvent is not, so it is declared here as an opaque type (the
+ * port never dereferences it; see also the stubs/ include dir). */
+#ifndef GSR_STUB_XEVENT_DEFINED
+#define GSR_STUB_XEVENT_DEFINED
+typedef struct _XEvent XEvent;
+#endif
+
 /* ---- S_IS* / permission macros (MinGW-w64 defines S_IF* but not these) - */
 #ifndef S_ISREG
 #define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)

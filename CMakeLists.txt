@@ -119,7 +119,11 @@ add_library(gsr_core STATIC ${GSR_CORE_SOURCES})
 target_include_directories(gsr_core PUBLIC
     ${CMAKE_SOURCE_DIR}/platform/include   # the port's own interfaces (Phase 3)
     ${CMAKE_SOURCE_DIR}/upstream/include
-    ${CMAKE_SOURCE_DIR}/platform/windows)
+    ${CMAKE_SOURCE_DIR}/platform/windows
+    # Stub X11/DRM headers so upstream headers that reference X11/KMS types
+    # (cursor.h, capture_setup.h) compile on Windows; see
+    # docs/upstream-porting-notes.md §3c.
+    ${CMAKE_SOURCE_DIR}/platform/windows/stubs)
 target_compile_options(gsr_core PUBLIC ${GSR_FFMPEG_CFLAGS_LIST})
 target_link_libraries(gsr_core PUBLIC
     m
