@@ -41,6 +41,10 @@
 static int num_failures = 0;
 static int num_checks = 0;
 
+/* Crash checkpoint: printed to stderr (unbuffered) so it survives a
+   segfault even when stdout is lost. Temporary Phase 3 CI diagnostics. */
+#define NOTE(...) fprintf(stderr, "NOTE " __VA_ARGS__)
+
 #define CHECK(cond) do { \
     ++num_checks; \
     if(!(cond)) { \
@@ -68,6 +72,7 @@ static bool is_timestamp(const char *str) {
 
 static void test_filesystem(void) {
     printf("-- filesystem\n");
+    NOTE("filesystem: start\n");
 
     /* Windows-invalid characters -> '_' */
     char out[128];
@@ -112,6 +117,7 @@ static void test_filesystem(void) {
     /* UTF-8 content is preserved byte-for-byte */
     CHECK(gsr_platform_path_sanitize_filename("Caf\u00e9 \u2014 \u65e5\u672c\u8a9e", out, sizeof(out)));
     CHECK(strcmp(out, "Caf\u00e9 \u2014 \u65e5\u672c\u8a9e") == 0);
+    NOTE("filesystem: sanitize done\n");
 
     /* Path joining */
     CHECK(gsr_platform_path_join("C:/foo", "bar", out, sizeof(out)));
@@ -124,7 +130,10 @@ static void test_filesystem(void) {
     CHECK(strcmp(out, "bar") == 0);
     CHECK(gsr_platform_path_join("C:/foo", "", out, sizeof(out)));
     CHECK(strcmp(out, "C:/foo") == 0);
-    CHECK(!gsr_platform_path_join("a", "b", out, 4)); /* too small */
+    /* "a/b" + NUL is exactly 4 bytes, so a 4-byte buffer fits; 3 does not. */
+    CHECK(!gsr_platform_path_join("a", "b", out, 3)); /* too small */
+
+    NOTE("filesystem: path-join done\n");
 
     /* UTF-8 <-> UTF-16 round-trip */
     wchar_t wide[128];
@@ -134,6 +143,7 @@ static void test_filesystem(void) {
     CHECK(strcmp(utf8, "Caf\u00e9 \u2014 \u65e5\u672c\u8a9e") == 0);
     /* Invalid UTF-8 is rejected */
     CHECK(!gsr_platform_utf8_to_wide("\xff\xfe", wide, 128));
+    NOTE("filesystem: utf8 done\n");
 
     /* Videos dir: non-empty, looks absolute (drive letter or UNC). */
     char videos_dir[512];
@@ -155,6 +165,7 @@ static void test_filesystem(void) {
     CHECK(gsr_string_ends_with(base, ".mp4"));
     remove(filepath);
     _rmdir("test-save-path");
+    NOTE("filesystem: save-filepath done\n");
 
     /* -df date folders: <dir>/YYYY-MM-DD/Replay_HH-MM-SS.ext */
     char date_only[32];
@@ -459,6 +470,8 @@ static void test_display_and_misc(void) {
 }
 
 int main(void) {
+    /* Unbuffered stdout: section headers survive a crash for diagnosis. */
+    setvbuf(stdout, NULL, _IONBF, 0);
     printf("platform-test: Phase 3 platform layer unit tests\n");
 
     test_filesystem();
