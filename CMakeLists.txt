@@ -101,9 +101,15 @@ target_include_directories(gsr_core PUBLIC
 target_compile_options(gsr_core PUBLIC ${GSR_FFMPEG_CFLAGS_LIST})
 target_link_libraries(gsr_core PUBLIC
     m
-    pthread # encoder.c uses pthread mutexes (winpthreads from MSYS2)
     ${GSR_FFMPEG_LIBS_FLAGS_LIST}
-    advapi32) # SystemFunction036 (RtlGenRandom) for generate_random_characters
+    advapi32 # SystemFunction036 (RtlGenRandom) for generate_random_characters
+    # winpthreads: MSYS2's gcc 16 dropped the -static-libwinpthread driver
+    # flag, so force the static archive at the linker level (encoder.c uses
+    # pthread mutexes; the executables must run without the MSYS2 runtime
+    # DLLs, which the workflow's `test` job relies on).
+    "-Wl,-Bstatic"
+    "-lwinpthread"
+    "-Wl,-Bdynamic")
 
 # ---------------------------------------------------------------------------
 # Tests
@@ -122,9 +128,12 @@ target_link_libraries(gsr-core-test PRIVATE gsr_core)
 
 # Link the test executables against the static MinGW runtime so they can be
 # re-run by the workflow's `test` job without the MSYS2 environment.
+# Note: only -static-libgcc goes here; winpthread is linked statically via
+# the gsr_core PUBLIC link flags (gcc 16 no longer accepts
+# -static-libwinpthread).
 foreach(target ci-smoke compat-probe gsr-core-test)
     set_target_properties(${target} PROPERTIES
-        LINK_FLAGS "-static-libgcc -static-libwinpthread")
+        LINK_FLAGS "-static-libgcc")
 endforeach()
 
 enable_testing()
