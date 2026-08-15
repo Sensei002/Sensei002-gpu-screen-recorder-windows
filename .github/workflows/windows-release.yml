@@ -209,6 +209,7 @@ jobs:
       - name: Generate coverage report
         shell: msys2 {0}
         run: |
+          mkdir -p build/coverage-report
           gcovr --root . --object-directory build/coverage \
             --html --html-details -o build/coverage-report/index.html \
             --exclude 'build/.*' \
