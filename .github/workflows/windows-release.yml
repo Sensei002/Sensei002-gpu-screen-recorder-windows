@@ -66,6 +66,11 @@ jobs:
       # NOTE: comments must NOT go inside the folded install list below —
       # setup-msys2 passes each line to pacman, so comment words would be
       # treated as package names.
+      # python-lxml/python-jinja/python-pygments/python-packaging: gcovr's
+      # runtime deps for the MSYS python (the pip in use). lxml has no
+      # prebuilt wheel for the MSYS python, so pip would build it from
+      # source and fail on missing libxml2 headers; pacman ships all four
+      # for the MSYS python directly.
       - name: Setup MSYS2 (MINGW64)
         uses: msys2/setup-msys2@v2
         with:
@@ -80,10 +85,6 @@ jobs:
             mingw-w64-x86_64-make
             mingw-w64-x86_64-python
             python-pip
-            # gcovr's runtime deps for the MSYS python (the pip in use).
-            # lxml has no prebuilt wheel for the MSYS python, so pip would
-            # build it from source and fail on missing libxml2 headers;
-            # pacman ships all four for the MSYS python directly.
             python-lxml
             python-jinja
             python-pygments
