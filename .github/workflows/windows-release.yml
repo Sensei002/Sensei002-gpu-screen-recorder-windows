@@ -60,7 +60,12 @@ jobs:
           cmake --version
 
       # MSYS2 MINGW64 provides the MinGW-w64 GCC toolchain. The MSYS packages
-      # (patch) and mingw-w64 packages are both installed here.
+      # (make, patch, python-pip) and mingw-w64 packages are both installed
+      # here. python-pip provides pip for the MSYS python, used only to run
+      # gcovr (pure python) for the Phase 3 coverage report.
+      # NOTE: comments must NOT go inside the folded install list below —
+      # setup-msys2 passes each line to pacman, so comment words would be
+      # treated as package names.
       - name: Setup MSYS2 (MINGW64)
         uses: msys2/setup-msys2@v2
         with:
@@ -74,9 +79,6 @@ jobs:
             mingw-w64-x86_64-pkgconf
             mingw-w64-x86_64-make
             mingw-w64-x86_64-python
-            # python-pip is the MSYS package (like make/patch below): it
-            # provides pip for the MSYS python, which is used only to run
-            # gcovr (pure python) for the Phase 3 coverage report.
             python-pip
             mingw-w64-x86_64-curl
             make
