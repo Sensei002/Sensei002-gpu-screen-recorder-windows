@@ -64,6 +64,13 @@ struct __declspec(uuid("a9b3d012-3df2-4ee3-b8d1-8695f457d3c1")) IDirect3DDxgiInt
     virtual HRESULT STDMETHODCALLTYPE GetInterface(REFIID iid, void **p) = 0;
 };
 
+/* The interop IIDs as plain GUID constants. winrt::guid_of<T>() relies on
+ * __mingw_uuidof, which GCC cannot resolve for these locally-declared
+ * interfaces ("used before its definition" — a known MinGW quirk), so the
+ * code below passes explicit GUID values instead of guid_of. */
+static const GUID GSR_IID_IGraphicsCaptureItemInterop = {0x3628e81b, 0x3cac, 0x4c60, {0xb7, 0xf4, 0x23, 0xce, 0x0e, 0x0c, 0x33, 0x56}};
+static const GUID GSR_IID_IDirect3DDxgiInterfaceAccess = {0xa9b3d012, 0x3df2, 0x4ee3, {0xb8, 0xd1, 0x86, 0x95, 0xf4, 0x57, 0xd3, 0xc1}};
+
 /* CreateDirect3D11DeviceFromDXGIDevice — free function exported by
  * Windows.Graphics.DirectX.Direct3D11.dll (no import lib/header needed). */
 typedef HRESULT(WINAPI *CreateDirect3D11DeviceFromDXGIDevice_t)(IDXGIDevice *dxgiDevice, void **graphicsDevice);
@@ -160,12 +167,15 @@ static int wgc_start(gsr_capture *cap, gsr_capture_metadata *capture_metadata) {
             gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_capture_wgc_start: CreateDirect3D11DeviceFromDXGIDevice failed (0x%08lx)", (unsigned long)hr);
             return -1;
         }
-        self->d3d_device = winrt::attach_abi<winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice>(raw_winrt_device);
+        /* Wrap the raw ABI pointer into the projected type, taking
+           ownership (this MSYS2 cppwinrt has no attach_abi<T>(void*)). */
+        self->d3d_device = winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice{ raw_winrt_device, winrt::take_ownership_from_abi };
 
         /* 3. Capture item: monitor or window via the interop factory. */
         winrt::com_ptr<IGraphicsCaptureItemInterop> interop;
-        hr = RoGetActivationFactory(winrt::hstring(L"Windows.Graphics.Capture.GraphicsCaptureItem"),
-            winrt::guid_of<IGraphicsCaptureItemInterop>(), interop.put_void());
+        winrt::hstring factory_name{ L"Windows.Graphics.Capture.GraphicsCaptureItem" };
+        hr = RoGetActivationFactory(static_cast<HSTRING>(winrt::get_abi(factory_name)),
+            GSR_IID_IGraphicsCaptureItemInterop, interop.put_void());
         if(FAILED(hr)) {
             gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_capture_wgc_start: no WGC interop factory (0x%08lx)", (unsigned long)hr);
             return -1;
@@ -180,11 +190,14 @@ static int wgc_start(gsr_capture *cap, gsr_capture_metadata *capture_metadata) {
             return -1;
         }
 
-        /* 4. Frame pool + session (2 buffers; BGRA8 = upstream BGR source). */
-        const winrt::Windows::Foundation::Size item_size = self->item.Size();
+        /* 4. Frame pool + session (2 buffers; BGRA8 = upstream BGR source).
+           Note: this projection names the enum DirectXPixelFormat and the
+           item size type SizeInt32 (the older Direct3DPixelFormat /
+           Foundation::Size names are gone). */
+        const winrt::Windows::Graphics::SizeInt32 item_size = self->item.Size();
         self->frame_pool = winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool::Create(
             self->d3d_device,
-            winrt::Windows::Graphics::DirectX::Direct3DPixelFormat::B8G8R8A8UIntNormalized,
+            winrt::Windows::Graphics::DirectX::DirectXPixelFormat::B8G8R8A8UIntNormalized,
             2, item_size);
         self->session = self->frame_pool.CreateCaptureSession(self->item);
         if(!self->options.cursor) {
@@ -235,7 +248,7 @@ static void wgc_tick(gsr_capture *cap) {
 
             /* Unwrap the WinRT surface to the raw D3D11 texture. */
             winrt::com_ptr<IDirect3DDxgiInterfaceAccess> access;
-            frame.Surface().as(winrt::guid_of<IDirect3DDxgiInterfaceAccess>(), access.put_void());
+            frame.Surface().as(winrt::guid(GSR_IID_IDirect3DDxgiInterfaceAccess), access.put_void());
             winrt::com_ptr<ID3D11Texture2D> texture;
             access->GetInterface(GSR_IID_ID3D11Texture2D, texture.put_void());
 
