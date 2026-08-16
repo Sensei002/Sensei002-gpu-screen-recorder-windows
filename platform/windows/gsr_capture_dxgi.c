@@ -244,7 +244,8 @@ static int dxgi_start(gsr_capture *cap, gsr_capture_metadata *capture_metadata) 
     }
     output->lpVtbl->Release(output);
 
-    HRESULT hr = output1->lpVtbl->DuplicateOutput(output1, self->device, &self->duplication);
+    /* pDevice is IUnknown* — C has no implicit upcast, so cast explicitly. */
+    HRESULT hr = output1->lpVtbl->DuplicateOutput(output1, (IUnknown*)self->device, &self->duplication);
     if(FAILED(hr)) {
         gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_capture_dxgi_start: DuplicateOutput failed (0x%08lx) — desktop duplication unavailable for %s",
             (unsigned long)hr, self->target.name);
@@ -306,7 +307,7 @@ static void dxgi_tick(gsr_capture *cap) {
         gsr_log(GSR_LOG_LEVEL_INFO, "gsr_capture_dxgi_tick: desktop access lost, recreating duplication");
         dxgi_release_duplication(self); /* keeps |output1| for re-create */
         if(self->output1 && self->device) {
-            HRESULT hr2 = self->output1->lpVtbl->DuplicateOutput(self->output1, self->device, &self->duplication);
+            HRESULT hr2 = self->output1->lpVtbl->DuplicateOutput(self->output1, (IUnknown*)self->device, &self->duplication);
             if(FAILED(hr2)) {
                 gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_capture_dxgi_tick: re-DuplicateOutput failed (0x%08lx)", (unsigned long)hr2);
                 self->should_stop = true;
@@ -522,7 +523,7 @@ bool gsr_platform_capture_dxgi_available(void) {
     }
 
     IDXGIOutputDuplication *duplication = NULL;
-    const HRESULT hr = output1->lpVtbl->DuplicateOutput(output1, device, &duplication);
+    const HRESULT hr = output1->lpVtbl->DuplicateOutput(output1, (IUnknown*)device, &duplication);
     if(SUCCEEDED(hr) && duplication)
         duplication->lpVtbl->Release(duplication);
     else if(FAILED(hr))
