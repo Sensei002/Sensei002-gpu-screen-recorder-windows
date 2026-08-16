@@ -516,6 +516,33 @@ the MSYS2 runs), coverage 52.9%. Lessons in
 
 ## Phase 10 — UI
 
+**Milestone A — mgl Win32 backend: ✅ complete (CI-green, run `31970849892`).**
+
+- Vendored the UI snapshot (`ui/` at r720, plain files — `.gitmodules` removed)
+  exactly as the Phase 1 plan pinned: mglpp + vendored mgl are self-contained
+  (no pango in the compiled milestone-A set; `MGL_NO_TEXT` until milestone B).
+- Full `mgl_window` Win32 backend (`window/win32.c`): hidden/normal/dialog/
+  notification/overlay window types, WGL context (32-bit RGBA, depth/stencil,
+  alpha fallback), synthetic-input-tested event pipeline (key/char incl.
+  surrogate pairs, mouse, wheel, resize, focus), clipboard round-trip,
+  monitor enumeration, fullscreen toggle, size limits, subclassing via
+  `init_from_existing_window`, `key_repeat` state.
+- GL loader: opengl32.dll exports only GL 1.1 — `glBlendFuncSeparate` (1.4),
+  VBOs (1.5), shaders (2.0) resolve via `wglGetProcAddress` after the context
+  is current (`mgl_gl_load_windows_extensions`), NULL-guarded in
+  `mgl_graphics_make_context_current`; GDI Generic (CI) runs GL 1.1 only and
+  the renderer must not require the extensions.
+- `mgl-win32-test` (headless, **68 checks, 0 failures**): creation, WGL
+  context + GL sanity on GDI Generic, synthetic input events, clipboard,
+  monitors, fullscreen, size limits, subclassing — all validated in CI.
+- WGL chosen over ANGLE because mgl's renderer is fixed-function GL 1.x
+  (`glBegin`/`glOrtho`) which ANGLE (GLES2-only) cannot provide; `opengl32.dll`
+  works on CI (GDI Generic) and real GPUs with zero runtime deps.
+
+Remaining: milestone B (mgl text via pango — the decision was to keep
+pango+fontconfig rather than reimplement shaping), then the UI app itself
+(platform modules, RPC, overlay, startup, CI smoke).
+
 Tasks:
 
 1. mgl Win32 backend (window, input, WGL/EGL context) — the big item.
@@ -644,7 +671,7 @@ release notes, installer + zip published. Acceptance checklist from the brief
 | 7 | NVIDIA NVENC | ✅ complete (milestone A recorder end-to-end + milestone B d3d11va encode path + honest probe) |
 | 8 | WASAPI audio | ✅ complete (milestone A backend + milestone B listing/session-enum, A/V-sync harness, device-change auto-switch; per-app capture documented unsupported) |
 | 9 | Replay | ✅ complete (RAM + disk buffers verified end-to-end: 2s + FULL saves, -restart-replay-on-save proven, -df naming; crash-safe disk buffer cleanup via stale-session sweep; tests: trim, keyframe boundaries, simulated-crash cleanup) |
-| 10 | UI | pending |
+| 10 | UI | 🔄 in progress — milestone A (mgl Win32 backend: window, input, WGL context) ✅ complete + CI-green; text/atlas + UI app remain |
 | 11 | Hotkeys/notifications/IPC | pending |
 | 12 | Startup/integration | pending |
 | 13 | Installer + portable zip | pending |

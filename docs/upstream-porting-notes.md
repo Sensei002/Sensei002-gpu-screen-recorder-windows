@@ -772,3 +772,44 @@ differences (not fixable, by design):
   (real content > 0.3s); the robust proof of `-restart-replay-on-save` is
   the post-restart save being clearly SHORTER than the pre-restart FULL
   save, not exact durations.
+
+## 3m. Phase 10 (milestone A) CI validation lessons (mgl Win32 backend, WGL)
+
+The vendored UI (`ui/`, mglpp r720) needed a Win32 window backend + GL
+loader before any UI code could build. Five CI-only bugs, all now fixed:
+
+* **Microsoft's opengl32.dll exports only the GL 1.1 core.** Everything
+  from `glBlendFuncSeparate` (1.4) to VBOs (1.5) and shaders (2.0) must be
+  resolved via `wglGetProcAddress` — and that requires a CURRENT context,
+  which does not exist at `mgl_init` time. The first attempt hard-failed
+  the loader on every non-1.1 "required" symbol; the fix resolves them
+  lazily (`mgl_gl_load_windows_extensions`) right after the WGL context is
+  made current, filling NULL slots only.
+* **`mgl_graphics_make_context_current` segfaulted through a NULL
+  `glBlendFuncSeparate` on GDI Generic** (GL 1.1, CI's software GL) — and
+  the crash happened INSIDE `mgl_window_create`, so the test's FAIL line
+  was never written: the only symptom was a bare `SegFault` with zero test
+  output. Guard extension-dependent state setup behind NULL checks; a
+  missing extension is normal on GDI Generic, not fatal.
+* **Ordering matters: the extension load must happen before the GL state
+  setup that uses the extensions.** The first version loaded extensions
+  AFTER `make_context_current` returned, i.e. after the state setup that
+  needed `glBlendFuncSeparate`. Moving the load into the success path
+  fixed both the ordering and made the win32.c hook redundant.
+* **A zeroed `mgl_window_create_params` requests `MGL_GRAPHICS_API_EGL`**
+  (EGL is enum value 0), which the Win32 backend correctly rejects —
+  "EGL is not supported on Windows yet". Tests must set
+  `params.graphics_api = MGL_GRAPHICS_API_WGL` explicitly.
+* **Two test-expectation traps.** (1) Showing a hidden window queues a
+  real `WM_SIZE` (the pre-show size), so a synthetic `WM_SIZE` test must
+  drain events first or the stale resize is polled. (2) `mgl_window.size`
+  is the CLIENT rect — frame chrome excluded — so subclassed-window size
+  checks must compare against `GetClientRect`, not the outer window rect.
+* **`sys/mman.h` does not exist on MinGW.** `fileutils.c` got a
+  `MapViewOfFile` implementation under `#ifdef _WIN32` (with `O_BINARY` —
+  the §3l text-mode lesson applies to its `read` path too), and the
+  Linux-only mmap helper is compiled out.
+* **The `-static-libwinpthread` driver flag is C++-only.** The Phase 2
+  lesson again, re-confirmed when linking the C mgl test — the static
+  runtimes are handled by the core's link flags, tests just need
+  `-static-libgcc`.
