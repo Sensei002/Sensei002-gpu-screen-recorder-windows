@@ -46,6 +46,7 @@
  * Windows port addition — see docs/upstream-porting-notes.md §3i.
  */
 #include "../../upstream/include/sound.h"
+#include "../../upstream/include/recorder/audio_codec.h" /* GSR_AUDIO_SAMPLE_RATE */
 #include "../../upstream/include/log.h"
 #include "../../upstream/include/utils.h"
 
