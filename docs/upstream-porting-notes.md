@@ -389,6 +389,50 @@ future phases and upstream syncs should assume them:
   and `GSR_ROT_180`. This is the same code path `wgc_capture()` takes,
   minus WGC itself.
 
+## 3g. Phase 6 CI validation lessons (DXGI Desktop Duplication)
+
+* **Desktop Duplication is the OPPOSITE of WGC on rotation.** WGC
+  delivers pre-rotated content (a rotated monitor's frame is already
+  upright). `IDXGIOutputDuplication::AcquireNextFrame` returns an
+  **un-rotated surface** in the native panel orientation, with the desktop
+  image rotated *within* it — a portrait 768x1024 monitor at 90° yields a
+  1024x768 surface (per the desktop-dup-api docs). So the DD backend's
+  `capture()` must pass the monitor's rotation to
+  `gsr_color_conversion_draw` and use the **rotated (effective) size** as
+  `source_size` — exactly the upstream KMS monitor pattern (`capture_size`
+  rotated, `texture_size` native). `video_size` is the rotated size.
+  The rotation mapping is `DXGI_MODE_ROTATION` minus one (IDENTITY=1 →
+  GSR_ROT_0, ROTATE90=2 → GSR_ROT_90, ...) since GSR_ROT_90 is a 90°
+  clockwise rotation, same as DXGI's.
+* **The DD surface format is ALWAYS `DXGI_FORMAT_B8G8R8A8_UNORM`**
+  regardless of the display mode — no HDR through this backend
+  (`set_hdr_metadata` returns false even for an HDR target), and the draw
+  always uses `GSR_SOURCE_COLOR_BGR`.
+* **`AcquireNextFrame`/`ReleaseFrame` are a strict pair.**
+  `ReleaseFrame` must be called before the next `AcquireNextFrame`, and
+  the frame's `IDXGIResource` stays valid only until then. The backend
+  releases the previous frame at the top of `tick()` before acquiring,
+  and `DXGI_ERROR_WAIT_TIMEOUT` (desktop unchanged) is a normal "no new
+  frame" — not an error. `DXGI_ERROR_ACCESS_LOST` (resolution change,
+  session lock, secure desktop) means re-create the duplication, not stop.
+* **`DuplicateOutput` requires the device on the SAME adapter as the
+  output** — a WARP device or a device on another adapter fails with
+  `DXGI_ERROR_UNSUPPORTED`. The shared-ANGLE-device path (Phase 5b) works
+  on a real GPU; the standalone probe creates a hardware device first and
+  falls back to WARP (which then fails honestly at DuplicateOutput).
+* **DD is pure C — no C++/WinRT needed** (unlike WGC): it is a DXGI/D3D11
+  COM interface, so `gsr_capture_dxgi.c` compiles with the plain C
+  toolchain. This also makes DD potentially available on Server SKUs
+  where WGC is not (WGC needs the WinRT interop runtime DLL that Server
+  SKUs lack; DD needs only DXGI 1.2+, which the runner's Basic Display
+  Adapter provides) — the `gsr_platform_capture_dxgi_available()` probe
+  (hardware device + `DuplicateOutput` on the primary monitor) is what
+  `gsr_platform_capture_backend_available` uses for the DXGI branch, and
+  `dxgi-self-test` exercises a REAL capture path on CI when it succeeds.
+* **IID lesson (repeat of §3d)**: `IID_IDXGIOutput1` and
+  `IID_ID3D11Texture2D` are declared as local GUID constants rather than
+  referencing mingw-w64's linkable symbols — the same DXGI IID trap.
+
 ## 4. Known behavioral differences (kept up to date per phase)
 
 See `docs/windows-port-parity.md` for the full matrix. Summary of *inherent*

@@ -98,7 +98,48 @@ gsr_capture *gsr_platform_capture_wgc_create(const gsr_platform_wgc_target *targ
  * what the self-test validates. Returns false when no frame yet. */
 bool gsr_platform_capture_wgc_get_frame(gsr_capture *cap, void **out_texture, int *width, int *height);
 
-/* ---- pure logic helpers (Phase 5, headless-tested) ----------------------- */
+/* ---- DXGI Desktop Duplication capture backend C API (Phase 6) ------------
+ * Monitor-only fallback backend (architecture §3.3; used when WGC is
+ * unavailable, e.g. older Windows or locked-down sessions). Implemented in
+ * platform/windows/gsr_capture_dxgi.c (plain C — Desktop Duplication is a
+ * DXGI/D3D11 COM interface, no C++/WinRT needed). Same gsr_capture vtable
+ * as WGC; the D3D11 texture is imported zero-copy via the shared ANGLE
+ * device exactly like WGC (EGL_ANGLE_d3d_texture_client_buffer). */
+
+typedef struct {
+    void *hmonitor;      /* HMONITOR (from gsr_platform_display_find_hmonitor) */
+    char name[256];      /* monitor name for logs */
+} gsr_platform_dxgi_target;
+
+typedef struct {
+    bool cursor;         /* capture the cursor (DD delivers the desktop image
+                            with the cursor already drawn in when visible) */
+    bool hdr;            /* target is HDR (informational; DD surfaces are
+                            always B8G8R8A8_UNORM, so HDR is not captured) */
+    gsr_egl *egl;        /* shared ANGLE GL table; when set, the backend uses
+                            the SAME D3D11 device ANGLE runs on so the
+                            per-frame import is zero-copy, and capture()
+                            draws into the color conversion. NULL = standalone
+                            (self-test). */
+} gsr_platform_dxgi_options;
+
+/* Creates the DD capture backend for the target monitor. Returns NULL (and
+   logs) when the desktop cannot be duplicated (see
+   gsr_platform_capture_backend_available). */
+gsr_capture *gsr_platform_capture_dxgi_create(const gsr_platform_dxgi_target *target, const gsr_platform_dxgi_options *options);
+
+/* Latest captured frame accessor (same contract as the WGC one): the D3D11
+   texture of the most recent DD frame and its native (un-rotated) size.
+   Returns false when no frame yet. */
+bool gsr_platform_capture_dxgi_get_frame(gsr_capture *cap, void **out_texture, int *width, int *height);
+
+/* Whether Desktop Duplication actually works on this system (probed at
+   runtime: a hardware D3D11 device can DuplicateOutput the primary
+   monitor). Unlike WGC, DD needs no WinRT interop runtime, so it can be
+   available on Server SKUs where WGC is not. */
+bool gsr_platform_capture_dxgi_available(void);
+
+/* ---- pure logic helpers (Phase 5/6, headless-tested) --------------------- */
 
 /* Rotation mapping: monitor rotation degrees -> gsr_rotation enum value.
  * The values match upstream's gsr_rotation (color_conversion.h) exactly
@@ -110,6 +151,15 @@ typedef enum {
     GSR_PLATFORM_WGC_ROT_270 = 3
 } gsr_platform_wgc_rotation;
 gsr_platform_wgc_rotation gsr_platform_wgc_rotation_from_monitor(int rotation_degrees);
+
+/* Rotation mapping: DXGI_MODE_ROTATION value (IDENTITY=1..ROTATE270=4) to
+   the gsr rotation enum. GSR_ROT_90 is a 90° clockwise rotation, matching
+   DXGI's, so the mapping is identity-minus-one. */
+gsr_platform_wgc_rotation gsr_platform_dxgi_rotation_from_dxgi(uint32_t dxgi_rotation);
+
+/* Whether the rotation swaps width and height (90°/270°) — the DD surface
+   is native/un-rotated, so the effective (video) size is the swapped one. */
+bool gsr_platform_dxgi_rotation_swaps_size(gsr_platform_wgc_rotation rotation);
 
 /* Flip bits, matching upstream's gsr_flip values (color_conversion.h). */
 #define GSR_PLATFORM_WGC_FLIP_NONE       0u

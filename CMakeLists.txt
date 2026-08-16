@@ -154,6 +154,9 @@ set(GSR_CORE_SOURCES
     # import helpers (EGL_ANGLE_d3d_texture_client_buffer) + the Windows
     # gl_get_gpu_info (upstream's lives in the X11/DRM utils.c, not built).
     platform/windows/gsr_egl_win32.c
+    # Phase 6: DXGI Desktop Duplication capture backend (monitor-only
+    # fallback; plain C — DD is a DXGI/D3D11 COM interface).
+    platform/windows/gsr_capture_dxgi.c
 )
 
 add_library(gsr_core STATIC ${GSR_CORE_SOURCES})
@@ -233,13 +236,20 @@ target_link_libraries(wgc-self-test PRIVATE gsr_core)
 add_executable(render-self-test tests/render-self-test/main.c)
 target_link_libraries(render-self-test PRIVATE gsr_core)
 
+# Phase 6 DXGI Desktop Duplication self-test: pure rotation logic (always
+# runs) + a live DD capture of the primary monitor. SKIPs (exit 0) where
+# DD is unavailable (locked-down sessions); on CI the runner's Basic
+# Display Adapter usually supports DD, exercising a REAL capture path.
+add_executable(dxgi-self-test tests/dxgi-self-test/main.c)
+target_link_libraries(dxgi-self-test PRIVATE gsr_core)
+
 # Link the test executables against the static MinGW runtime so they can be
 # re-run by the workflow's `test` job without the MSYS2 environment.
 # -static-libgcc works with the C driver; the C++ runtime (libstdc++.a),
 # winpthread and atomic are already linked statically via the gsr_core
 # PUBLIC link flags above (-static-libstdc++/-static-libwinpthread are
 # driver options that do nothing when linking with cc).
-foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test)
+foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test dxgi-self-test)
     set_target_properties(${target} PROPERTIES
         LINK_FLAGS "-static-libgcc")
 endforeach()
@@ -250,3 +260,4 @@ add_test(NAME gsr-core-test COMMAND gsr-core-test)
 add_test(NAME platform-test COMMAND platform-test)
 add_test(NAME wgc-self-test COMMAND wgc-self-test)
 add_test(NAME render-self-test COMMAND render-self-test)
+add_test(NAME dxgi-self-test COMMAND dxgi-self-test)

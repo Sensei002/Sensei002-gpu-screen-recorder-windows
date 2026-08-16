@@ -177,6 +177,8 @@ jobs:
           .\build\cmake\wgc-self-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\cmake\render-self-test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\cmake\dxgi-self-test.exe
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -189,6 +191,7 @@ jobs:
             build/cmake/platform-test.exe
             build/cmake/wgc-self-test.exe
             build/cmake/render-self-test.exe
+            build/cmake/dxgi-self-test.exe
           if-no-files-found: error
 
       # ---------------------------------------------------------------------
@@ -274,6 +277,8 @@ jobs:
           .\build\bin\wgc-self-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\bin\render-self-test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\bin\dxgi-self-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\bin\ci-smoke.exe
 

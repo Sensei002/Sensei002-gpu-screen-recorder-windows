@@ -304,14 +304,34 @@ Tasks:
 
 ## Phase 6 — DXGI Desktop Duplication fallback
 
+**Status: SHIPPED and CI-green.** `gsr_capture_dxgi.c` (plain C — DD is a
+DXGI/D3D11 COM interface, no C++/WinRT) implements the same `gsr_capture`
+vtable as WGC, monitor-only. On the GitHub Actions runner the Basic
+Display Adapter supports Desktop Duplication (unlike WGC, which needs a
+WinRT runtime Server SKUs lack), so `dxgi-self-test` exercises a REAL
+capture path on CI: `DuplicateOutput` → `AcquireNextFrame` → real frame.
+
+The backend feeds the same Phase 5b ANGLE pipeline: the DD frame's D3D11
+texture is imported zero-copy via `EGL_ANGLE_d3d_texture_client_buffer`
+and drawn with the monitor's rotation (DD surfaces are un-rotated — the
+KMS monitor pattern, not WGC's pre-rotated frames).
+
 Tasks:
 
-1. `gsr_capture_dxgi_duplication.c` implementing the same vtable
-   (monitor-only; no window capture — windows fall back to WGC item or are
-   rejected with a clear error).
-2. Automatic selection: try WGC first, fall back to DXGI on failure
-   (documented). `--info` reports the active capture backend.
-3. Tests: backend-selection logic (pure), golden `--info` lines.
+1. ✅ `gsr_capture_dxgi.c` implementing the same vtable (monitor-only; no
+   window capture — windows fall back to WGC item or are rejected with a
+   clear error). Pure rotation mapping (`DXGI_MODE_ROTATION` →
+   `gsr_rotation`, identity-minus-one) headless-tested.
+2. ✅ Automatic selection: `gsr_platform_capture_select_backend` already
+   tries WGC first, falls back to DXGI (Phase 3); the DXGI branch of
+   `gsr_platform_capture_backend_available` is now the real
+   `gsr_platform_capture_dxgi_available()` probe (hardware device +
+   `DuplicateOutput` on the primary monitor). `--info` reports the active
+   capture backend via `gsr_platform_capture_backend_name`.
+3. ✅ Tests: backend-selection logic (pure), `dxgi-self-test` (pure
+   rotation + live DD capture on the primary monitor; SKIPs where DD is
+   unavailable, FAILs on real capture errors), rotation mapping in
+   platform-test.
 
 ---
 

@@ -495,6 +495,7 @@ extern "C" bool gsr_platform_capture_backend_available(gsr_capture_backend_type 
             return false;
         }
     }
-    /* DXGI Desktop Duplication probe lands in Phase 6. */
+    if(backend == GSR_CAPTURE_BACKEND_DXGI_DUPLICATION)
+        return gsr_platform_capture_dxgi_available();
     return false;
 }

@@ -465,6 +465,19 @@ static void test_display_and_misc(void) {
     CHECK(strcmp(gsr_platform_capture_backend_name(GSR_CAPTURE_BACKEND_WGC), "Windows Graphics Capture") == 0);
     CHECK(strcmp(gsr_platform_capture_backend_name(GSR_CAPTURE_BACKEND_DXGI_DUPLICATION), "Desktop Duplication") == 0);
 
+    /* Phase 6: DXGI rotation mapping (pure). DXGI_MODE_ROTATION values:
+       UNSPECIFIED=0, IDENTITY=1, ROTATE90=2, ROTATE180=3, ROTATE270=4. */
+    CHECK(gsr_platform_dxgi_rotation_from_dxgi(1) == GSR_PLATFORM_WGC_ROT_0);
+    CHECK(gsr_platform_dxgi_rotation_from_dxgi(2) == GSR_PLATFORM_WGC_ROT_90);
+    CHECK(gsr_platform_dxgi_rotation_from_dxgi(3) == GSR_PLATFORM_WGC_ROT_180);
+    CHECK(gsr_platform_dxgi_rotation_from_dxgi(4) == GSR_PLATFORM_WGC_ROT_270);
+    CHECK(gsr_platform_dxgi_rotation_from_dxgi(0) == GSR_PLATFORM_WGC_ROT_0);  /* UNSPECIFIED */
+    CHECK(gsr_platform_dxgi_rotation_from_dxgi(99) == GSR_PLATFORM_WGC_ROT_0); /* garbage */
+    CHECK(gsr_platform_dxgi_rotation_swaps_size(GSR_PLATFORM_WGC_ROT_90));
+    CHECK(gsr_platform_dxgi_rotation_swaps_size(GSR_PLATFORM_WGC_ROT_270));
+    CHECK(!gsr_platform_dxgi_rotation_swaps_size(GSR_PLATFORM_WGC_ROT_0));
+    CHECK(!gsr_platform_dxgi_rotation_swaps_size(GSR_PLATFORM_WGC_ROT_180));
+
     /* Clocks */
     const int64_t ns1 = gsr_platform_time_monotonic_ns();
     CHECK(ns1 > 0);
