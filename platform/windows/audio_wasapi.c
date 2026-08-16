@@ -51,7 +51,9 @@
 #include "../../upstream/include/utils.h"
 
 #include "audio_wasapi_internal.h" /* conversion pipeline (test seam) */
+#include "../include/audio.h"        /* gsr_platform_audio_* (Phase 8B)   */
 
+#include <audiopolicy.h>            /* IAudioSessionManager2 & friends     */
 #include <functiondiscoverykeys_devpkey.h>
 #include <propsys.h>
 
@@ -77,6 +79,13 @@ const IID IID_IAudioClient = {0x1CB9AD4C, 0xDBFA, 0x4c32, {0xB1, 0x78, 0xC2, 0xF
 const IID IID_IAudioCaptureClient = {0xC8ADBD64, 0xE71E, 0x48a0, {0xA4, 0xDE, 0x18, 0x5C, 0x39, 0x5C, 0xE4, 0x17}};
 const CLSID CLSID_MMDeviceEnumerator = {0xBCDE0395, 0xE52F, 0x467C, {0x8E, 0x3D, 0xC4, 0x57, 0x92, 0x91, 0x69, 0x2E}};
 const IID IID_IMMDeviceEnumerator = {0xA95664D2, 0x9614, 0x4F35, {0xA7, 0x46, 0xDE, 0x8D, 0xB6, 0x36, 0x17, 0xE6}};
+const IID IID_IMMNotificationClient = {0x7991EEC9, 0x7E89, 0x4D85, {0x83, 0x90, 0x6C, 0x70, 0x3C, 0xEC, 0x60, 0xC0}};
+/* Session-enumeration IIDs (audiopolicy.h). Same mingw situation as the
+   IIDs above: declared by the headers, defined by no import library.
+   Values are the WIDL/SDK canonical GUIDs. */
+const IID IID_IAudioSessionManager2 = {0x77AA99A0, 0x1BD6, 0x484F, {0x8B, 0xC7, 0x2C, 0x65, 0x4C, 0x9A, 0x9B, 0x6F}};
+const IID IID_IAudioSessionEnumerator = {0xE2F5BB11, 0x0570, 0x40CA, {0xAC, 0xDD, 0x3A, 0xA0, 0x12, 0x77, 0xDE, 0xE8}};
+const IID IID_IAudioSessionControl2 = {0xBFB7FF88, 0x7239, 0x4FC9, {0x8F, 0xA2, 0x07, 0xC9, 0x50, 0xBE, 0x9C, 0x6D}};
 
 #define GSR_RING_FRAMES_MIN 4096           /* never less than ~85 ms @48 kHz */
 #define GSR_RING_PERIODS 32                /* ring capacity in periods       */
@@ -87,10 +96,112 @@ const IID IID_IMMDeviceEnumerator = {0xA95664D2, 0x9614, 0x4F35, {0xA7, 0x46, 0x
 #define DEVICE_STATE_ALL 0x0000000F
 #endif
 
-typedef enum {
-    GSR_ENDPOINT_RENDER,   /* loopback capture ("what you hear")            */
-    GSR_ENDPOINT_CAPTURE   /* normal capture (microphone)                   */
-} gsr_endpoint_kind;
+/* ---- device-change notifications (Phase 8, milestone B) ----------------- */
+
+/* IMMNotificationClient implementation: a tiny object whose first member
+   is the IMMNotificationClient interface pointer (the COM convention), so
+   it can be cast both ways. The callbacks only set Interlocked flags — the
+   capture thread owns the actual re-open — so they are safe from whatever
+   thread the MMDevice API delivers them on. */
+typedef struct wasapi_notification_client {
+    const IMMNotificationClientVtbl *lpVtbl;
+    LONG refcount;
+    volatile LONG default_changed;
+    wasapi_sound_device *owner; /* for the data-flow check in the callback */
+} wasapi_notification_client;
+
+static ULONG STDMETHODCALLTYPE notif_add_ref(IMMNotificationClient *This);
+
+static HRESULT STDMETHODCALLTYPE notif_query_interface(IMMNotificationClient *This, REFIID riid, void **ppv_object) {
+    if(IsEqualIID(riid, &IID_IUnknown) || IsEqualIID(riid, &IID_IMMNotificationClient)) {
+        *ppv_object = This;
+        notif_add_ref(This);
+        return S_OK;
+    }
+    *ppv_object = NULL;
+    return E_NOINTERFACE;
+}
+
+static ULONG STDMETHODCALLTYPE notif_add_ref(IMMNotificationClient *This) {
+    wasapi_notification_client *notif = (wasapi_notification_client*)This;
+    return (ULONG)InterlockedIncrement(&notif->refcount);
+}
+
+static ULONG STDMETHODCALLTYPE notif_release(IMMNotificationClient *This) {
+    wasapi_notification_client *notif = (wasapi_notification_client*)This;
+    const LONG refs = InterlockedDecrement(&notif->refcount);
+    /* Embedded in the device struct: nothing to free. */
+    return (ULONG)refs;
+}
+
+static HRESULT STDMETHODCALLTYPE notif_on_device_state_changed(IMMNotificationClient *This, LPCWSTR device_id, DWORD new_state) {
+    (void)This; (void)device_id; (void)new_state;
+    return S_OK;
+}
+
+static HRESULT STDMETHODCALLTYPE notif_on_device_added(IMMNotificationClient *This, LPCWSTR device_id) {
+    (void)This; (void)device_id;
+    return S_OK;
+}
+
+static HRESULT STDMETHODCALLTYPE notif_on_device_removed(IMMNotificationClient *This, LPCWSTR device_id) {
+    /* Any removal may have changed the default; the capture thread
+       re-resolves (which no-ops when the current endpoint is still the
+       right one) — conservative and self-correcting. */
+    (void)device_id;
+    wasapi_notification_client *notif = (wasapi_notification_client*)This;
+    if(notif->owner)
+        InterlockedExchange(&notif->default_changed, 1);
+    return S_OK;
+}
+
+static HRESULT STDMETHODCALLTYPE notif_on_default_device_changed(IMMNotificationClient *This, EDataFlow flow, ERole role, LPCWSTR default_device_id) {
+    (void)default_device_id;
+    wasapi_notification_client *notif = (wasapi_notification_client*)This;
+    /* Only the console role we actually capture, and only our data flow. */
+    if(role == eConsole && notif->owner && flow == notif->owner->data_flow)
+        InterlockedExchange(&notif->default_changed, 1);
+    return S_OK;
+}
+
+static HRESULT STDMETHODCALLTYPE notif_on_property_value_changed(IMMNotificationClient *This, LPCWSTR device_id, const PROPERTYKEY key) {
+    (void)This; (void)device_id; (void)key;
+    return S_OK;
+}
+
+static const IMMNotificationClientVtbl wasapi_notif_vtbl = {
+    notif_query_interface,
+    notif_add_ref,
+    notif_release,
+    notif_on_device_state_changed,
+    notif_on_device_added,
+    notif_on_device_removed,
+    notif_on_default_device_changed,
+    notif_on_property_value_changed
+};
+
+bool wasapi_register_notifications(wasapi_sound_device *self) {
+    IMMDeviceEnumerator *enumerator = NULL;
+    if(FAILED(CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL,
+                               &IID_IMMDeviceEnumerator, (void**)&enumerator)) || !enumerator)
+        return false;
+    if(!self->notif_client) {
+        self->notif_client = calloc(1, sizeof(wasapi_notification_client));
+        if(!self->notif_client) {
+            enumerator->lpVtbl->Release(enumerator);
+            return false;
+        }
+        self->notif_client->lpVtbl = &wasapi_notif_vtbl;
+        self->notif_client->refcount = 1;
+        self->notif_client->owner = self;
+    }
+    if(FAILED(enumerator->lpVtbl->RegisterEndpointNotificationCallback(enumerator, (IMMNotificationClient*)self->notif_client))) {
+        enumerator->lpVtbl->Release(enumerator);
+        return false;
+    }
+    self->notify_enumerator = enumerator;
+    return true;
+}
 
 /* ---- small helpers ------------------------------------------------------ */
 
@@ -407,11 +518,31 @@ size_t convert_chunk_to_ring(wasapi_sound_device *self, const BYTE *data, UINT32
 
 /* ---- WASAPI capture thread ---------------------------------------------- */
 
+static void wasapi_reopen_endpoint(wasapi_sound_device *self);
+
 static DWORD WINAPI wasapi_capture_thread(LPVOID userdata) {
     wasapi_sound_device *self = (wasapi_sound_device*)userdata;
     const bool com_ok = com_init();
 
     while(!self->stop_requested) {
+        /* Default-device auto-switch: the notification client flagged a
+           change (or the endpoint is gone after a failed reopen) —
+           re-resolve and re-open, throttled to at most once per second. */
+        if(self->notify_enumerator || !self->capture_client) {
+            const ULONGLONG now = GetTickCount64();
+            const bool flagged = self->notif_client && InterlockedCompareExchange(&self->notif_client->default_changed, 0, 1) == 1;
+            if((flagged || !self->capture_client) && now - self->last_reopen_ms >= 1000) {
+                self->last_reopen_ms = now;
+                wasapi_reopen_endpoint(self);
+            }
+        }
+        if(!self->capture_client) {
+            /* No live endpoint (open failed / device gone): sleep and
+               retry; the engine produces silence meanwhile. */
+            Sleep(10);
+            continue;
+        }
+
         UINT32 frames = 0;
         BYTE *data = NULL;
         DWORD flags = 0;
@@ -448,6 +579,79 @@ static DWORD WINAPI wasapi_capture_thread(LPVOID userdata) {
     if(com_ok)
         com_uninit();
     return 0;
+}
+
+/* ---- endpoint lifecycle (shared by the open path and the auto-switch) --- */
+
+void wasapi_stop_endpoint(wasapi_sound_device *self) {
+    if(self->audio_client) {
+        self->audio_client->lpVtbl->Stop(self->audio_client);
+        if(self->capture_client) {
+            self->capture_client->lpVtbl->Release(self->capture_client);
+            self->capture_client = NULL;
+        }
+        self->audio_client->lpVtbl->Release(self->audio_client);
+        self->audio_client = NULL;
+    }
+    if(self->mix_format) {
+        CoTaskMemFree(self->mix_format);
+        self->mix_format = NULL;
+    }
+}
+
+HRESULT wasapi_start_endpoint(wasapi_sound_device *self, IMMDevice *endpoint, gsr_endpoint_kind kind) {
+    HRESULT hr = endpoint->lpVtbl->Activate(endpoint, &IID_IAudioClient, CLSCTX_ALL, NULL, (void**)&self->audio_client);
+    if(FAILED(hr))
+        return hr;
+
+    hr = self->audio_client->lpVtbl->GetMixFormat(self->audio_client, &self->mix_format);
+    if(FAILED(hr) || !self->mix_format)
+        return hr;
+
+    if(!mix_format_info_get(self->mix_format, &self->mix_info))
+        return E_FAIL; /* exotic mix format (A-law etc.): unsupported */
+
+    const DWORD stream_flags = kind == GSR_ENDPOINT_RENDER ? AUDCLNT_STREAMFLAGS_LOOPBACK : 0;
+    hr = self->audio_client->lpVtbl->Initialize(self->audio_client, AUDCLNT_SHAREMODE_SHARED, stream_flags, 0, 0, self->mix_format, NULL);
+    if(FAILED(hr))
+        return hr;
+
+    hr = self->audio_client->lpVtbl->GetService(self->audio_client, &IID_IAudioCaptureClient, (void**)&self->capture_client);
+    if(FAILED(hr) || !self->capture_client)
+        return hr;
+
+    return self->audio_client->lpVtbl->Start(self->audio_client);
+}
+
+/* Re-resolve the device (by the -a name stored at open) and re-open it.
+   Called from the capture thread when the default device changed. On
+   failure the endpoint objects are left stopped (capture_client NULL) and
+   the thread's throttled retry keeps trying; the engine gets silence in
+   the meantime, matching the AUDCLNT_E_DEVICE_INVALIDATED path. */
+static void wasapi_reopen_endpoint(wasapi_sound_device *self) {
+    gsr_endpoint_kind kind = GSR_ENDPOINT_RENDER;
+    IMMDevice *endpoint = NULL;
+    if(FAILED(resolve_endpoint(self->device_name, &kind, &endpoint)) || !endpoint) {
+        gsr_log(GSR_LOG_LEVEL_WARNING, "wasapi: could not resolve new default device, keeping current");
+        if(endpoint)
+            endpoint->lpVtbl->Release(endpoint);
+        return;
+    }
+
+    gsr_log(GSR_LOG_LEVEL_INFO, "wasapi: default device changed, switching capture");
+    wasapi_stop_endpoint(self);
+    self->data_flow = kind == GSR_ENDPOINT_RENDER ? eRender : eCapture;
+    if(FAILED(wasapi_start_endpoint(self, endpoint, kind)))
+        gsr_log(GSR_LOG_LEVEL_WARNING, "wasapi: failed to open the new default device, will retry");
+    endpoint->lpVtbl->Release(endpoint);
+
+    /* Discard audio captured before the switch so no stale-device samples
+       enter the file (same intent as sound_device_flush). */
+    AcquireSRWLockExclusive(&self->ring_lock);
+    self->ring_head_frames = 0;
+    self->ring_count_frames = 0;
+    self->resample_pos = 0.0;
+    ReleaseSRWLockExclusive(&self->ring_lock);
 }
 
 /* ---- sound_device API --------------------------------------------------- */
@@ -519,44 +723,27 @@ int sound_device_get_by_name(SoundDevice *device, const char *node_name, const c
     InitializeSRWLock(&self->ring_lock);
     InitializeConditionVariable(&self->ring_cond);
 
+    /* Remember the -a name and flow for the default-device auto-switch. */
+    self->device_name = malloc(strlen(device_name) + 1);
+    if(!self->device_name)
+        goto fail;
+    strcpy(self->device_name, device_name);
+    self->data_flow = kind == GSR_ENDPOINT_RENDER ? eRender : eCapture;
+
     /* Open the audio client in shared mode with the endpoint's mix format.
        (The engine converts to the requested format in software — see the
        file header.) */
-    hr = endpoint->lpVtbl->Activate(endpoint, &IID_IAudioClient, CLSCTX_ALL, NULL, (void**)&self->audio_client);
+    hr = wasapi_start_endpoint(self, endpoint, kind);
     if(FAILED(hr)) {
-        gsr_log(GSR_LOG_LEVEL_ERROR, "wasapi: Activate(IAudioClient) failed for \"%s\"", device_name);
+        gsr_log(GSR_LOG_LEVEL_ERROR, "wasapi: failed to open \"%s\" (0x%08lx)", device_name, (unsigned long)hr);
         goto fail;
     }
 
-    hr = self->audio_client->lpVtbl->GetMixFormat(self->audio_client, &self->mix_format);
-    if(FAILED(hr) || !self->mix_format) {
-        gsr_log(GSR_LOG_LEVEL_ERROR, "wasapi: GetMixFormat failed for \"%s\"", device_name);
-        goto fail;
-    }
-
-    if(!mix_format_info_get(self->mix_format, &self->mix_info)) {
-        gsr_log(GSR_LOG_LEVEL_ERROR, "wasapi: unsupported mix format for \"%s\" (tag %u)", device_name, (unsigned)self->mix_format->wFormatTag);
-        goto fail;
-    }
-
-    const DWORD stream_flags = kind == GSR_ENDPOINT_RENDER ? AUDCLNT_STREAMFLAGS_LOOPBACK : 0;
-    hr = self->audio_client->lpVtbl->Initialize(self->audio_client, AUDCLNT_SHAREMODE_SHARED, stream_flags, 0, 0, self->mix_format, NULL);
-    if(FAILED(hr)) {
-        gsr_log(GSR_LOG_LEVEL_ERROR, "wasapi: Initialize failed for \"%s\" (mix %u Hz, %u ch): 0x%08lx", device_name, (unsigned)self->mix_format->nSamplesPerSec, (unsigned)self->mix_format->nChannels, (unsigned long)hr);
-        goto fail;
-    }
-
-    hr = self->audio_client->lpVtbl->GetService(self->audio_client, &IID_IAudioCaptureClient, (void**)&self->capture_client);
-    if(FAILED(hr) || !self->capture_client) {
-        gsr_log(GSR_LOG_LEVEL_ERROR, "wasapi: GetService(IAudioCaptureClient) failed for \"%s\"", device_name);
-        goto fail;
-    }
-
-    hr = self->audio_client->lpVtbl->Start(self->audio_client);
-    if(FAILED(hr)) {
-        gsr_log(GSR_LOG_LEVEL_ERROR, "wasapi: Start failed for \"%s\"", device_name);
-        goto fail;
-    }
+    /* Register for default-device change notifications so
+       default_output/default_input auto-switch (sound.h's documented
+       contract). Best-effort: a device that never changes works without
+       it. */
+    wasapi_register_notifications(self);
 
     self->thread = CreateThread(NULL, 0, wasapi_capture_thread, self, 0, NULL);
     if(!self->thread) {
@@ -583,14 +770,14 @@ fail:
         CloseHandle(self->thread);
         self->thread_created = false;
     }
-    if(self->audio_client) {
-        self->audio_client->lpVtbl->Stop(self->audio_client);
-        if(self->capture_client)
-            self->capture_client->lpVtbl->Release(self->capture_client);
-        self->audio_client->lpVtbl->Release(self->audio_client);
+    if(self->notify_enumerator) {
+        self->notify_enumerator->lpVtbl->UnregisterEndpointNotificationCallback(self->notify_enumerator, (IMMNotificationClient*)self->notif_client);
+        self->notify_enumerator->lpVtbl->Release(self->notify_enumerator);
+        self->notify_enumerator = NULL;
     }
-    if(self->mix_format)
-        CoTaskMemFree(self->mix_format);
+    wasapi_stop_endpoint(self);
+    free(self->device_name);
+    free(self->notif_client);
     free(self->ring);
     free(self->read_buffer);
     free(self);
@@ -612,14 +799,17 @@ void sound_device_close(SoundDevice *device) {
         CloseHandle(self->thread);
         self->thread_created = false;
     }
-    if(self->audio_client) {
-        self->audio_client->lpVtbl->Stop(self->audio_client);
-        if(self->capture_client)
-            self->capture_client->lpVtbl->Release(self->capture_client);
-        self->audio_client->lpVtbl->Release(self->audio_client);
+    /* Unregister the notification client before releasing the enumerator
+       (after the thread joined, so no callback can race the teardown). */
+    if(self->notify_enumerator) {
+        if(self->notif_client)
+            self->notify_enumerator->lpVtbl->UnregisterEndpointNotificationCallback(self->notify_enumerator, (IMMNotificationClient*)self->notif_client);
+        self->notify_enumerator->lpVtbl->Release(self->notify_enumerator);
+        self->notify_enumerator = NULL;
     }
-    if(self->mix_format)
-        CoTaskMemFree(self->mix_format);
+    wasapi_stop_endpoint(self);
+    free(self->device_name);
+    free(self->notif_client);
     free(self->ring);
     free(self->read_buffer);
     free(self);
@@ -803,4 +993,231 @@ void gsr_audio_devices_deinit(gsr_audio_devices *self) {
 
 bool pulseaudio_server_is_pipewire(void) {
     return false; /* Windows has no PulseAudio/PipeWire */
+}
+
+/* ---- platform audio API (platform/include/audio.h, Phase 8B) ------------ */
+
+static void platform_device_from_endpoint(gsr_platform_audio_device *out, IMMDevice *device, gsr_platform_audio_direction direction, bool is_default) {
+    memset(out, 0, sizeof(*out));
+    out->direction = direction;
+    out->is_default = is_default;
+
+    LPWSTR id = NULL;
+    if(SUCCEEDED(device->lpVtbl->GetId(device, &id)) && id) {
+        size_t n = wcslen(id);
+        if(n < sizeof(out->name)) {
+            for(size_t i = 0; i < n; ++i)
+                out->name[i] = (char)id[i];
+        }
+        CoTaskMemFree(id);
+    }
+    if(out->name[0] == '\0')
+        snprintf(out->name, sizeof(out->name), "(unknown)");
+
+    IPropertyStore *store = NULL;
+    if(SUCCEEDED(device->lpVtbl->OpenPropertyStore(device, STGM_READ, &store)) && store) {
+        PROPVARIANT variant;
+        PropVariantInit(&variant);
+        if(SUCCEEDED(store->lpVtbl->GetValue(store, &PKEY_Device_FriendlyName, &variant)) && variant.vt == VT_LPWSTR && variant.pwszVal) {
+            size_t written = 0;
+            for(const wchar_t *wc = variant.pwszVal; *wc && written < sizeof(out->description) - 1; ++wc) {
+                if(*wc < 0x80)
+                    out->description[written++] = (char)*wc;
+            }
+        }
+        PropVariantClear(&variant);
+        store->lpVtbl->Release(store);
+    }
+    if(out->description[0] == '\0')
+        snprintf(out->description, sizeof(out->description), "%s", out->name);
+}
+
+static bool platform_devices_add(gsr_platform_audio_device **out, int *out_count, const gsr_platform_audio_device *item) {
+    gsr_platform_audio_device *grown = realloc(*out, (size_t)(*out_count + 1) * sizeof(gsr_platform_audio_device));
+    if(!grown)
+        return false;
+    *out = grown;
+    (*out)[*out_count] = *item;
+    ++*out_count;
+    return true;
+}
+
+bool gsr_platform_audio_list_devices(gsr_platform_audio_device **out, int *out_count) {
+    *out = NULL;
+    *out_count = 0;
+    const bool com_ok = com_init();
+
+    IMMDeviceEnumerator *enumerator = NULL;
+    if(FAILED(CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL,
+                               &IID_IMMDeviceEnumerator, (void**)&enumerator)) || !enumerator) {
+        if(com_ok)
+            com_uninit();
+        return false;
+    }
+
+    /* The two aliases first (upstream prints them before the devices). */
+    for(int flow = 0; flow < 2; ++flow) {
+        IMMDevice *device = NULL;
+        if(SUCCEEDED(enumerator->lpVtbl->GetDefaultAudioEndpoint(enumerator, flow == 0 ? eRender : eCapture, eConsole, &device)) && device) {
+            gsr_platform_audio_device item;
+            platform_device_from_endpoint(&item, device, flow == 0 ? GSR_PLATFORM_AUDIO_DIRECTION_OUTPUT : GSR_PLATFORM_AUDIO_DIRECTION_INPUT, true);
+            snprintf(item.name, sizeof(item.name), "%s", flow == 0 ? "default_output" : "default_input");
+            snprintf(item.description, sizeof(item.description), "%s", flow == 0 ? "Default output" : "Default input");
+            platform_devices_add(out, out_count, &item);
+            device->lpVtbl->Release(device);
+        }
+    }
+
+    for(int flow = 0; flow < 2; ++flow) {
+        const EDataFlow data_flow = flow == 0 ? eRender : eCapture;
+        IMMDeviceCollection *collection = NULL;
+        if(FAILED(enumerator->lpVtbl->EnumAudioEndpoints(enumerator, data_flow, DEVICE_STATE_ACTIVE, &collection)) || !collection)
+            continue;
+        UINT count = 0;
+        collection->lpVtbl->GetCount(collection, &count);
+        for(UINT i = 0; i < count; ++i) {
+            IMMDevice *device = NULL;
+            if(FAILED(collection->lpVtbl->Item(collection, i, &device)) || !device)
+                continue;
+            gsr_platform_audio_device item;
+            platform_device_from_endpoint(&item, device, flow == 0 ? GSR_PLATFORM_AUDIO_DIRECTION_OUTPUT : GSR_PLATFORM_AUDIO_DIRECTION_INPUT, false);
+            platform_devices_add(out, out_count, &item);
+            device->lpVtbl->Release(device);
+        }
+        collection->lpVtbl->Release(collection);
+    }
+
+    enumerator->lpVtbl->Release(enumerator);
+    if(com_ok)
+        com_uninit();
+    return true;
+}
+
+int gsr_platform_audio_format_device_line(const gsr_platform_audio_device *device, char *buf, size_t size) {
+    const int written = snprintf(buf, size, "%s (%s)", device->name, device->description);
+    /* Per the header contract: -1 when the buffer is too small (snprintf
+       would return the would-be length >= size). */
+    return written >= (int)size ? -1 : written;
+}
+
+bool gsr_platform_audio_list_apps(gsr_platform_audio_app **out, int *out_count) {
+    *out = NULL;
+    *out_count = 0;
+    const bool com_ok = com_init();
+
+    IMMDeviceEnumerator *enumerator = NULL;
+    if(FAILED(CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL,
+                               &IID_IMMDeviceEnumerator, (void**)&enumerator)) || !enumerator) {
+        if(com_ok)
+            com_uninit();
+        return false;
+    }
+
+    IMMDevice *endpoint = NULL;
+    if(FAILED(enumerator->lpVtbl->GetDefaultAudioEndpoint(enumerator, eRender, eConsole, &endpoint)) || !endpoint) {
+        enumerator->lpVtbl->Release(enumerator);
+        if(com_ok)
+            com_uninit();
+        return true; /* no default render endpoint: valid empty list */
+    }
+
+    IAudioSessionManager2 *session_manager = NULL;
+    HRESULT hr = endpoint->lpVtbl->Activate(endpoint, &IID_IAudioSessionManager2, CLSCTX_ALL, NULL, (void**)&session_manager);
+    endpoint->lpVtbl->Release(endpoint);
+    if(FAILED(hr) || !session_manager) {
+        enumerator->lpVtbl->Release(enumerator);
+        if(com_ok)
+            com_uninit();
+        return false;
+    }
+
+    IAudioSessionEnumerator *session_enum = NULL;
+    hr = session_manager->lpVtbl->GetSessionEnumerator(session_manager, &session_enum);
+    if(FAILED(hr) || !session_enum) {
+        session_manager->lpVtbl->Release(session_manager);
+        enumerator->lpVtbl->Release(enumerator);
+        if(com_ok)
+            com_uninit();
+        return false;
+    }
+
+    int session_count = 0;
+    if(SUCCEEDED(session_enum->lpVtbl->GetCount(session_enum, &session_count))) {
+        for(int i = 0; i < session_count; ++i) {
+            IAudioSessionControl *control = NULL;
+            if(FAILED(session_enum->lpVtbl->GetSession(session_enum, i, &control)) || !control)
+                continue;
+
+            IAudioSessionControl2 *control2 = NULL;
+            if(SUCCEEDED(control->lpVtbl->QueryInterface(control, &IID_IAudioSessionControl2, (void**)&control2)) && control2) {
+                gsr_platform_audio_app app;
+                memset(&app, 0, sizeof(app));
+                AudioSessionState state = AudioSessionStateInactive;
+                if(SUCCEEDED(control2->lpVtbl->GetState(control2, &state)))
+                    app.state = (int)state;
+                control2->lpVtbl->GetProcessId(control2, (DWORD*)&app.pid);
+
+                LPWSTR display_name = NULL;
+                if(SUCCEEDED(control2->lpVtbl->GetDisplayName(control2, &display_name)) && display_name && display_name[0]) {
+                    size_t written = 0;
+                    for(const wchar_t *wc = display_name; *wc && written < sizeof(app.name) - 1; ++wc) {
+                        if(*wc < 0x80)
+                            app.name[written++] = (char)*wc;
+                    }
+                    CoTaskMemFree(display_name);
+                }
+                if(app.name[0] == '\0')
+                    snprintf(app.name, sizeof(app.name), "(session %d)", i);
+
+                gsr_platform_audio_app *grown = realloc(*out, (size_t)(*out_count + 1) * sizeof(gsr_platform_audio_app));
+                if(grown) {
+                    *out = grown;
+                    (*out)[*out_count] = app;
+                    ++*out_count;
+                }
+                control2->lpVtbl->Release(control2);
+            }
+            control->lpVtbl->Release(control);
+        }
+    }
+
+    session_enum->lpVtbl->Release(session_enum);
+    session_manager->lpVtbl->Release(session_manager);
+    enumerator->lpVtbl->Release(enumerator);
+    if(com_ok)
+        com_uninit();
+    return true;
+}
+
+void gsr_platform_audio_apps_free(gsr_platform_audio_app *items) {
+    free(items);
+}
+
+bool gsr_platform_audio_notification_smoke_test(void) {
+    /* Headless-provable slice of the device-change plumbing: registering
+       and unregistering an IMMNotificationClient on the default enumerator
+       must round-trip cleanly (no devices needed for this). */
+    const bool com_ok = com_init();
+    IMMDeviceEnumerator *enumerator = NULL;
+    if(FAILED(CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL,
+                               &IID_IMMDeviceEnumerator, (void**)&enumerator)) || !enumerator) {
+        if(com_ok)
+            com_uninit();
+        return false;
+    }
+
+    wasapi_notification_client client;
+    memset(&client, 0, sizeof(client));
+    client.lpVtbl = &wasapi_notif_vtbl;
+    client.refcount = 1;
+    client.owner = NULL;
+
+    const HRESULT reg = enumerator->lpVtbl->RegisterEndpointNotificationCallback(enumerator, (IMMNotificationClient*)&client);
+    const HRESULT unreg = SUCCEEDED(reg)
+        ? enumerator->lpVtbl->UnregisterEndpointNotificationCallback(enumerator, (IMMNotificationClient*)&client)
+        : E_FAIL;
+    enumerator->lpVtbl->Release(enumerator);
+    if(com_ok)
+        com_uninit();
+    return SUCCEEDED(reg) && SUCCEEDED(unreg);
 }

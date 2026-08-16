@@ -296,13 +296,30 @@ target_link_libraries(audio-conv-test PRIVATE gsr_core)
 add_executable(nvenc-self-test tests/nvenc-self-test/main.c)
 target_link_libraries(nvenc-self-test PRIVATE gsr_core)
 
+# Phase 8 (milestone B) audio tests, both headless (the runner has no
+# audio endpoints):
+#   audio-list-test — the device/session listing contract behind
+#   --list-audio-devices / --list-application-audio (WASAPI endpoints +
+#   IAudioSessionManager2 sessions), the "name (description)" line format,
+#   the device-change notification register/unregister round-trip, and the
+#   -a app:NAME parse surface (which the engine rejects honestly on
+#   Windows: no per-session WASAPI capture).
+#   audio-sync-test — the A/V sync contract: exact period-sized chunk
+#   delivery, duration-preserving 44.1k->48k resampling, sample-accurate
+#   quantization, the codec delay formulas, and the derived audio-PTS
+#   start offset that aligns the first audio sample with the first frame.
+add_executable(audio-list-test tests/audio-list-test/main.c)
+target_link_libraries(audio-list-test PRIVATE gsr_core)
+add_executable(audio-sync-test tests/audio-sync-test/main.c)
+target_link_libraries(audio-sync-test PRIVATE gsr_core)
+
 # Link the test executables against the static MinGW runtime so they can be
 # re-run by the workflow's `test` job without the MSYS2 environment.
 # -static-libgcc works with the C driver; the C++ runtime (libstdc++.a),
 # winpthread and atomic are already linked statically via the gsr_core
 # PUBLIC link flags above (-static-libstdc++/-static-libwinpthread are
 # driver options that do nothing when linking with cc).
-foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test dxgi-self-test recorder-self-test audio-conv-test nvenc-self-test)
+foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test dxgi-self-test recorder-self-test audio-conv-test nvenc-self-test audio-list-test audio-sync-test)
     set_target_properties(${target} PROPERTIES
         LINK_FLAGS "-static-libgcc")
 endforeach()
@@ -317,3 +334,5 @@ add_test(NAME dxgi-self-test COMMAND dxgi-self-test)
 add_test(NAME recorder-self-test COMMAND recorder-self-test)
 add_test(NAME audio-conv-test COMMAND audio-conv-test)
 add_test(NAME nvenc-self-test COMMAND nvenc-self-test)
+add_test(NAME audio-list-test COMMAND audio-list-test)
+add_test(NAME audio-sync-test COMMAND audio-sync-test)

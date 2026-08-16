@@ -18,11 +18,32 @@ typedef enum {
 } gsr_platform_audio_direction;
 
 typedef struct {
-    char name[64];          /* stable endpoint id / alias (e.g. "default_output") */
+    char name[128];         /* stable endpoint id / alias (e.g. "default_output") */
     char description[128];  /* human-readable (e.g. "Built-in Speakers")          */
     gsr_platform_audio_direction direction;
     bool is_default;        /* currently the system default in its direction     */
 } gsr_platform_audio_device;
+
+typedef struct {
+    char name[256];         /* session display name ("Spotify", "System Sounds")  */
+    unsigned long pid;      /* owning process id (0 = system session)             */
+    int state;              /* 0 inactive, 1 active, 2 expired                    */
+} gsr_platform_audio_app;
+
+/* Enumerates the audio sessions on the default render endpoint (what the
+ * Windows Volume Mixer shows). Allocates an array of |*out_count|
+ * gsr_platform_audio_app entries with malloc(); the caller frees it with
+ * gsr_platform_audio_apps_free. Returns true on success (including a
+ * valid empty list when no session exists); false on COM failure.
+ * Implemented in Phase 8 milestone B (IAudioSessionManager2). This is the
+ * Windows equivalent of upstream's `--list-application-audio` (PulseAudio
+ * app streams). Per-app CAPTURE is not feasible with WASAPI (loopback is
+ * endpoint-wide; there is no per-session capture client) — see
+ * docs/upstream-porting-notes.md §3k.
+ */
+bool gsr_platform_audio_list_apps(gsr_platform_audio_app **out, int *out_count);
+
+void gsr_platform_audio_apps_free(gsr_platform_audio_app *items);
 
 /* Enumerates WASAPI endpoints. Allocates an array of |*out_count|
  * gsr_platform_audio_device entries with malloc(); the caller frees it.

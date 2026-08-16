@@ -28,6 +28,11 @@
 
 #include "../../upstream/include/sound.h"
 
+typedef enum {
+    GSR_ENDPOINT_RENDER,   /* loopback capture ("what you hear")            */
+    GSR_ENDPOINT_CAPTURE   /* normal capture (microphone)                   */
+} gsr_endpoint_kind;
+
 typedef struct {
     bool is_float;
     int sample_bytes;      /* container size per sample (2, 3 or 4)         */
@@ -70,7 +75,39 @@ typedef struct {
     mix_format_info mix_info;
     WAVEFORMATEX *mix_format;         /* freed in close                     */
     double resample_pos;              /* fractional input-frame position    */
+
+    /* device-change tracking (Phase 8, milestone B): registered for
+       default_output/default_input so the capture thread can auto-switch
+       when the system default changes. notify_enumerator is the SAME
+       enumerator instance that registered the client (required for
+       unregister). */
+    char *device_name;                /* owned copy of the -a name          */
+    EDataFlow data_flow;              /* eRender (loopback) / eCapture      */
+    IMMDeviceEnumerator *notify_enumerator;
+    struct wasapi_notification_client *notif_client; /* embedded, see .c    */
+    ULONGLONG last_reopen_ms;         /* throttle for reopen attempts       */
 } wasapi_sound_device;
+
+/* Register an IMMNotificationClient on the given enumerator, wire its
+   callbacks to |device|'s default_changed flag, and keep the enumerator on
+   |device| for unregister. Only called for default_output/default_input
+   devices (named endpoints do not auto-switch). Returns true on success. */
+bool wasapi_register_notifications(wasapi_sound_device *self);
+
+/* Stop the current endpoint objects (client, capture client, mix format)
+   and release them. Safe to call when nothing is open. */
+void wasapi_stop_endpoint(wasapi_sound_device *self);
+
+/* Start capture on |endpoint|: Activate IAudioClient, GetMixFormat, parse
+   it, Initialize (loopback for render), GetService(IAudioCaptureClient),
+   Start. Returns the failing HRESULT (or S_OK). */
+HRESULT wasapi_start_endpoint(wasapi_sound_device *self, IMMDevice *endpoint, gsr_endpoint_kind kind);
+
+/* Smoke test for the notification plumbing: register + unregister an
+   IMMNotificationClient on the default enumerator (the CI runner has no
+   endpoints, so this is all that is testable headless). Returns true when
+   both succeed. */
+bool gsr_platform_audio_notification_smoke_test(void);
 
 /* Parse a WAVEFORMATEX (or WAVEFORMATEXTENSIBLE) into the fields the
    conversion needs. Returns false for unsupported formats (A-law etc.). */
