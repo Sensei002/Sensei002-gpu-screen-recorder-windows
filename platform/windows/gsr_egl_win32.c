@@ -505,6 +505,13 @@ static bool imported_texture_bind(gsr_egl *egl, gsr_egl_imported_texture *imp, v
     }
     egl->glBindTexture(GL_TEXTURE_2D, imp->texture_id);
     egl->glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, (GLeglImageOES)imp->image);
+    /* Sampler state: the default MIN_FILTER is NEAREST_MIPMAP_LINEAR, which
+       makes a mip-less EGL-image texture INCOMPLETE (samples black). Match
+       upstream backends (kms.c): explicit linear filtering. */
+    egl->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    egl->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    egl->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    egl->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     egl->glBindTexture(GL_TEXTURE_2D, 0);
     imp->last_texture = texture;
     return true;
