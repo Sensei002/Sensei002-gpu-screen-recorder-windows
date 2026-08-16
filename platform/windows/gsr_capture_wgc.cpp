@@ -81,6 +81,34 @@ static const GUID GSR_IID_IDirect3DDxgiInterfaceAccess = {0xa9b3d012, 0x3df2, 0x
  * Windows.Graphics.DirectX.Direct3D11.dll (no import lib/header needed). */
 typedef HRESULT(WINAPI *CreateDirect3D11DeviceFromDXGIDevice_t)(IDXGIDevice *dxgiDevice, void **graphicsDevice);
 
+/* Loads Windows.Graphics.DirectX.Direct3D11.dll and returns the
+ * CreateDirect3D11DeviceFromDXGIDevice export, or NULL. Tries the plain
+ * name first (client Windows finds it in System32), then the full
+ * System32 path (some Server SKUs / environments fail the bare-name
+ * lookup even though the file is present). Logs the failure reason. */
+static CreateDirect3D11DeviceFromDXGIDevice_t load_create_d3d11_device(void) {
+    HMODULE module = LoadLibraryW(L"Windows.Graphics.DirectX.Direct3D11.dll");
+    if(!module) {
+        wchar_t sysdir[MAX_PATH];
+        if(GetSystemDirectoryW(sysdir, MAX_PATH) != 0) {
+            wchar_t full_path[MAX_PATH];
+            if(swprintf(full_path, MAX_PATH, L"%ls\\Windows.Graphics.DirectX.Direct3D11.dll", sysdir) > 0)
+                module = LoadLibraryW(full_path);
+        }
+        if(!module)
+            gsr_log(GSR_LOG_LEVEL_ERROR,
+                "gsr_capture_wgc: cannot load Windows.Graphics.DirectX.Direct3D11.dll (GetLastError=0x%08lx; System32 file %s)",
+                (unsigned long)GetLastError(),
+                GetFileAttributesW(L"C:\\Windows\\System32\\Windows.Graphics.DirectX.Direct3D11.dll") != INVALID_FILE_ATTRIBUTES ? "present" : "ABSENT");
+    }
+    if(!module)
+        return NULL;
+    auto proc = (CreateDirect3D11DeviceFromDXGIDevice_t)GetProcAddress(module, "CreateDirect3D11DeviceFromDXGIDevice");
+    if(!proc)
+        gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_capture_wgc_start: CreateDirect3D11DeviceFromDXGIDevice export missing");
+    return proc;
+}
+
 /* ---- documented interface IIDs (layout-identical GUIDs) ------------------ */
 
 /* IID_IDXGIDevice — 54ec77fa-1377-44e6-8c32-88fd5f44c84c */
@@ -157,14 +185,9 @@ static int wgc_start(gsr_capture *cap, gsr_capture_metadata *capture_metadata) {
             gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_capture_wgc_start: device has no IDXGIDevice (0x%08lx)", (unsigned long)hr);
             return -1;
         }
-        HMODULE d3d11_interop_module = LoadLibraryW(L"Windows.Graphics.DirectX.Direct3D11.dll");
-        if(!d3d11_interop_module) {
-            gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_capture_wgc_start: Windows.Graphics.DirectX.Direct3D11.dll missing");
-            return -1;
-        }
-        auto create_d3d11_device = (CreateDirect3D11DeviceFromDXGIDevice_t)GetProcAddress(d3d11_interop_module, "CreateDirect3D11DeviceFromDXGIDevice");
+        auto create_d3d11_device = load_create_d3d11_device();
         if(!create_d3d11_device) {
-            gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_capture_wgc_start: CreateDirect3D11DeviceFromDXGIDevice missing");
+            gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_capture_wgc_start: Windows.Graphics.DirectX.Direct3D11 interop unavailable (missing runtime on this SKU?)");
             return -1;
         }
         void *raw_winrt_device = nullptr;
@@ -401,7 +424,13 @@ extern "C" bool gsr_platform_capture_wgc_get_frame(gsr_capture *cap, void **out_
 extern "C" bool gsr_platform_capture_backend_available(gsr_capture_backend_type backend) {
     if(backend == GSR_CAPTURE_BACKEND_WGC) {
         try {
-            return winrt::Windows::Graphics::Capture::GraphicsCaptureSession::IsSupported();
+            /* WGC needs BOTH the session API (IsSupported) and the
+               Direct3D11 interop runtime that wraps our D3D11 device into
+               an IDirect3DDevice for the frame pool. A Server SKU can
+               report IsSupported()==true yet lack the interop DLL — treat
+               that as unavailable so callers can skip instead of failing. */
+            return winrt::Windows::Graphics::Capture::GraphicsCaptureSession::IsSupported()
+                && load_create_d3d11_device() != NULL;
         } catch(...) {
             return false;
         }
