@@ -26,11 +26,30 @@ gsr_video_encoder* create_video_encoder(gsr_egl *egl, const gsr_recorder_setting
     }
 
 #ifdef _WIN32
-    /* Windows port (Phase 7, milestone A): no VAAPI/Vulkan; NVENC lands in
-       milestone B. With -encoder gpu the encoder stays NULL and the
-       recorder fails with "failed to create video encoder" — honest
-       (upstream never fakes support), so CI and this milestone use
-       -encoder cpu (libx264). */
+    /* Windows port (Phase 7, milestone B): no VAAPI/Vulkan. NVIDIA gets
+       the d3d11va NVENC encoder (gsr_nvenc_win32.c); anything else
+       (WARP/unknown vendor) gets NULL — the recorder then fails honestly
+       or falls back to -encoder cpu via -fallback-cpu-encoding, exactly
+       like upstream's unknown-vendor path. */
+    if(video_codec_is_vulkan(settings->video_codec))
+        return NULL; /* no Vulkan encoder on Windows */
+    switch(egl->gpu_info.vendor) {
+        case GSR_GPU_VENDOR_NVIDIA: {
+            gsr_video_encoder_nvenc_params params;
+            params.egl = egl;
+            params.color_depth = color_depth;
+            video_encoder = gsr_video_encoder_nvenc_create(&params);
+            break;
+        }
+        case GSR_GPU_VENDOR_UNKNOWN:
+        case GSR_GPU_VENDOR_AMD:
+        case GSR_GPU_VENDOR_INTEL:
+        case GSR_GPU_VENDOR_BROADCOM:
+        case GSR_GPU_VENDOR_APPLE:
+            /* No GPU encoder on Windows for these (the port is NVIDIA-only
+               for hardware encoding, user decision 2026-08-15). */
+            break;
+    }
     return video_encoder;
 #else
     if(video_codec_is_vulkan(settings->video_codec)) {
@@ -80,11 +99,14 @@ bool get_supported_video_codecs(gsr_egl *egl, gsr_video_codec video_codec, bool 
     }
 
 #ifdef _WIN32
-    /* Windows port (Phase 7, milestone A): the VAAPI/Vulkan/NVENC queries
-       are Linux/NVIDIA-side; NVENC probing lands in milestone B. */
+    /* Windows port (Phase 7, milestone B): the only hardware encoder is
+       NVIDIA NVENC, probed honestly by gsr_get_supported_video_codecs_nvenc
+       (creates a D3D11 device and actually opens each encoder). Unknown/
+       non-NVIDIA vendors report nothing, which drives the existing
+       -fallback-cpu-encoding path. */
     (void)video_codec;
-    (void)cleanup;
-    (void)video_codec_is_vulkan;
+    if(egl->gpu_info.vendor == GSR_GPU_VENDOR_NVIDIA)
+        return gsr_get_supported_video_codecs_nvenc(video_codecs, cleanup);
     return false;
 #else
     if(video_codec_is_vulkan(video_codec))

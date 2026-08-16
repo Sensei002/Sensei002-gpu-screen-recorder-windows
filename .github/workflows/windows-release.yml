@@ -183,6 +183,8 @@ jobs:
           .\build\cmake\recorder-self-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\cmake\audio-conv-test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\cmake\nvenc-self-test.exe
 
       # Run the recorder self-test in the MSYS2 shell too: this is where the
       # ANGLE DLLs are on PATH, so the verbose recording logs (backend
@@ -191,6 +193,14 @@ jobs:
       - name: Run recorder self-test (ANGLE + live capture)
         shell: msys2 {0}
         run: ./build/cmake/recorder-self-test.exe
+
+      # Same for the NVENC self-test: the -encoder gpu fallback recording
+      # needs ANGLE + a capture backend, so the MSYS2 shell is the only
+      # place it exercises the full path (headless checks already ran in
+      # ctest).
+      - name: Run NVENC self-test (ANGLE + live capture)
+        shell: msys2 {0}
+        run: ./build/cmake/nvenc-self-test.exe
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -206,6 +216,8 @@ jobs:
             build/cmake/dxgi-self-test.exe
             build/cmake/recorder-self-test.exe
             build/cmake/audio-conv-test.exe
+            build/cmake/nvenc-self-test.exe
+            build/cmake/nvenc-self-test-output.mkv
             build/cmake/recorder-self-test-output.mkv
           if-no-files-found: error
 
@@ -298,6 +310,8 @@ jobs:
           .\build\bin\recorder-self-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\bin\audio-conv-test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\bin\nvenc-self-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\bin\ci-smoke.exe
 

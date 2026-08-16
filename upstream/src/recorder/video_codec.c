@@ -420,9 +420,19 @@ enum AVPixelFormat get_pixel_format(gsr_video_codec video_codec, gsr_gpu_vendor 
     if(use_software_video_encoder) {
         return AV_PIX_FMT_NV12;
     } else {
+#ifdef _WIN32
+        /* Windows port (Phase 7, milestone B): no VAAPI/Vulkan and no
+           CUDA-GL interop — the NVIDIA encoder feeds d3d11va hw frames
+           (AV_PIX_FMT_D3D11), see gsr_nvenc_win32.c. Only reached when a
+           hardware codec was actually picked (NVIDIA vendor). */
+        (void)video_codec;
+        (void)vendor;
+        return AV_PIX_FMT_D3D11;
+#else
         if(video_codec_is_vulkan(video_codec))
             return AV_PIX_FMT_VULKAN;
         else
             return vendor == GSR_GPU_VENDOR_NVIDIA ? AV_PIX_FMT_CUDA : AV_PIX_FMT_VAAPI;
+#endif
     }
 }
