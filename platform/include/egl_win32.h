@@ -19,6 +19,12 @@
 
 #include <stdbool.h>
 
+/* The functions below are defined in C (platform/windows/gsr_egl_win32.c)
+   and called from the C++/WinRT WGC backend, so they need C linkage. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct gsr_egl gsr_egl;
 
 /* The ID3D11Device* (AddRef'd, caller releases) that the ANGLE display runs
@@ -44,5 +50,9 @@ bool gsr_platform_egl_update_texture(gsr_egl *egl, void *handle, void *texture);
 /* The GL_TEXTURE_2D id to pass to gsr_color_conversion_draw(). */
 unsigned int gsr_platform_egl_texture_id(gsr_egl *egl, void *handle);
 void gsr_platform_egl_destroy_imported_texture(gsr_egl *egl, void *handle);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* GSR_EGL_WIN32_H */

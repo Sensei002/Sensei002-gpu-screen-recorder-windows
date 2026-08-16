@@ -44,9 +44,15 @@
 
 #include "../../platform/include/capture.h"
 #include "../../platform/include/egl_win32.h"
+
+/* The upstream headers below declare C functions (gsr_color_conversion_draw,
+   scale_keep_aspect_ratio, gsr_capture_get_target_position) without
+   extern "C" guards; wrap them so this C++ TU links the C definitions. */
+extern "C" {
 #include "../../upstream/include/capture/capture.h"
 #include "../../upstream/include/vec2.h"
 #include "../../upstream/include/utils.h"
+}
 
 /* upstream's log.h has no extern "C" guard; gsr_log is defined as C in
    log.c, so the include must be wrapped or the C++ TU links a mangled
