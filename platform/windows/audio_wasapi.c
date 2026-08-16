@@ -278,19 +278,45 @@ uint8_t *encode_stereo(const float *l, const float *r, size_t num_frames, gsr_au
         return out;
     }
     const bool s16 = format == GSR_AUDIO_FORMAT_S16;
+    /* Scale by 2^N and saturate, matching libswresample's conversion (which
+       is what the engine feeds these samples into). Two traps avoided:
+       - INT32_MAX (2147483647) is NOT representable in float — it rounds
+         to 2^31, so casting 1.0*2^31 to int32 is undefined (wraps to
+         INT32_MIN on x86). Saturate in INTEGER space: compare the scaled
+         float against the exact constants (2^31 and 2^31-1 as floats are
+         the same value) and clamp there, casting only values strictly
+         inside range.
+       - 1.0 * 32768.0f overflows int16 (wraps to -32768). */
     for(size_t i = 0; i < num_frames; ++i) {
         float vl = l[i] < -1.0f ? -1.0f : (l[i] > 1.0f ? 1.0f : l[i]);
         float vr = r[i] < -1.0f ? -1.0f : (r[i] > 1.0f ? 1.0f : r[i]);
         if(s16) {
-            const int16_t sl = (int16_t)(vl * 32767.0f);
-            const int16_t sr = (int16_t)(vr * 32767.0f);
-            memcpy(out + i * frame_bytes, &sl, 2);
-            memcpy(out + i * frame_bytes + 2, &sr, 2);
+            const float sl = vl * 32768.0f;
+            const float sr = vr * 32768.0f;
+            int16_t sl16, sr16;
+            if(sl >= 32767.0f) sl16 = 32767;         /* 32767.0f is exact */
+            else if(sl <= -32768.0f) sl16 = -32768;  /* -32768.0f is exact */
+            else sl16 = (int16_t)sl;
+            if(sr >= 32767.0f) sr16 = 32767;
+            else if(sr <= -32768.0f) sr16 = -32768;
+            else sr16 = (int16_t)sr;
+            memcpy(out + i * frame_bytes, &sl16, 2);
+            memcpy(out + i * frame_bytes + 2, &sr16, 2);
         } else {
-            const int32_t sl = (int32_t)(vl * 2147483647.0f);
-            const int32_t sr = (int32_t)(vr * 2147483647.0f);
-            memcpy(out + i * frame_bytes, &sl, 4);
-            memcpy(out + i * frame_bytes + 4, &sr, 4);
+            /* 2147483647.0f == 2147483648.0f in float, so this test catches
+               every float >= 2^31 and the else branch casts only values
+               strictly below it (representable in int32). */
+            const float sl = vl * 2147483648.0f;
+            const float sr = vr * 2147483648.0f;
+            int32_t sl32, sr32;
+            if(sl >= 2147483647.0f) sl32 = 2147483647;
+            else if(sl <= -2147483648.0f) sl32 = -2147483648;
+            else sl32 = (int32_t)sl;
+            if(sr >= 2147483647.0f) sr32 = 2147483647;
+            else if(sr <= -2147483648.0f) sr32 = -2147483648;
+            else sr32 = (int32_t)sr;
+            memcpy(out + i * frame_bytes, &sl32, 4);
+            memcpy(out + i * frame_bytes + 4, &sr32, 4);
         }
     }
     return out;

@@ -150,12 +150,14 @@ static void test_downmix_to_stereo(void) {
     CHECK(mono_l[0] == 0.25f && mono_r[0] == 0.25f);
     CHECK(mono_l[1] == -0.5f && mono_r[1] == -0.5f);
 
-    /* 5.1: FL=1, FC=0.5, BL=0.5 -> L = 1 + 0.25 + 0.25 = 1.5 */
+    /* 5.1: FL=1, FC=0.5, BL=0.5 -> L = 1 + 0.25 + 0.25 = 1.5;
+       R = FR(0) + FC*0.5 (0.25) + BR(0) = 0.25. The center channel
+       correctly bleeds into both channels. */
     const float s51_in[] = {1.0f, 0.0f, 0.5f, 0.0f, 0.5f, 0.0f};
     float l, r;
     downmix_to_stereo(s51_in, 6, &l, &r, 1);
     CHECK(l > 1.499f && l < 1.501f);
-    CHECK(r > -0.001f && r < 0.001f);
+    CHECK(r > 0.249f && r < 0.251f);
 }
 
 static void test_encode_stereo(void) {
@@ -172,18 +174,30 @@ static void test_encode_stereo(void) {
     CHECK(float_from_bytes(out + 8) == -0.25f);
     free(out);
 
-    /* S16: 0.5 * 32767 = 16383 (0x3FFF); -0.5 -> -16383 (0xC001). */
+    /* S16: 2^15 scaling (libswresample convention): 0.5 -> 16384. */
     out = encode_stereo(l, r, 2, GSR_AUDIO_FORMAT_S16, 4);
     CHECK(out != NULL);
-    CHECK(s16_from_bytes(out) == 16383);
-    CHECK(s16_from_bytes(out + 2) == -16383);
-    CHECK(s16_from_bytes(out + 4) == -8191); /* -0.25 * 32767 = -8191.75 -> -8191 */
+    CHECK(s16_from_bytes(out) == 16384);
+    CHECK(s16_from_bytes(out + 2) == -16384);
+    CHECK(s16_from_bytes(out + 4) == -8192); /* -0.25 * 2^15 */
     free(out);
 
-    /* S32: 0.5 * 2147483647 = 1073741823 (0x3FFFFFFF). */
+    /* S32: 2^31 scaling: 0.5 -> 1073741824 (0x40000000). */
     out = encode_stereo(l, r, 1, GSR_AUDIO_FORMAT_S32, 8);
     CHECK(out != NULL);
-    CHECK(s32_from_bytes(out) == 1073741823);
+    CHECK(s32_from_bytes(out) == 1073741824);
+    free(out);
+
+    /* Full-scale clamping: 1.0 must saturate to the max value, not wrap. */
+    const float full_l[1] = {1.0f};
+    const float full_r[1] = {-1.0f};
+    out = encode_stereo(full_l, full_r, 1, GSR_AUDIO_FORMAT_S32, 8);
+    CHECK(s32_from_bytes(out) == 2147483647);
+    CHECK(s32_from_bytes(out + 4) == -2147483648);
+    free(out);
+    out = encode_stereo(full_l, full_r, 1, GSR_AUDIO_FORMAT_S16, 4);
+    CHECK(s16_from_bytes(out) == 32767);
+    CHECK(s16_from_bytes(out + 2) == -32768);
     free(out);
 }
 
@@ -229,12 +243,12 @@ static void test_convert_passthrough(void) {
 
     CHECK(dev.ring_count_frames == n);
     CHECK(dev.ring_head_frames == 0);
-    /* First frame: 0.25 -> 8191 (0x1FFF), -0.25 -> -8191 (0xE001). */
-    CHECK(s16_from_bytes(dev.ring + 0) == 8191);
-    CHECK(s16_from_bytes(dev.ring + 2) == -8191);
+    /* First frame: 0.25 -> 8192 (0x2000), -0.25 -> -8192. */
+    CHECK(s16_from_bytes(dev.ring + 0) == 8192);
+    CHECK(s16_from_bytes(dev.ring + 2) == -8192);
     /* Last frame: same. */
-    CHECK(s16_from_bytes(dev.ring + (n - 1) * 4) == 8191);
-    CHECK(s16_from_bytes(dev.ring + (n - 1) * 4 + 2) == -8191);
+    CHECK(s16_from_bytes(dev.ring + (n - 1) * 4) == 8192);
+    CHECK(s16_from_bytes(dev.ring + (n - 1) * 4 + 2) == -8192);
     free(dev.ring);
 }
 
@@ -258,11 +272,11 @@ static void test_convert_resample(void) {
     free(input);
 
     CHECK(dev.ring_count_frames == 480);
-    /* Constant 0.5 stays 0.5 through linear interpolation: 16383 or 16384. */
+    /* Constant 0.5 stays 0.5 through linear interpolation: 16384. */
     const int16_t v = s16_from_bytes(dev.ring + 0);
-    CHECK(v == 16383 || v == 16384);
+    CHECK(v == 16384);
     const int16_t vr = s16_from_bytes(dev.ring + 2);
-    CHECK(vr == -16383 || vr == -16384);
+    CHECK(vr == -16384);
     /* The resampler fractional position advanced (0.25 for 44.1 -> 48). */
     CHECK(dev.resample_pos > 0.001);
     free(dev.ring);
@@ -278,7 +292,7 @@ static void test_ring_overflow(void) {
     const size_t n = 32;
     float *input = malloc(n * 2 * sizeof(float));
     for(size_t i = 0; i < n; ++i) {
-        input[i] = 0.125f;  /* 0.125 * 32767 = 4095 */
+        input[i] = 0.125f;  /* 0.125 * 2^15 = 4096 */
         input[n + i] = -0.125f;
     }
 
@@ -305,8 +319,8 @@ static void test_ring_overflow(void) {
     CHECK(dev.ring_count_frames == 16);
     CHECK(dev.ring_head_frames == 0);
     /* The retained frames are the LAST 16 input frames (values 0.125). */
-    CHECK(s16_from_bytes(dev.ring + 0) == 4095);
-    CHECK(s16_from_bytes(dev.ring + (15) * 4 + 2) == -4095);
+    CHECK(s16_from_bytes(dev.ring + 0) == 4096);
+    CHECK(s16_from_bytes(dev.ring + (15) * 4 + 2) == -4096);
     free(dev.ring);
 }
 
