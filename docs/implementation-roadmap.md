@@ -362,10 +362,31 @@ build gained the matroska demuxer for this): CI is green, coverage
 51.7%. The NVENC encode path (milestone B) then replaces the software
 encoder on NVIDIA GPUs.
 
+**Milestone B — NVENC d3d11va encode path ✅ (complete):** upstream's
+GL+CUDA nvenc encoder cannot run on Windows (no CUDA-GL interop), so the
+same `gsr_video_encoder` contract is met with d3d11va in
+`platform/windows/gsr_nvenc_win32.c`: the color conversion renders into
+the same 2 GL textures as the software encoder, `glReadPixels` fills a
+persistent NV12/P010 sw frame, and `av_hwframe_transfer_data` uploads it
+into a D3D11 hw frame on the Phase 5b shared device that
+`h264_nvenc`/`hevc_nvenc`/`av1_nvenc` encode from directly. Capability
+probing is honest: a real D3D11 device whose DXGI adapter must be NVIDIA,
+a pure GPU-generation table (Maxwell..Blackwell, headless-tested via
+`gsr_nvenc_internal.h`) as pre-filter, then an actual `avcodec_open2` per
+codec. `codec_select.c`'s `_WIN32` branches now use it, so `-encoder gpu`
+falls back to libx264 via the existing path everywhere else.
+`nvenc-self-test` proves the table (incl. the pro-card naming traps), the
+live probe's honesty on non-NVIDIA machines, and the `-encoder gpu`
+fallback recording end-to-end (DD capture → ANGLE → libx264 → Matroska,
+validated in-process). Option mapping (task 3) rides on the existing
+upstream-portable `open_video_hardware` dict (rc/tune/preset/forced-idr/
+profile/`-ffmpeg-video-opts`). CI green.
+
 **CI note:** NVENC hardware is not guaranteed on the runner; capability logic
 is unit-tested, and a real-GPU validation checklist is documented
 (`docs/troubleshooting-windows.md`). CI records with `-encoder cpu`
-(libx264), which this milestone validates end-to-end.
+(libx264), which this milestone validates end-to-end. Lessons in
+`docs/upstream-porting-notes.md` §3j.
 
 ---
 
@@ -561,7 +582,7 @@ release notes, installer + zip published. Acceptance checklist from the brief
 | 5 | Windows Graphics Capture | ✅ complete |
 | 5b | ANGLE GL render backend | ✅ complete |
 | 6 | DXGI fallback | ✅ complete |
-| 7 | NVIDIA NVENC | ⏳ milestone A (recorder end-to-end) complete; milestone B (NVENC encode path) pending |
+| 7 | NVIDIA NVENC | ✅ complete (milestone A recorder end-to-end + milestone B d3d11va encode path + honest probe) |
 | 8 | WASAPI audio | ⏳ milestone A (backend + tests) complete; per-app audio / A/V-sync harness / CLI listing / device-change handling pending |
 | 9 | Replay | pending |
 | 10 | UI | pending |

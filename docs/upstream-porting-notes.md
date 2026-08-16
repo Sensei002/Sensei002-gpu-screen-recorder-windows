@@ -604,3 +604,63 @@ differences (not fixable, by design):
   audio never enters the file. Default-device change tracking (the upstream
   "auto-switch" comment) and WASAPI session enumeration for `-a app:name`
   are documented as not-yet-implemented (roadmap Phase 8, remaining).
+
+## 3j. Phase 7 (milestone B) CI validation lessons (NVENC d3d11va)
+
+* **Upstream's GL+CUDA nvenc encoder has no Windows equivalent to copy.**
+  There is no CUDA-GL interop in this port, so the same
+  `gsr_video_encoder` contract is met with d3d11va: the color conversion
+  renders into the same 2 GL textures as the software encoder,
+  `glReadPixels` fills a persistent system-memory NV12/P010 frame, and
+  `av_hwframe_transfer_data` (DIRECTION_TO) uploads it into a D3D11 hw
+  frame allocated from a hw-frames context built on the SAME device ANGLE
+  uses (`gsr_platform_egl_get_d3d11_device`, Phase 5b). The encoder reads
+  `AV_PIX_FMT_D3D11` and the codec context's `hw_frames_ctx`; the d3d11va
+  equivalent of upstream's `cuMemcpy2DAsync` is the hwframe transfer, and
+  the `frame` the recorder passes in is reused as the persistent hw frame
+  (allocated once in `start` via `av_hwframe_get_buffer`).
+* **A d3d11va device context is hand-built, not opened by name.**
+  `av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_D3D11VA)` + set
+  `AVD3D11VADeviceContext.device` (AddRef'd — FFmpeg releases it on free)
+  + `av_hwdevice_ctx_init`, then `av_hwframe_ctx_alloc` with
+  `format=AV_PIX_FMT_D3D11`, `sw_format=NV12`/`P010LE`, then
+  `av_hwframe_ctx_init`. There is no d3d11va equivalent of
+  `av_hwdevice_ctx_create` with a device name; pass the device in.
+* **Probing must be honest and real.** `gsr_get_supported_video_codecs_nvenc`
+  creates a hardware D3D11 device, requires the DXGI adapter description to
+  contain "NVIDIA", maps it to a generation (pure table,
+  `gsr_nvenc_internal.h`, headless-tested), pre-filters codecs the
+  generation cannot have, then ACTUALLY opens each encoder (`avcodec_open2`
+  with a 128x128 d3d11va hw-frames context, `highbitdepth=1` for 10-bit).
+  On the CI runner (Basic Display Adapter) it returns false, which drives
+  the existing `-fallback-cpu-encoding` path — the same honest-degradation
+  contract upstream has for unknown vendors.
+* **C has one namespace for typedefs and functions.** The accessor
+  `gsr_nvenc_generation_caps()` collided with the typedef
+  `gsr_nvenc_generation_caps` — "redeclared as different kind of symbol".
+  Rename one (the function became `gsr_nvenc_get_generation_caps`); this
+  cascaded into a wall of downstream errors that looked like a missing
+  include.
+* **Adapter-description substring matching is a trap.** "Quadro RTX 4000"
+  is Turing but contains "rtx 40" (Ada); "Quadro RTX A6000" is Ampere;
+  "RTX 4000 Ada Generation" is Ada; "adapter" contains "ada". Match the
+  professional naming FIRST (rtx a-series, quadro rtx) before the consumer
+  "rtx N0" series, and never use a short generic substring like "ada" —
+  unmatched cards must fall through to UNKNOWN (probe everything, the
+  honest outcome) rather than guess.
+* **`actions/cache/save` errors when the key already exists.** Every run
+  re-wrote the deterministic ffmpeg cache key (`if: always()` save), so
+  after any successful save the next run's save failed with "cache entry
+  already exists". Save only when the restore missed. See the workflow's
+  ffmpeg cache comment for the second half of that fix (drop
+  `ffmpeg-sources` from the payload — hundreds of MB of re-downloadable
+  tarball trees — which is what made saves time out).
+* **`GL_UNSIGNED_SHORT` was missing from the port's GL constants.** The
+  10-bit readback path uses it; egl.h defines the GL constant block for
+  the port and only had `GL_UNSIGNED_BYTE`. Added `0x1403` alongside.
+* **The recorder runs the encoder on the GL thread.** The encoder's
+  `start`/`copy_textures_to_frame` call GL; running the recorder on a
+  pthread while GL is current on the main thread makes every GL call
+  silently fail (texture 0 → black frames that "validate"). Same lesson
+  as recorder-self-test (§3h): GL is thread-bound, keep it on the thread
+  that loaded egl.
