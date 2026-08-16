@@ -235,11 +235,14 @@ future phases and upstream syncs should assume them:
 * **C++/WinRT is a first-class MSYS2 package** (`mingw-w64-x86_64-cppwinrt`,
   arch-qualified name — the packages.msys2.org API shows archless names, the
   pacman repo uses `mingw-w64-x86_64-*`). The projected headers install to
-  `/mingw64/include/winrt` and compile cleanly with g++ (C++17).
-  `project(... C CXX)` + `CMAKE_CXX_STANDARD 17`; the global
-  `-std=gnu11` compile option must be scoped to C with a generator
-  expression (`$<$<COMPILE_LANGUAGE:C>:-std=gnu11>`) or it fights the
-  C++ standard flag.
+  `/mingw64/include/winrt` and compile cleanly with g++ — but they
+  **hard-require C++20**: `winrt/base.h` #errors "C++/WinRT requires
+  coroutine support" under C++17, so `CMAKE_CXX_STANDARD 20` is mandatory
+  (GCC 16 supports coroutines).
+  `project(... C CXX)`; the global `-std=gnu11` compile option must be
+  scoped to C with a generator expression
+  (`$<$<COMPILE_LANGUAGE:C>:-std=gnu11>`) or it fights the C++ standard
+  flag.
 * **The desktop-interop interfaces are NOT in the C++/WinRT projection.**
   `IGraphicsCaptureItemInterop` and `IDirect3DDxgiInterfaceAccess` live in
   the Windows SDK's `windows.graphics.capture.interop.h` /

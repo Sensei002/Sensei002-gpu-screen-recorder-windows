@@ -16,7 +16,9 @@ project(gpu_screen_recorder_windows C CXX)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_STANDARD 17)
+# MSYS2's cppwinrt headers hard-require C++20 (winrt/base.h #errors on
+# missing coroutine support), so the backend compiles as C++20.
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(NOT MINGW)
@@ -26,7 +28,7 @@ if(NOT MINGW)
 endif()
 
 # Match upstream compiler flags where meaningful (meson: -Wshadow, warning_level=2).
-# -std=gnu11 is scoped to C: CMAKE_CXX_STANDARD 17 provides -std=gnu++17 for
+# -std=gnu11 is scoped to C: CMAKE_CXX_STANDARD 20 provides -std=gnu++20 for
 # the Phase 5 C++/WinRT backend (a global -std would fight it).
 add_compile_options($<$<COMPILE_LANGUAGE:C>:-std=gnu11> -Wshadow -Wall -Wextra)
 

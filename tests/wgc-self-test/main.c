@@ -293,10 +293,9 @@ int main(void) {
         if(texture) {
             ID3D11Texture2D *tex = (ID3D11Texture2D*)texture;
             D3D11_TEXTURE2D_DESC desc;
-            /* MinGW's d3d11.h only exposes COM vtable calls via the
-               ID3D11Texture2D_* inline wrappers in C (member-style calls
-               are C++-only). */
-            ID3D11Texture2D_GetDesc(tex, &desc);
+            /* C + MinGW: COM calls go through the lpVtbl member (the
+               ID3D11Texture2D_* wrappers are not declared in C mode). */
+            tex->lpVtbl->GetDesc(tex, &desc);
             CHECK((int)desc.Width == frame_w && (int)desc.Height == frame_h);
             CHECK(desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM);
             printf("wgc: texture format = %u (BGRA8 expected), mips=%u\n", (unsigned)desc.Format, desc.MipLevels);
@@ -308,10 +307,10 @@ int main(void) {
 
             /* Informational Option-B ANGLE import probe. */
             ID3D11Device *device = NULL;
-            ID3D11DeviceChild_GetDevice((ID3D11DeviceChild*)tex, &device);
+            ((ID3D11DeviceChild*)tex)->lpVtbl->GetDevice((ID3D11DeviceChild*)tex, &device);
             run_angle_probe(device, tex);
             if(device)
-                ID3D11Device_Release(device);
+                device->lpVtbl->Release(device);
         }
     }
 
