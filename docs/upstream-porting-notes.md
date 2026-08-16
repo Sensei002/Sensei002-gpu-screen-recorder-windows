@@ -319,12 +319,26 @@ future phases and upstream syncs should assume them:
   names and needs no import libs.
 * **The ANGLE display is created on an explicit device, not a native
   display**: `eglCreateDeviceANGLE(EGL_D3D11_DEVICE_ANGLE, device, NULL)`
-  then `eglGetPlatformDisplayEXT(EGL_PLATFORM_ANGLE_ANGLE, device,
-  {EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, ..._D3D11_ANGLE, EGL_NONE})`.
+  then `eglGetPlatformDisplayEXT(EGL_PLATFORM_DEVICE_EXT, device, NULL)`
+  (EGL_ANGLE_device_d3d + EGL_EXT_platform_device — the only path this
+  ANGLE version implements for a caller-supplied device; the
+  `EGL_PLATFORM_ANGLE_EGL_HANDLE_ANGLE` attribute form is not handled).
   The D3D11 device is created by the loader (hardware, WARP fallback) and
   shared with capture backends via the Windows-only `d3d11_device` fields
   added to the `gsr_egl` struct — the WGC frame pool MUST run on the SAME
   device for a zero-copy `EGL_D3D_TEXTURE_ANGLE` import.
+* **`EGL_BAD_ATTRIBUTE (0x3004)` on display creation was two stale
+  constants, not a missing backend.** MSYS2's ANGLE DOES compile the D3D11
+  backend (check: `libGLESv2.dll` imports `d3dcompiler_47.dll`, the D3D11
+  HLSL compiler). The failures were: (1) `EGL_D3D11_DEVICE_ANGLE` is
+  **0x33A1** (EGL_ANGLE_device_d3d spec: D3D9=0x33A0, D3D11=0x33A1) but a
+  hand-rolled 0x33A2 was used — `Device::CreateDevice` compares against
+  0x33A1, matches nothing, and returns EGL_BAD_ATTRIBUTE; and (2) passing
+  the raw `ID3D11Device*` as the `EGL_PLATFORM_ANGLE_ANGLE` native display
+  is invalid on Windows (`isValidNativeDisplay` calls `WindowFromDC`), so
+  only the EGLDeviceEXT route works. Lesson: verify every hand-rolled
+  ANGLE constant against the shipped `eglext_angle.h`/spec before
+  debugging runtime errors — same trap as the DXGI IIDs in §3d.
 * **The context is surfaceless** (EGL 1.5: `eglMakeCurrent(display,
   EGL_NO_SURFACE, EGL_NO_SURFACE, ctx)`) — no window surface, no Win32
   window dependency. This is what lets the render pipeline run headless on

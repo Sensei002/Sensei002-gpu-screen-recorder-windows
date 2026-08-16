@@ -336,30 +336,26 @@ bool gsr_egl_load_win32(gsr_egl *self, gsr_window *window, bool enable_debug) {
     const D3D_FEATURE_LEVEL feature_level = device->lpVtbl->GetFeatureLevel(device);
     gsr_log(GSR_LOG_LEVEL_INFO, "gsr_egl_load_win32: D3D11 device feature level 0x%04x", (unsigned)feature_level);
 
-    /* 2. ANGLE display on that device. Try the two documented D3D11
-       patterns; eglGetPlatformDisplayEXT accepting the raw ID3D11Device as
-       the native display (EGL_ANGLE_platform_angle) first, then wrapping it
-       in an EGLDeviceEXT (EGL_ANGLE_device_d3d + EGL_ANGLE_platform_angle).
-       eglCreateDeviceANGLE is reported to fail with EGL_BAD_ATTRIBUTE
-       (0x3004) on some ANGLE builds/devices, so prefer the direct form. */
-    const EGLint platform_attrs[] = {
-        EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_D3D11_ANGLE,
-        EGL_NONE
-    };
-    self->egl_display = eglGetPlatformDisplayEXT(EGL_PLATFORM_ANGLE_ANGLE, self->d3d11_device, platform_attrs);
+    /* 2. ANGLE display on that device. The documented D3D11 pattern is the
+       device-based path: wrap the device in an EGLDeviceEXT with
+       eglCreateDeviceANGLE(EGL_D3D11_DEVICE_ANGLE) (EGL_ANGLE_device_d3d),
+       then create the display with EGL_PLATFORM_DEVICE_EXT
+       (EGL_EXT_platform_device) — ANGLE's GetDisplayFromDevice sees the
+       D3D11 device and builds a DisplayD3D on it, so the WGC texture import
+       stays zero-copy. Passing the raw ID3D11Device as the EGL_PLATFORM_
+       ANGLE_ANGLE native display is NOT valid on Windows (isValidNativeDisplay
+       checks WindowFromDC) and a stale EGL_D3D11_DEVICE_ANGLE value turns
+       into EGL_BAD_ATTRIBUTE (0x3004); see docs/upstream-porting-notes.md
+       §3f. */
+    self->egl_angle_device = eglCreateDeviceANGLE(EGL_D3D11_DEVICE_ANGLE, self->d3d11_device, NULL);
+    if(!self->egl_angle_device) {
+        gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_egl_load_win32 failed: eglCreateDeviceANGLE failed (error 0x%x)", self->eglGetError());
+        goto fail;
+    }
+    self->egl_display = eglGetPlatformDisplayEXT(EGL_PLATFORM_DEVICE_EXT, self->egl_angle_device, NULL);
     if(!self->egl_display) {
-        const EGLint direct_error = self->eglGetError();
-        gsr_log(GSR_LOG_LEVEL_WARNING, "gsr_egl_load_win32: direct-device display failed (error 0x%x), trying eglCreateDeviceANGLE", direct_error);
-        self->egl_angle_device = eglCreateDeviceANGLE(EGL_D3D11_DEVICE_ANGLE, self->d3d11_device, NULL);
-        if(!self->egl_angle_device) {
-            gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_egl_load_win32 failed: eglCreateDeviceANGLE failed (error 0x%x)", self->eglGetError());
-            goto fail;
-        }
-        self->egl_display = eglGetPlatformDisplayEXT(EGL_PLATFORM_ANGLE_ANGLE, self->egl_angle_device, platform_attrs);
-        if(!self->egl_display) {
-            gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_egl_load_win32 failed: eglGetPlatformDisplayEXT failed (error 0x%x)", self->eglGetError());
-            goto fail;
-        }
+        gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_egl_load_win32 failed: eglGetPlatformDisplayEXT failed (error 0x%x)", self->eglGetError());
+        goto fail;
     }
 
     if(!self->eglInitialize(self->egl_display, NULL, NULL)) {

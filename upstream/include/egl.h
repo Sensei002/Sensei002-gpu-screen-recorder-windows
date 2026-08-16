@@ -33,12 +33,16 @@ typedef int Bool;
 #define EGL_NO_IMAGE ((EGLImage)0)
 #endif
 
-/* ANGLE platform display (EGL_ANGLE_platform_angle). */
+/* ANGLE platform display (EGL_ANGLE_platform_angle) and the
+   device-based display path used on Windows (EGL_EXT_platform_device +
+   EGL_ANGLE_device_d3d): wrap the shared D3D11 device with
+   eglCreateDeviceANGLE(EGL_D3D11_DEVICE_ANGLE, ...) and hand the resulting
+   EGLDeviceEXT to eglGetPlatformDisplayEXT(EGL_PLATFORM_DEVICE_EXT, ...).
+   Values verified against the MSYS2 angleproject headers / ANGLE's
+   EGL_ANGLE_device_d3d spec (docs/upstream-porting-notes.md §3f). */
 #define EGL_PLATFORM_ANGLE_ANGLE 0x3202
-#define EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE 0x3209
-#define EGL_PLATFORM_ANGLE_DEVICE_TYPE_D3D11_ANGLE 0x320B
-#define EGL_PLATFORM_ANGLE_DEVICE_TYPE_D3D11_WARP_ANGLE 0x320C
-#define EGL_D3D11_DEVICE_ANGLE 0x33A2
+#define EGL_PLATFORM_DEVICE_EXT 0x313F
+#define EGL_D3D11_DEVICE_ANGLE 0x33A1
 
 /* EGL_ANGLE_d3d_texture_client_buffer: import a D3D11 texture as a
    GL_TEXTURE_2D sibling with no copy when the display shares the device

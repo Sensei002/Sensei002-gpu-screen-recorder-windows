@@ -64,9 +64,8 @@ typedef int (*EGLGetProcAddress_t)(const char *);
 #define EGL_NO_SURFACE ((void*)0)
 #define EGL_OPENGL_ES_API 0x30A0
 #define EGL_PLATFORM_ANGLE_ANGLE 0x3202
-#define EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE 0x3209
-#define EGL_PLATFORM_ANGLE_DEVICE_TYPE_D3D11_ANGLE 0x320B
-#define EGL_D3D11_DEVICE_ANGLE 0x33A2
+#define EGL_PLATFORM_DEVICE_EXT 0x313F
+#define EGL_D3D11_DEVICE_ANGLE 0x33A1
 #define EGL_D3D_TEXTURE_ANGLE 0x33A3
 #define EGL_EXTENSIONS 0x3055
 #define GL_TEXTURE_2D 0x0DE1
@@ -138,11 +137,7 @@ static void run_angle_probe(ID3D11Device *device, ID3D11Texture2D *texture) {
         printf("INFO: eglCreateDeviceANGLE failed (0x%llx) — ANGLE device path unavailable\n", (unsigned long long)eglGetError());
         return;
     }
-    const EGLint platform_attrs[] = {
-        EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_D3D11_ANGLE,
-        EGL_NONE
-    };
-    EGLDisplay display = eglGetPlatformDisplayEXT(EGL_PLATFORM_ANGLE_ANGLE, (void*)egl_device, platform_attrs);
+    EGLDisplay display = eglGetPlatformDisplayEXT(EGL_PLATFORM_DEVICE_EXT, (void*)egl_device, NULL);
     if(display == EGL_NO_DISPLAY) {
         printf("INFO: eglGetPlatformDisplayEXT failed\n");
         return;
