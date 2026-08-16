@@ -1,0 +1,417 @@
+# GPU Screen Recorder UI - Chinese translation
+
+Press %s to open the GPU Screen Recorder UI=按 %s 打开 GPU Screen Recorder UI
+
+# General UI
+Record=录制
+Instant Replay=即时回放
+Livestream=直播
+Settings=设置
+
+# Status messages
+Off=关闭
+On=开启
+Not recording=未录制
+Recording=录制中
+Not streaming=未直播
+Streaming=直播中
+Paused=已暂停
+
+# Button labels
+Start=开始
+Stop=停止
+Stop and save=停止并保存
+Pause=暂停
+Unpause=继续
+Save=保存
+Save 1 min=保存1分钟
+Save 10 min=保存10分钟
+Turn on=开启
+Turn off=关闭
+
+# Notifications - Recording
+Recording has been paused=录制已暂停
+Recording has been unpaused=录制已继续
+Started recording %s=已开始录制%s
+Saved a %s recording of %s to "%s"=已将%s的%s录制保存到"%s"
+Saved a %s recording of %s=已保存%s的录制在%s上
+Failed to start/save recording=开始/保存录制失败
+
+# Notifications - Replay
+Replay stopped=回放已停止
+Started replaying %s=已开始回放%s
+Saving replay, this might take some time=正在保存回放，可能需要一些时间
+Saved a %s replay of %s to "%s"=已将%s的%s回放保存到"%s"
+Saved a %s replay of %s=已保存%s的%s回放
+Replay stopped because of an error=回放因错误而停止
+Replay settings have been modified. You may need to restart replay to apply the changes.=回放设置已更改。可能需要重新启动回放才能应用更改。
+Failed to save replay, make sure the replay save directory is mounted and writable=保存回放失败，请确保回放保存目录已挂载且可写
+
+# Notifications - Streaming
+Streaming has stopped=直播已停止
+Started streaming %s=已开始直播%s
+Streaming stopped because of an error=直播因错误而停止
+Streaming settings have been modified. You may need to restart streaming to apply the changes.=直播设置已更改。可能需要重新开始直播才能应用更改。
+
+# Notifications - Screenshot
+Saved a screenshot of %s to "%s"=已将%s的截图保存到"%s"
+Saved a screenshot of %s=已保存%s的截图
+Failed to take a screenshot=截图失败
+
+# Error messages
+Another instance of GPU Screen Recorder UI is already running. Press %s to open the UI.=GPU Screen Recorder UI 已在运行中。按 %s 打开界面。
+GPU Screen Recorder is already running in another process. Please close it before using GPU Screen Recorder UI.=GPU Screen Recorder 已在另一个进程中运行。请在使用 GPU Screen Recorder UI 之前关闭它。
+Failed to start replay, capture target "%s" is invalid. Please change capture target in settings=无法开始回放，捕获目标 "%s" 无效。请在设置中更改捕获目标。
+Failed to start recording, capture target "%s" is invalid. Please change capture target in settings=无法开始录制，捕获目标 "%s" 无效。请在设置中更改捕获目标。
+Failed to start streaming, capture target "%s" is invalid. Please change capture target in settings=无法开始直播，捕获目标 "%s" 无效。请在设置中更改捕获目标。
+Failed to take a screenshot, capture target "%s" is invalid. Please change capture target in settings=无法截图，捕获目标 "%s" 无效。请在设置中更改捕获目标。
+
+Unable to start recording when replay is turned on. Turn off replay before starting recording.=开启回放时无法开始录制。请先关闭回放再开始录制。
+Unable to start streaming when replay is turned on. Turn off replay before starting streaming.=开启回放时无法开始直播。请先关闭回放再开始直播。
+Unable to start streaming when recording. Stop recording before starting streaming.=录制时无法开始直播。请先停止录制再开始直播。
+Unable to start recording when streaming. Stop streaming before starting recording.=直播时无法开始录制。请先停止直播再开始录制。
+Unable to start replay when recording. Stop recording before starting replay.=录制时无法开始回放。请先停止录制再开始回放。
+Unable to start replay when streaming. Stop streaming before starting replay.=直播时无法开始回放。请先停止直播再开始回放。
+
+Started recording in the replay session=已在回放会话中开始录制
+Started recording in the streaming session=已在直播会话中开始录制
+
+Failed to start region capture=开始区域捕获失败
+Failed to start window capture=开始窗口捕获失败
+No window selected=未选择窗口
+
+Streaming stopped because of an error. Verify if settings are correct=直播因错误而停止。请检查设置是否正确
+%s. Verify if settings are correct=%s。请检查设置是否正确
+
+# GPU Screen Recorder errors
+Desktop portal capture failed. Either you canceled the desktop portal or your Wayland compositor doesn't support desktop portal capture or it's incorrectly setup on your system.=桌面门户捕获失败。你可能取消了桌面门户，或者你的 Wayland 合成器不支持桌面门户捕获，或者配置不正确。
+Monitor capture failed. The monitor you are trying to capture is invalid. Please validate your capture settings.=显示器捕获失败。你尝试捕获的显示器无效。请检查你的捕获设置。
+Capture failed. Neither H264, HEVC nor AV1 video codecs are supported on your system or you are trying to capture at a resolution higher than your system supports for each video codec.=捕获失败。你的系统不支持 H264、HEVC 或 AV1 视频编码器，或者你尝试捕获的分辨率超出了系统对各种编码器的支持范围。
+Capture failed. Your system doesn't support the resolution you are trying to record at with the video codec you have chosen. Change capture resolution or video codec and try again. Note: AV1 supports the highest resolution, then HEVC and then H264.=捕获失败。你的系统不支持使用所选视频编码器在当前分辨率下录制。请更改捕获分辨率或视频编码器后重试。注意：AV1 支持最高分辨率，其次为 HEVC 和 H264。
+Capture failed. Your system doesn't support the video codec you have chosen. Change video codec and try again.=捕获失败。你的系统不支持所选的视频编码器。请更改视频编码器后重试。
+Stopped capture because the user canceled the desktop portal=因用户取消了桌面门户而停止捕获
+Failed to take a screenshot. Verify if settings are correct=截图失败。请检查设置是否正确
+
+# Launch errors
+Failed to launch gpu-screen-recorder to start replay=启动 gpu-screen-recorder 开始回放失败
+Failed to launch gpu-screen-recorder to start recording=启动 gpu-screen-recorder 开始录制失败
+Failed to launch gpu-screen-recorder to start streaming=启动 gpu-screen-recorder 开始直播失败
+Failed to launch gpu-screen-recorder to take a screenshot=启动 gpu-screen-recorder 截图失败
+
+# System startup notifications
+Failed to add GPU Screen Recorder to system startup=无法将 GPU Screen Recorder 添加到系统启动项
+Failed to remove GPU Screen Recorder from system startup=无法从系统启动项中移除 GPU Screen Recorder
+To enable autorun: install and configure 'dex' (recommended), or manually add '%s' to your desktop autostart entries.=要启用自动运行：安装并配置 'dex'（推荐），或手动将 '%s' 添加到桌面自动启动条目中。
+GPU Screen Recorder UI startup has been switched from systemd service to XDG autostart.=GPU Screen Recorder UI 启动方式已从 systemd 服务切换到 XDG 自动启动。
+GPU Screen Recorder UI autostart via systemd is deprecated. To migrate: install and configure 'dex' (recommended), or manually add '%s' to your desktop autostart entries.=通过 systemd 自动启动 GPU Screen Recorder UI 已弃用。要迁移：安装并配置 'dex'（推荐），或手动将 '%s' 添加到桌面自动启动条目中。
+
+# Wayland warning
+Wayland doesn't support GPU Screen Recorder UI properly, things may not work as expected. Use X11 if you experience issues.=Wayland 不完全支持 GPU Screen Recorder UI，部分功能可能无法正常使用。如遇到问题请使用 X11。
+
+# Hotkey conflicts
+Some keyboard remapping software conflicts with GPU Screen Recorder on your system.\nKeyboards have been ungrabbed, applications will now receive the hotkeys you press.=你系统上的某些键盘映射软件与 GPU Screen Recorder 冲突。\n键盘已被释放，应用程序现在将接收到你按下的热键。
+
+# Capture targets
+this monitor=此显示器
+window=窗口
+window "%s"=窗口 "%s"
+window %s=窗口%s
+focused=焦点
+region=区域
+portal=门户
+
+# Time durations (used in recording/replay saved notifications)
+%d second=%d秒
+%d minute=%d分钟
+%d hour=%d小时
+%d seconds=%d秒
+%d minutes=%d分钟
+%d hours=%d小时
+
+
+# Global Settings Page UI elements
+Accent color=强调色
+Red=红色
+Green=绿色
+Blue=蓝色
+
+Start program on system startup?=在系统启动时运行程序？
+Yes=是
+No=否
+
+Enable keyboard hotkeys?=启用键盘热键？
+Yes, but only grab virtual devices (supports some input remapping software)=是，但只捕获虚拟设备（支持部分输入映射软件）
+Yes, but don't grab devices (supports all input remapping software)=是，但不捕获设备（支持所有输入映射软件）
+
+Show/hide UI:=显示/隐藏界面：
+Turn replay on/off:=开启/关闭回放：
+Save replay:=保存回放：
+Save 1 minute replay:=保存1分钟回放：
+Save 10 minute replay:=保存10分钟回放：
+Start/stop recording:=开始/停止录制：
+Pause/unpause recording:=暂停/继续录制：
+Start/stop recording a region:=开始/停止区域录制：
+Start/stop streaming:=开始/停止直播：
+Take a screenshot:=截图：
+Take a screenshot of a region:=区域截图：
+Start/stop recording with desktop portal:=通过桌面门户开始/停止录制：
+Take a screenshot with desktop portal:=通过桌面门户截图：
+Start/stop recording a window:=开始/停止窗口录制：
+Take a screenshot of a window:=窗口截图：
+Press ESC to go back to the previous page/close the UI.=按 ESC 返回上一页/关闭界面。
+
+Clear hotkeys=清除热键
+Reset hotkeys to default=重置热键为默认
+
+Enable controller hotkeys?=启用手柄热键？
+Press=按下
+and=和
+
+Notification speed=通知速度
+Normal=正常
+Fast=快速
+
+Language=语言
+System language=系统语言
+Exclude personal metadata from the video (such as audio track title)=从视频中排除个人元数据（例如音轨标题）
+
+Exit program=退出程序
+Go back to the old UI=回到旧版界面
+
+# Subsection headers
+Global=全局
+Back=返回
+
+Appearance=外观
+Startup=启动
+Keyboard hotkeys=键盘热键
+Controller hotkeys=手柄热键
+Application info=应用程序信息
+
+# Version info strings
+GSR version: %s=GSR版本：%s
+GSR-UI version: %s=GSR-UI版本：%s
+Flatpak version: %s=Flatpak版本：%s
+GPU vendor: %s=GPU厂商：%s
+
+# Hotkey configuration dialog
+Press a key combination to use for the hotkey: "%s"=请按下要用作热键的按键组合："%s"
+Alpha-numerical keys can't be used alone in hotkeys, they have to be used one or more of these keys: Alt, Ctrl, Shift and Super.\nPress Esc to cancel or Backspace to remove the hotkey.=字母数字键不能单独用作热键，必须与以下一个或多个键组合使用：Alt、Ctrl、Shift 和 Super。\n按 Esc 取消，按退格键删除热键。
+
+# Hotkey action names (without colons - these appear in the dialog)
+Show/hide UI=显示/隐藏界面
+Turn replay on/off=开启/关闭回放
+Save replay=保存回放
+Save 1 minute replay=保存1分钟回放
+Save 10 minute replay=保存10分钟回放
+Start/stop recording=开始/停止录制
+Pause/unpause recording=暂停/继续录制
+Start/stop recording a region=开始/停止区域录制
+Start/stop recording a window=开始/停止窗口录制
+Start/stop recording with desktop portal=通过桌面门户开始/停止录制
+Start/stop streaming=开始/停止直播
+Take a screenshot=截图
+Take a screenshot of a region=区域截图
+Take a screenshot of a window=窗口截图
+Take a screenshot with desktop portal=通过桌面门户截图
+
+# Controller hotkey descriptions
+to show/hide the UI=显示/隐藏界面
+to take a screenshot=截图
+to save a replay=保存回放
+to start/stop recording=开始/停止录制
+to turn replay on/off=开启/关闭回放
+to save a 1 minute replay=保存1分钟回放
+to save a 10 minute replay=保存10分钟回放
+
+# Error message for duplicate hotkey
+The hotkey %s is already used for something else=热键%s已被其他功能使用
+
+
+# Screenshot settings page
+Screenshot=截图
+Capture=捕获
+Image=图像
+File info=文件信息
+General=常规
+Screenshot indicator=截图指示器
+Script=脚本
+File=文件
+
+Back=返回
+Save=保存
+Cancel=取消
+
+Capture source:=捕获源：
+Window=窗口
+Region=区域
+Desktop portal=桌面门户
+Monitor %s (%dx%d)=显示器%s (%dx%d)
+Screen=屏幕
+
+Image resolution limit:=图像分辨率限制：
+Change image resolution=更改图像分辨率
+Restore portal session=恢复门户会话
+
+Image quality:=图像质量：
+Medium=中
+High=高
+Very high (Recommended)=非常高（推荐）
+Ultra=极致
+
+Record cursor=录制光标
+
+Directory to save screenshots:=截图保存目录：
+Image format:=图像格式：
+
+Save screenshot in a folder based on the games name=将截图保存在以游戏名称命名的文件夹中
+
+Save screenshot to clipboard=保存截图到剪贴板
+Save screenshot to clipboard (Not supported properly by Wayland)=保存截图到剪贴板（Wayland 不完全支持）
+Save screenshot to disk=保存截图到磁盘
+
+Show screenshot notifications=显示截图通知
+Blink scroll lock led when taking a screenshot=截图时闪烁 Scroll Lock LED
+
+Command to open the screenshot with:=用于打开截图的命令：
+
+
+# Settings Page UI elements
+
+# View modes
+Simple view=简单视图
+Advanced view=高级视图
+
+# Capture settings
+Follow focused window=跟随焦点窗口
+Focused monitor=焦点显示器
+
+Area size:=区域大小：
+Video resolution limit:=视频分辨率限制：
+Change video resolution=更改视频分辨率
+
+# Webcam settings
+Webcam=摄像头
+Webcam source:=摄像头源：
+None=无
+Video format:=视频格式：
+Auto (recommended)=自动（推荐）
+YUYV (Fastest)=YUYV（最快）
+Motion-JPEG (Slower)=Motion-JPEG（较慢）
+Video setup:=视频设置：
+* Right click in the bottom right corner to resize the webcam=* 右键点击右下角可调整摄像头大小
+Flip camera horizontally=水平翻转摄像头
+
+# Audio settings
+Audio=音频
+Audio codec:=音频编码器：
+Opus (Recommended)=Opus（推荐）
+AAC=AAC
+
+Directory to save videos:=视频保存目录：
+Output device:=输出设备：
+Input device: =输入设备：
+# yes, these spaces are intentional
+Application:     =应用程序：
+Custom...=自定义...
+
+Save video in a folder based on the games name%s=将视频保存在以游戏名称命名的文件夹中%s
+ (X11 applications only)=（仅限 X11 应用程序）
+
+Add audio track=添加音轨
+Add input device=添加输入设备
+Add output device=添加输出设备
+Add application audio=添加应用程序音频
+Record audio from all applications except the selected ones=录制除选中应用程序之外的所有应用程序音频
+Recording output devices and application audio may record all output audio, which is likely not what you want to do. Remove the output devices.=录制输出设备和应用程序音频可能会录制所有输出音频，这可能不是你想要的效果。请移除输出设备。
+
+Video=视频
+
+# Video codec settings
+Video codec:=视频编码器：
+H264=H264
+HEVC=HEVC
+HEVC (10 bit, reduces banding)=HEVC（10位，减少色彩断层）
+HEVC (HDR)=HEVC（HDR）
+AV1=AV1
+AV1 (10 bit, reduces banding)=AV1（10位，减少色彩断层）
+AV1 (HDR)=AV1（HDR）
+VP8=VP8
+VP9=VP9
+H264 Software Encoder (Slow, not recommended)=H264 软件编码器（慢，不推荐）
+
+# Video quality and bitrate
+Video quality:=视频质量：
+Very high=非常高
+Video bitrate (Kbps):=视频比特率 (Kbps)：
+Constant bitrate=恒定比特率
+Constant bitrate (Recommended)=恒定比特率（推荐）
+
+# Frame rate settings
+Frame rate:=帧率：
+Frame rate mode:=帧率模式：
+Auto (Recommended)=自动（推荐）
+Constant=恒定
+Variable=可变
+Sync to content=同步到内容
+Sync to content (Only X11 or desktop portal capture)=同步到内容（仅限 X11 或桌面门户捕获）
+
+# Color range
+Color range:=色彩范围：
+Limited=有限
+Full=完整
+
+# Container format
+Container:=容器：
+
+# Recording settings
+Record in low-power mode=在低功耗模式下录制
+Record cursor=录制光标
+
+Do not force the GPU to go into high performance mode when recording.\nMay affect recording performance, especially when playing a video at the same time.\nIf enabled then it's recommended to use sync to content frame rate mode to reduce power usage when idle.=录制时不要强制 GPU 进入高性能模式。\n可能会影响录制性能，尤其是同时播放视频时。\n如果启用，建议使用同步到内容的帧率模式以减少空闲时功耗。
+Use vulkan video encoding instead of VAAPI/NVENC.\nEnabling this may result in better game performance while recording, especially on NVIDIA.\nNote that this option is experimental. There may be GPU driver issues that causes issues when this is enabled.=使用 Vulkan 视频编码代替 VAAPI/NVENC。\n启用此功能可能在录制时获得更好的游戏性能，尤其是在 NVIDIA 显卡上。\n请注意此选项为实验性功能。启用后可能会出现 GPU 驱动问题。
+Enable vulkan video encoding (experimental)=启用 Vulkan 视频编码（实验性）
+
+Show replay notifications=显示回放通知
+Show recording notifications=显示录制通知
+Show streaming notifications=显示直播通知
+Show replay status with scroll lock LED=通过 Scroll Lock LED 显示回放状态
+Show recording status with scroll lock LED=通过 Scroll Lock LED 显示录制状态
+Show streaming status with scroll lock LED=通过 Scroll Lock LED 显示直播状态
+Recording indicator=录制指示器
+
+Simple=简单
+Audio track #%d=音轨 #%d
+Track title:=音轨标题：
+Output device=输出设备
+Input device:   =输入设备：
+Estimated video file size per minute (excluding audio): %.2fMB=预估每分钟视频文件大小（不含音频）：%.2fMB
+
+# Replay settings
+Directory to save replays:=回放保存目录：
+Replay indicator=回放指示器
+Turn on replay when starting a game=启动游戏时开启回放
+Autostart=自动启动
+in RAM=在内存中
+on disk=在磁盘上
+Replay duration in seconds:=回放时长（秒）：
+Where should temporary replay data be stored?=临时回放数据存储位置？
+RAM=内存
+Disk (Not recommended on SSDs)=磁盘（不推荐在 SSD 上使用）
+Turn on replay when this program starts=此程序启动时开启回放
+Only turn on replay if a power supply is connected=仅在接入电源时开启回放
+Don't turn on replay automatically=不要自动开启回放
+Restart replay on save=保存后重新开始回放
+Estimated video max file size %s: %.2fMB.\nChange video bitrate or replay duration to change file size.=预估视频最大文件大小%s：%.2fMB。\n更改视频比特率或回放时长以调整文件大小。
+
+# Streaming settings
+Stream service:=直播平台：
+Twitch=Twitch
+YouTube=YouTube
+Kick=Kick
+Rumble=Rumble
+Custom=自定义
+Stream URL:=直播URL：
+Stream key:=直播密钥：
+Streaming info=直播信息
+Streaming indicator=直播指示器

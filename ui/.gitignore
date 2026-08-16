@@ -1,0 +1,11 @@
+# Compiled sibs files
+sibs-build/
+compile_commands.json
+
+**/xdg-output-unstable-v1-client-protocol.h
+**/xdg-output-unstable-v1-protocol.c
+
+depends/.wraplock
+
+.cache
+build/

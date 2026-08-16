@@ -1,0 +1,7 @@
+{
+    "uuid": "gpu-screen-recorder@dec05eba.com",
+    "name": "GPU Screen Recorder UI",
+    "description": "Reports the focused window title to gpu-screen-recorder-ui via D-Bus.",
+    "shell-version": ["45", "46", "47", "48", "49", "50", "51", "52", "53", "54", "55"],
+    "url": "https://git.dec05eba.com/gpu-screen-recorder-overlay"
+}

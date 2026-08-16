@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=GPU Screen Recorder
+GenericName=Screen recorder
+GenericName[hu]=Képernyőrögzítő
+Comment=A ShadowPlay-like screen recorder for Linux
+Comment[hu]=ShadowPlay-szerű képernyőrögzítő Linuxra
+Icon=gpu-screen-recorder
+Exec=gsr-ui launch-hide-announce
+Terminal=false
+Keywords=gpu-screen-recorder;gsr-ui;screen recorder;streaming;twitch;replay;shadowplay;
+Keywords[hu]=gpu-screen-recorder;gsr-ui;képernyőrögzítő;streamelés;közvetítés;twitch;visszajátszás;shadowplay;
+Categories=AudioVideo;Recorder;

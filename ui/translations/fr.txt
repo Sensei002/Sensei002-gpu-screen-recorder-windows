@@ -1,0 +1,427 @@
+# GPU Screen Recorder UI - French translation
+
+Press %s to open the GPU Screen Recorder UI=Appuyez sur %s pour ouvrir l’interface GPU Screen Recorder
+
+# General UI
+Record=Enregistrer
+Instant Replay=Replay instantané
+Livestream=Diffusion en direct
+Settings=Paramètres
+
+# Status messages
+Off=Éteint
+On=Allumé
+Not recording=Non enregistré
+Recording=Enregistrement
+Not streaming=Non diffusé
+Streaming=Diffusion
+Paused=En pause
+
+# Button labels
+Start=Lancer
+Stop=Arrêter
+Stop and save=Arrêter et sauvegarder
+Pause=Pause
+Unpause=Reprendre
+Save=Sauvegarder
+Save 1 min=Sauvegarder 1 min
+Save 10 min=Sauvegarder 10 min
+Turn on=Lancer
+Turn off=Arrêter
+
+# Notifications - Recording
+Recording has been paused=L’enregistrement a été mis en pause
+Recording has been unpaused=L’enregistrement a repris
+Started recording %s=Enregistrement démarré %s
+Saved a %s recording of %s to "%s"=Enregistrement %s de %s sauvegardé dans "%s"
+Saved a %s recording of %s=Enregistrement %s de %s sauvegardé
+Failed to start/save recording=Échec du démarrage/sauvegarde de l’enregistrement
+
+# Notifications - Replay
+Replay stopped=Replay arrêté
+Started replaying %s=Replay démarré %s
+Saving replay, this might take some time=Sauvegarde du replay, cela peut prendre un certain temps
+Saved a %s replay of %s to "%s"=Replay %s de %s sauvegardé dans "%s"
+Saved a %s replay of %s=Replay %s de %s sauvegardé
+Replay stopped because of an error=Replay arrêté en raison d’une erreur
+Replay settings have been modified. You may need to restart replay to apply the changes.=Les paramètres de replays ont été modifiés. Vous devez peut-être redémarrer le replay pour appliquer les changements.
+Failed to save replay, make sure the replay save directory is mounted and writable=Échec de la sauvegarde du replay, assurez-vous que le répertoire de sauvegarde des replays est monté et accessible en écriture
+
+# Notifications - Streaming
+Streaming has stopped=Diffusion arrêtée
+Started streaming %s=Diffusion démarrée %s
+Streaming stopped because of an error=Diffusion arrêtée en raison d’une erreur
+Streaming settings have been modified. You may need to restart streaming to apply the changes.=Les paramètres de diffusion ont été modifiés. Vous devez peut-être redémarrer la diffusion pour appliquer les changements.
+
+# Notifications - Screenshot
+Saved a screenshot of %s to "%s"=Capture d’écran de %s sauvegardée dans "%s"
+Saved a screenshot of %s=Capture d’écran de %s sauvegardée
+Failed to take a screenshot=Échec de la capture d’écran
+
+# Error messages
+Another instance of GPU Screen Recorder UI is already running. Press %s to open the UI.=Une autre instance de GPU Screen Recorder UI est déjà en cours. Appuyez sur %s pour ouvrir l’UI.
+GPU Screen Recorder is already running in another process. Please close it before using GPU Screen Recorder UI.=GPU Screen Recorder est déjà en cours dans un autre processus. Veuillez le fermer avant d’utiliser l’UI.
+Failed to start replay, capture target "%s" is invalid. Please change capture target in settings=Échec du démarrage du replay, la cible "%s" est invalide. Veuillez modifier la cible dans les paramètres.
+Failed to start recording, capture target "%s" is invalid. Please change capture target in settings=Échec du démarrage de l’enregistrement, la cible "%s" est invalide. Veuillez modifier la cible dans les paramètres.
+Failed to start streaming, capture target "%s" is invalid. Please change capture target in settings=Échec du démarrage de la diffusion, la cible "%s" est invalide. Veuillez modifier la cible dans les paramètres.
+Failed to take a screenshot, capture target "%s" is invalid. Please change capture target in settings=Échec de la capture d’écran, la cible "%s" est invalide. Veuillez modifier la cible dans les paramètres.
+
+Unable to start recording when replay is turned on. Turn off replay before starting recording.=Impossible de démarrer l’enregistrement lorsque le replay est activé. Désactivez le replay avant de commencer l’enregistrement.
+Unable to start streaming when replay is turned on. Turn off replay before starting streaming.=Impossible de démarrer la diffusion lorsque le replay est activé. Désactivez le replay avant de commencer la diffusion.
+Unable to start streaming when recording. Stop recording before starting streaming.=Impossible de démarrer la diffusion pendant l’enregistrement. Arrêtez l’enregistrement avant de commencer la diffusion.
+Unable to start recording when streaming. Stop streaming before starting recording.=Impossible de démarrer l’enregistrement pendant la diffusion. Arrêtez la diffusion avant de commencer l’enregistrement.
+Unable to start replay when recording. Stop recording before starting replay.=Impossible de démarrer le replay pendant l’enregistrement. Arrêtez l’enregistrement avant de commencer le replay.
+Unable to start replay when streaming. Stop streaming before starting replay.=Impossible de démarrer le replay pendant la diffusion. Arrêtez la diffusion avant de commencer le replay.
+
+Started recording in the replay session=Enregistrement démarré pendant la session de replay
+Started recording in the streaming session=Enregistrement démarré pendant la session de diffusion
+
+Failed to start region capture=Échec du démarrage de la capture de région
+Failed to start window capture=Échec du démarrage de la capture de fenêtre
+No window selected=Aucune fenêtre sélectionnée
+
+Streaming stopped because of an error. Verify if settings are correct=Diffusion arrêtée en raison d’une erreur. Vérifiez les paramètres
+%s. Verify if settings are correct=%s. Vérifiez les paramètres
+
+# GPU Screen Recorder errors
+Desktop portal capture failed. Either you canceled the desktop portal or your Wayland compositor doesn’t support desktop portal capture or it’s incorrectly setup on your system.=Échec de la capture via le portail du bureau. Vous avez annulé le portail ou votre compositeur Wayland ne supporte pas la capture via le portail ou il est mal configuré.
+Monitor capture failed. The monitor you are trying to capture is invalid. Please validate your capture settings.=Échec de la capture du moniteur. Le moniteur que vous essayez de capturer est invalide. Veuillez vérifier vos paramètres de capture.
+Capture failed. Neither H264, HEVC nor AV1 video codecs are supported on your system or you are trying to capture at a resolution higher than your system supports for each video codec.=Échec de la capture. Aucun codec vidéo H264, HEVC ou AV1 n’est supporté sur votre système ou vous essayez de capturer à une résolution plus élevée que celle supportée par votre système pour chaque codec.
+Capture failed. Your system doesn’t support the resolution you are trying to record at with the video codec you have chosen. Change capture resolution or video codec and try again. Note: AV1 supports the highest resolution, then HEVC and then H264.=Échec de la capture. Votre système ne supporte pas la résolution choisie pour le codec sélectionné. Modifiez la résolution ou le codec et réessayez. Note : AV1 supporte la résolution la plus élevée, puis HEVC et H264.
+Capture failed. Your system doesn’t support the video codec you have chosen. Change video codec and try again.=Échec de la capture. Votre système ne supporte pas le codec vidéo sélectionné. Changez de codec et réessayez.
+Stopped capture because the user canceled the desktop portal=Capture arrêtée car l’utilisateur a annulé le portail du bureau
+Failed to take a screenshot. Verify if settings are correct=Échec de la capture d’écran. Vérifiez les paramètres.
+
+# Launch errors
+Failed to launch gpu-screen-recorder to start replay=Échec du lancement de gpu-screen-recorder pour démarrer le replay
+Failed to launch gpu-screen-recorder to start recording=Échec du lancement de gpu-screen-recorder pour démarrer l’enregistrement
+Failed to launch gpu-screen-recorder to start streaming=Échec du lancement de gpu-screen-recorder pour démarrer la diffusion
+Failed to launch gpu-screen-recorder to take a screenshot=Échec du lancement de gpu-screen-recorder pour capturer l’écran
+
+# System startup notifications
+Failed to add GPU Screen Recorder to system startup=Échec de l’ajout de GPU Screen Recorder au démarrage du système
+Failed to remove GPU Screen Recorder from system startup=Échec de la suppression de GPU Screen Recorder du démarrage du système
+To enable autorun: install and configure 'dex' (recommended), or manually add '%s' to your desktop autostart entries.=Pour activer le démarrage automatique : installez et configurez 'dex' (recommandé) ou ajoutez manuellement '%s' aux entrées de démarrage automatique du bureau.
+GPU Screen Recorder UI startup has been switched from systemd service to XDG autostart.=Le démarrage de GPU Screen Recorder UI a été basculé du service systemd vers le démarrage automatique XDG.
+GPU Screen Recorder UI autostart via systemd is deprecated. To migrate: install and configure 'dex' (recommended), or manually add '%s' to your desktop autostart entries.=Le démarrage automatique de GPU Screen Recorder UI via systemd est obsolète. Pour migrer : installez et configurez 'dex' (recommandé) ou ajoutez manuellement '%s' aux entrées de démarrage automatique du bureau.
+
+# Wayland warning
+Wayland doesn't support GPU Screen Recorder UI properly, things may not work as expected. Use X11 if you experience issues.=Wayland ne supporte pas correctement l’UI de GPU Screen Recorder, certains éléments peuvent mal fonctionner. Utilisez X11 si vous rencontrez des problèmes.
+
+# Hotkey conflicts
+Some keyboard remapping software conflicts with GPU Screen Recorder on your system.\nKeyboards have been ungrabbed, applications will now receive the hotkeys you press.=Certaines applications de remappage clavier entrent en conflit avec GPU Screen Recorder.\nLes claviers ont été libérés, les applications recevront désormais vos touches rapides.
+
+# Capture targets
+this monitor=Ce moniteur
+window=Fenêtre
+window "%s"=Fenêtre "%s"
+window %s=Fenêtre %s
+focused=Fenêtre active
+region=Région
+portal=Portail
+
+# Time durations (used in recording/replay saved notifications, remember to use %d for numbers)
+# if you have complex plural forms in your language, please use the following format:
+%d second_one=%d seconde
+%d second_few=%d secondes
+%d second_many=%d secondes
+%d minute_one=%d minute
+%d minute_few=%d minutes
+%d minute_many=%d minutes
+%d hour_one=%d heure
+%d hour_few=%d heures
+%d hour_many=%d heures
+%d second=%d seconde
+%d minute=%d minute
+%d hour=%d heure
+%d seconds=%d secondes
+%d minutes=%d minutes
+%d hours=%d heures
+
+
+# Global Settings Page UI elements
+Accent color=Couleur d’accent
+Red=Rouge
+Green=Vert
+Blue=Bleu
+
+Start program on system startup?=Lancer le programme au démarrage du système ?
+Yes=Oui
+No=Non
+
+Enable keyboard hotkeys?=Activer les raccourcis clavier ?
+Yes, but only grab virtual devices (supports some input remapping software)=Oui, mais capturer que les appareils virtuels (supporte certains logiciels de remappage)
+Yes, but don't grab devices (supports all input remapping software)=Oui, sans capturer les appareils (supporte tous les logiciels de remappage)
+
+Show/hide UI:=Afficher/masquer l’UI :
+Turn replay on/off:=Activer/désactiver le replay :
+Save replay:=Sauvegarder le replay :
+Save 1 minute replay:=Sauvegarder 1min de replay :
+Save 10 minute replay:=Sauvegarder 10min de replay :
+Start/stop recording:=Lancer/arrêter l’enregistrement :
+Pause/unpause recording:=Pause/reprendre l’enregistrement :
+Start/stop recording a region:=Lancer/arrêter l’enregistrement d’une région :
+Start/stop streaming:=Lancer/arrêter la diffusion :
+Take a screenshot:=Prendre une capture d’écran :
+Take a screenshot of a region:=Prendre une capture d’écran d’une région :
+Start/stop recording with desktop portal:=Lancer/arrêter l’enregistrement via le portail du bureau :
+Take a screenshot with desktop portal:=Prendre une capture via le portail du bureau :
+Start/stop recording a window:=Lancer/arrêter l’enregistrement d’une fenêtre :
+Take a screenshot of a window:=Prendre une capture d’écran d’une fenêtre :
+Press ESC to go back to the previous page/close the UI.=Appuyez sur ÉCHAP pour revenir à la page précédente/fermer l'interface utilisateur.
+
+Clear hotkeys=Effacer les raccourcis
+Reset hotkeys to default=Réinitialiser les raccourcis par défaut
+
+Enable controller hotkeys?=Activer les raccourcis manette ?
+Press=Appuyer sur
+and=et
+
+Notification speed=Vitesse des notifications
+Normal=Normale
+Fast=Rapide
+
+Language=Langue
+System language=Langue du système
+Exclude personal metadata from the video (such as audio track title)=Exclure les métadonnées personnelles de la vidéo (telles que le titre de la piste audio)
+
+Exit program=Quitter le programme
+Go back to the old UI=Revenir à l’ancienne UI
+
+# Subsection headers
+Global=Général
+Back=Retour
+
+Appearance=Apparence
+Startup=Démarrage
+Keyboard hotkeys=Raccourcis clavier
+Controller hotkeys=Raccourcis manette
+Application info=Informations sur l’application
+
+# Version info strings
+GSR version: %s=Version GSR : %s
+GSR-UI version: %s=Version GSR-UI : %s
+Flatpak version: %s=Version Flatpak : %s
+GPU vendor: %s=Constructeur GPU : %s
+
+# Hotkey configuration dialog
+Press a key combination to use for the hotkey: "%s"=Appuyez sur une combinaison de touches pour le raccourci : "%s"
+Alpha-numerical keys can't be used alone in hotkeys, they have to be used one or more of these keys: Alt, Ctrl, Shift and Super.\nPress Esc to cancel or Backspace to remove the hotkey.=Les touches alphanumériques ne peuvent pas être utilisées seules pour les raccourcis, elles doivent être combinées avec une ou plusieurs de ces touches : Alt, Ctrl, Shift, Super.\nAppuyez sur Échap pour annuler ou Retour arrière pour supprimer le raccourci.
+
+# Hotkey action names (without colons - these appear in the dialog)
+Show/hide UI=Afficher/masquer l’UI
+Turn replay on/off=Activer/désactiver le replay
+Save replay=Sauvegarder le replay
+Save 1 minute replay=Sauvegarder 1min de replay
+Save 10 minute replay=Sauvegarder 10min de replay
+Start/stop recording=Lancer/arrêter l’enregistrement
+Pause/unpause recording=Pause/reprendre l’enregistrement
+Start/stop recording a region=Lancer/arrêter l’enregistrement d’une région
+Start/stop recording a window=Lancer/arrêter l’enregistrement d’une fenêtre
+Start/stop recording with desktop portal=Lancer/arrêter l’enregistrement via le portail du bureau
+Start/stop streaming=Lancer/arrêter la diffusion
+Take a screenshot=Prendre une capture d’écran
+Take a screenshot of a region=Prendre une capture d’écran d’une région
+Take a screenshot of a window=Prendre une capture d’écran d’une fenêtre
+Take a screenshot with desktop portal=Prendre une capture via le portail du bureau
+
+# Controller hotkey descriptions
+to show/hide the UI=pour afficher/masquer l’UI
+to take a screenshot=pour prendre une capture d’écran
+to save a replay=pour sauvegarder le replay
+to start/stop recording=pour démarrer/arrêter l’enregistrement
+to turn replay on/off=pour activer/désactiver le replay
+to save a 1 minute replay=pour sauvegarder 1min de replay
+to save a 10 minute replay=pour sauvegarder 10min de replay
+
+# Error message for duplicate hotkey
+The hotkey %s is already used for something else=Le raccourci %s est déjà utilisé pour une autre action
+
+
+# Screenshot settings page
+Screenshot=Capture d’écran
+Capture=Capture
+Image=Image
+File info=Infos fichier
+General=Général
+Screenshot indicator=Indicateur de capture
+Script=Script
+File=Fichier
+
+Back=Retour
+Save=Enregistrer
+Cancel=Annuler
+
+Capture source:=Source de capture :
+Window=Fenêtre
+Region=Région
+Desktop portal=Portail du bureau
+Monitor %s (%dx%d)=Moniteur %s (%dx%d)
+Screen=Écran
+
+Image resolution limit:=Limite de résolution de l’image :
+Change image resolution=Modifier la résolution de l’image
+Restore portal session=Restaurer la session du portail
+
+Image quality:=Qualité de l’image :
+Medium=Moyenne
+High=Haute
+Very high (Recommended)=Très haute (Recommandé)
+Ultra=Ultra
+
+Record cursor=Enregistrer le curseur
+
+Directory to save screenshots:=Répertoire de sauvegarde des captures :
+Image format:=Format de l’image :
+
+Save screenshot in a folder based on the games name=Enregistrer la capture dans un dossier nommé selon le jeu
+
+Save screenshot to clipboard=Copier la capture dans le presse-papiers
+Save screenshot to clipboard (Not supported properly by Wayland)=Copier la capture dans le presse-papiers (non pleinement supporté par Wayland)
+Save screenshot to disk=Enregistrer la capture sur le disque
+
+Show screenshot notifications=Afficher les notifications de capture
+Blink scroll lock led when taking a screenshot=Faire clignoter la LED d'Arrêt Défil. lors de la capture d'écran
+
+Command to open the screenshot with:=Commande pour ouvrir la capture :
+
+
+# Settings Page UI elements - дополнения
+
+# View modes
+Simple view=Vue simple
+Advanced view=Vue avancée
+
+# Capture settings
+Follow focused window=Suivre la fenêtre active
+Focused monitor=Moniteur actif
+
+Area size:=
+Area size:=Taille de la zone :
+Video resolution limit:=Limite de résolution vidéo :
+Change video resolution=Modifier la résolution vidéo
+
+# Webcam settings
+Webcam=Webcam
+Webcam source:=Source webcam :
+None=Aucune
+Video format:=Format vidéo :
+Auto (recommended)=Automatique (recommandé)
+YUYV (Fastest)=YUYV (Le plus rapide)
+Motion-JPEG (Slower)=Motion-JPEG (Plus lent)
+Video setup:=Configuration vidéo :
+* Right click in the bottom right corner to resize the webcam=* Clic droit en bas à droite pour redimensionner la webcam
+Flip camera horizontally=Inverser la caméra horizontalement
+
+# Audio settings
+Audio=Audio
+Audio codec:=Codec audio :
+Opus (Recommended)=Opus (Recommandé)
+AAC=AAC
+
+Directory to save videos:=Répertoire pour sauvegarder les vidéos :
+Output device:=Périphérique de sortie :
+Input device: =Périphérique d’entrée
+Application: =Application :
+Custom...=Personnalisé...
+
+Save video in a folder based on the games name%s=Enregistrer la vidéo dans un dossier nommé selon le jeu %s
+(X11 applications only)=(Applications X11 uniquement)
+
+Add audio track=Ajouter une piste audio
+Add input device=Ajouter appareil d’entrée
+Add output device=Ajouter appareil de sortie
+Add application audio=Ajouter l’audio d’application
+Record audio from all applications except the selected ones=Enregistrer l’audio de toutes les applications sauf celles sélectionnées
+Recording output devices and application audio may record all output audio, which is likely not what you want to do. Remove the output devices.=L’enregistrement des périphériques de sortie et de l’audio d’application peut enregistrer tout l’audio de sortie, ce qui n’est probablement pas souhaité. Supprimez les périphériques de sortie.
+
+Video=Vidéo
+
+# Video codec settings
+Video codec:=Codec vidéo :
+H264=H264
+HEVC=HEVC
+HEVC (10 bit, reduces banding)=HEVC (10 bits, réduit le banding)
+HEVC (HDR)=HEVC (HDR)
+AV1=AV1
+AV1 (10 bit, reduces banding)=AV1 (10 bits, réduit le banding)
+AV1 (HDR)=AV1 (HDR)
+VP8=VP8
+VP9=VP9
+H264 Software Encoder (Slow, not recommended)=Encodeur logiciel H264 (lent, non recommandé)
+
+# Video quality and bitrate
+Video quality:=Qualité vidéo :
+Very high=Très élevée
+Video bitrate (Kbps):=Débit vidéo (Kbps) :
+Constant bitrate=Débit constant
+Constant bitrate (Recommended)=Débit constant (recommandé)
+
+# Frame rate settings
+Frame rate:=Fréquence d’images :
+Frame rate mode:=Mode de fréquence d’images :
+Auto (Recommended)=Automatique (recommandé)
+Constant=Constant
+Variable=Variable
+Sync to content=Synchroniser au contenu
+Sync to content (Only X11 or desktop portal capture)=Synchroniser au contenu (Uniquement capture X11 ou portail du bureau)
+
+# Color range
+Color range:=Plage de couleurs :
+Limited=Limitée
+Full=Complète
+
+# Container format
+Container:=Format :
+
+# Recording settings
+Record in low-power mode=Enregistrer en mode basse consommation
+Record cursor=Enregistrer le curseur
+
+Do not force the GPU to go into high performance mode when recording.\nMay affect recording performance, especially when playing a video at the same time.\nIf enabled then it's recommended to use sync to content frame rate mode to reduce power usage when idle.=Ne forcez pas le GPU en mode haute performance lors de l’enregistrement.\nPeut affecter les performances, surtout en lisant une vidéo en parallèle.\nSi activé, il est recommandé d’utiliser le mode “Synchroniser au contenu” pour réduire la consommation d’énergie au repos.
+Use vulkan video encoding instead of VAAPI/NVENC.\nEnabling this may result in better game performance while recording, especially on NVIDIA.\nNote that this option is experimental. There may be GPU driver issues that causes issues when this is enabled.=Utilisez l'encodage vidéo Vulkan au lieu de VAAPI/NVENC.\nL'activation de cette option peut améliorer les performances de jeu lors de l'enregistrement, notamment sur les cartes graphiques NVIDIA.\nNotez que cette option est expérimentale. Des problèmes de pilotes GPU peuvent survenir lorsqu'elle est activée.
+Enable vulkan video encoding (experimental)=Activer l'encodage vidéo Vulkan (expérimental)
+
+Show replay notifications=Afficher les notifications de relecture
+Show recording notifications=Afficher les notifications d'enregistrement
+Show streaming notifications=Afficher les notifications de diffusion
+Show replay status with scroll lock LED=Afficher l'état de relecture avec la LED de verrouillage du défilement
+Show recording status with scroll lock LED=Afficher l'état d'enregistrement avec la LED de verrouillage du défilement
+Show streaming status with scroll lock LED=Afficher l'état de diffusion avec la LED de verrouillage du défilement
+Recording indicator=Indicateur d’enregistrement
+
+Simple=Simple
+Audio track #%d=Piste audio #%d
+Track title:=Titre de la piste :
+Output device=Périphérique de sortie
+Input device: =Périphérique d’entrée
+Estimated video file size per minute (excluding audio): %.2fMB=Taille estimée du fichier vidéo par minute (hors audio) : %.2f Mo
+
+# Replay settings
+Directory to save replays:=Répertoire pour sauvegarder les replays :
+Replay indicator=Indicateur de replay
+Turn on replay when starting a game=Activez la rediffusion au début d'une partie
+Autostart=Démarrage automatique
+in RAM=En RAM
+on disk=Sur le disque
+Replay duration in seconds:=Durée du replay (secondes) :
+Where should temporary replay data be stored?=Où stocker les données temporaires des replays ?
+RAM=RAM
+Disk (Not recommended on SSDs)=Disque (Non recommandé sur SSD)
+Turn on replay when this program starts=Activer le replay au démarrage du programme
+Only turn on replay if a power supply is connected=N'activez la lecture que si une alimentation est branchée
+Don't turn on replay automatically=Ne pas activer automatiquement le replay
+Restart replay on save=Redémarrer le replay après sauvegarde
+Estimated video max file size %s: %.2fMB.\nChange video bitrate or replay duration to change file size.=Taille maximale estimée du fichier vidéo %s : %.2f Mo.\nModifiez le débit ou la durée de replay pour changer la taille du fichier.
+
+# Streaming settings
+Stream service:=Service de diffusion :
+Twitch=Twitch
+YouTube=YouTube
+Kick=Kick
+Rumble=Rumble
+Custom=Personnalisé
+Stream URL:=URL du flux :
+Stream key:=Clé de diffusion :
+Streaming info=Infos diffusion
+Streaming indicator=Indicateur de diffusion

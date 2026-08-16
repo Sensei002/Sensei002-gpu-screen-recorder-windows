@@ -1,0 +1,413 @@
+# GPU Screen Recorder UI - Turkish translation
+
+Press %s to open the GPU Screen Recorder UI=GPU Screen Recorder arayüzünü açmak için %s tuşlarına basın
+
+# General UI
+Record=Kaydet
+Instant Replay=Anlık Yeniden Oynatma
+Livestream=Canlı Yayın
+Settings=Ayarlar
+
+# Status messages
+Off=Kapalı
+On=Açık
+Not recording=Kaydetmiyor
+Recording=Kaydediyor
+Not streaming=Yayın yapmıyor
+Streaming=Yayın yapıyor
+Paused=Duraklatıldı
+
+# Button labels
+Start=Başla
+Stop=Durdur
+Stop and save=Durdur ve kaydet
+Pause=Duraklat
+Unpause=Sürdür
+Save=Kaydet
+Save 1 min=1 dk. kaydet
+Save 10 min=10 dk. kaydet
+Turn on=Aç
+Turn off=Kapat
+
+# Notifications - Recording
+Recording has been paused=Kaydetme duraklatıldı
+Recording has been unpaused=Kaydetme sürdürüldü
+Started recording %s=Kayıt başlatıldı: %s
+Saved a %s recording of %s to "%s"=%s sürelik %s kaydı "%s" konumuna kaydedildi
+Saved a %s recording of %s=%s sürelik %s kaydı kaydedildi
+Failed to start/save recording=Kaydetme başlatılamadı/kaydedilemedi
+
+# Notifications - Replay
+Replay stopped=Yeniden oynatma durduruldu
+Started replaying %s=Yeniden oynatma başlatıldı: %s
+Saving replay, this might take some time=Yeniden oynatma kaydediliyor, bu biraz zaman alabilir
+Saved a %s replay of %s to "%s"=%s sürelik %s yeniden oynatması "%s" konumuna kaydedildi
+Saved a %s replay of %s=%s sürelik %s yeniden oynatması kaydedildi
+Replay stopped because of an error=Bir hata nedeniyle yeniden oynatma durduruldu
+Replay settings have been modified. You may need to restart replay to apply the changes.=Yeniden oynatma ayarları değiştirildi. Değişikliklerin uygulanması için yeniden oynatmayı yeniden başlatın.
+Failed to save replay, make sure the replay save directory is mounted and writable=Yeniden oynatma kaydedilemedi, yeniden oynatmaların kaydedileceği dizinin bağlı ve yazılabilir olduğundan emin olun
+
+# Notifications - Streaming
+Streaming has stopped=Yayın durduruldu
+Started streaming %s=Yayın başlatıldı: %s
+Streaming stopped because of an error=Yayın bir hatadan dolayı durduruldu
+Streaming settings have been modified. You may need to restart streaming to apply the changes.=Yayın ayarları değiştirildi. Değişikliklerin uygulanması için yayını yeniden başlatın.
+
+# Notifications - Screenshot
+Saved a screenshot of %s to "%s"=%s ekran görüntüsü "%s" konumuna kaydedildi
+Saved a screenshot of %s=%s ekran görüntüsü kaydedildi
+Failed to take a screenshot=Ekran görüntüsü alınamadı
+
+# Error messages
+Another instance of GPU Screen Recorder UI is already running. Press %s to open the UI.=GPU Screen Recorder arayüzünün başka bir kopyası zaten çalışıyor. Arayüzü açmak için %s tuşlarına basın.
+GPU Screen Recorder is already running in another process. Please close it before using GPU Screen Recorder UI.=GPU Screen Recorder başka bir işlemde zaten çalışıyor. Lütfen GPU Screen Recorder arayüzünü kullanmadan önce onu kapatın.
+Failed to start replay, capture target "%s" is invalid. Please change capture target in settings=Yeniden oynatma başlatılamadı, yakalama hedefi "%s" geçersiz. Lütfen ayarlardan yakalama hedefini değiştirin
+Failed to start recording, capture target "%s" is invalid. Please change capture target in settings=Kayıt başlatılamadı, yakalama hedefi "%s" geçersiz. Lütfen ayarlardan yakalama hedefini değiştirin
+Failed to start streaming, capture target "%s" is invalid. Please change capture target in settings=Yayın başlatılamadı, yakalama hedefi "%s" geçersiz. Lütfen ayarlardan yakalama hedefini değiştirin
+Failed to take a screenshot, capture target "%s" is invalid. Please change capture target in settings=Ekran görüntüsü alınamadı, yakalama hedefi "%s" geçersiz. Lütfen ayarlardan yakalama hedefini değiştirin
+
+Unable to start recording when replay is turned on. Turn off replay before starting recording.=Yeniden oynatma açıkken kayıt başlatılamıyor. Kayda başlamadan önce yeniden oynatmayı kapatın.
+Unable to start streaming when replay is turned on. Turn off replay before starting streaming.=Yeniden oynatma açıkken yayın başlatılamıyor. Yayına başlamadan önce yeniden oynatmayı kapatın.
+Unable to start streaming when recording. Stop recording before starting streaming.=Kayıt esnasında yayın başlatılamıyor. Yayına başlamadan önce kaydı durdurun.
+Unable to start recording when streaming. Stop streaming before starting recording.=Yayın esnasında kayıt başlatılamıyor. Kayda başlamadan önce yayını durdurun.
+Unable to start replay when recording. Stop recording before starting replay.=Kayıt esnasında yeniden oynatma başlatılamıyor. Yeniden oynatmayı başlatmadan önce kaydı durdurun.
+Unable to start replay when streaming. Stop streaming before starting replay.=Yayın esnasında yeniden oynatma başlatılamıyor. Yeniden oynatmayı başlatmadan önce yayını durdurun.
+
+Started recording in the replay session=Yeniden oynatma oturumunda kayıt başlatıldı
+Started recording in the streaming session=Yayın oturumunda kayıt başlatıldı
+
+Failed to start region capture=Bölge yakalama başlatılamadı
+Failed to start window capture=Pencere yakalama başlatılamadı
+No window selected=Hiçbir pencere seçilmedi
+
+Streaming stopped because of an error. Verify if settings are correct=Bir hata nedeniyle yayın durduruldu. Ayarların doğru olduğunu doğrulayın
+%s. Verify if settings are correct=%s. Ayarların doğru olduğunu doğrulayın
+
+# GPU Screen Recorder errors
+Desktop portal capture failed. Either you canceled the desktop portal or your Wayland compositor doesn't support desktop portal capture or it's incorrectly setup on your system.=Masaüstü portalı yakalama başarısız oldu. Portalı iptal etmiş olabilirsiniz, Wayland birleştiriciniz masaüstü portalı yakalamayı desteklemiyor olabilir veya sisteminizde yanlış yapılandırılmış olabilir.
+Monitor capture failed. The monitor you are trying to capture is invalid. Please validate your capture settings.=Monitör yakalama başarısız oldu. Yakalamaya çalıştığınız monitör geçersiz. Lütfen yakalama ayarlarınızı doğrulayın.
+Capture failed. Neither H264, HEVC nor AV1 video codecs are supported on your system or you are trying to capture at a resolution higher than your system supports for each video codec.=Yakalama başarısız oldu. Sisteminizde H264, HEVC veya AV1 video kodekleri desteklenmiyor ya da her bir video kodeki için sisteminizin desteklediğinden daha yüksek bir çözünürlükte yakalamaya çalışıyorsunuz.
+Capture failed. Your system doesn't support the resolution you are trying to record at with the video codec you have chosen. Change capture resolution or video codec and try again. Note: AV1 supports the highest resolution, then HEVC and then H264.=Yakalama başarısız oldu. Sisteminiz, seçtiğiniz video kodeki ile kaydetmeye çalıştığınız çözünürlüğü desteklemiyor. Yakalama çözünürlüğünü veya video kodekini değiştirip tekrar deneyin. Not: En yüksek çözünürlüğü sırasıyla AV1, ardından HEVC ve ardından H264 destekler.
+Capture failed. Your system doesn't support the video codec you have chosen. Change video codec and try again.=Yakalama başarısız oldu. Sisteminiz seçtiğiniz video kodekini desteklemiyor. Video kodekini değiştirip tekrar deneyin.
+Stopped capture because the user canceled the desktop portal=Kullanıcı masaüstü portalını iptal ettiği için yakalama durduruldu
+Failed to take a screenshot. Verify if settings are correct=Ekran görüntüsü alınamadı. Ayarların doğru olduğunu doğrulayın
+
+# Launch errors
+Failed to launch gpu-screen-recorder to start replay=Yeniden oynatmayı başlatmak için gpu-screen-recorder çalıştırılamadı
+Failed to launch gpu-screen-recorder to start recording=Kaydı başlatmak için gpu-screen-recorder çalıştırılamadı
+Failed to launch gpu-screen-recorder to start streaming=Yayını başlatmak için gpu-screen-recorder çalıştırılamadı
+Failed to launch gpu-screen-recorder to take a screenshot=Ekran görüntüsü almak için gpu-screen-recorder çalıştırılamadı
+
+# System startup notifications
+Failed to add GPU Screen Recorder to system startup=GPU Screen Recorder sistem başlangıcına eklenemedi
+Failed to remove GPU Screen Recorder from system startup=GPU Screen Recorder sistem başlangıcından kaldırılamadı
+To enable autorun: install and configure 'dex' (recommended), or manually add '%s' to your desktop autostart entries.=Otomatik çalıştırmayı etkinleştirmek için: 'dex' kurun ve yapılandırın (önerilen) veya masaüstü otomatik başlatma girişlerinize manuel olarak '%s' ekleyin.
+GPU Screen Recorder UI startup has been switched from systemd service to XDG autostart.=GPU Screen Recorder UI başlangıcı systemd servisinden XDG otomatik başlatmaya geçirildi.
+GPU Screen Recorder UI autostart via systemd is deprecated. To migrate: install and configure 'dex' (recommended), or manually add '%s' to your desktop autostart entries.=systemd aracılığıyla GPU Screen Recorder UI otomatik başlatması artık kullanımdan kaldırıldı. Geçiş yapmak için: 'dex' kurun ve yapılandırın (önerilen) veya masaüstü otomatik başlatma girişlerinize manuel olarak '%s' ekleyin.
+
+# Wayland warning
+Wayland doesn't support GPU Screen Recorder UI properly, things may not work as expected. Use X11 if you experience issues.=Wayland, GPU Screen Recorder UI'ı düzgün desteklemiyor, bazı şeyler beklendiği gibi çalışmayabilir. Sorun yaşarsanız X11 kullanın.
+
+# Hotkey conflicts
+Some keyboard remapping software conflicts with GPU Screen Recorder on your system.\nKeyboards have been ungrabbed, applications will now receive the hotkeys you press.=Sisteminizdeki bazı klavye yeniden eşleme yazılımları GPU Screen Recorder ile çakışıyor.\nKlavyelerin kilitleri kaldırıldı, uygulamalar artık bastığınız kısayolları alacaktır.
+
+# Capture targets
+this monitor=bu monitör
+window=pencere
+window "%s"=pencere "%s"
+window %s=pencere %s
+focused=odaklanılmış
+region=alan
+portal=portal
+
+# Time durations
+%d second=%d saniye
+%d minute=%d dakika
+%d hour=%d saat
+%d seconds=%d saniye
+%d minutes=%d dakika
+%d hours=%d saat
+
+# Global Settings Page UI elements
+Accent color=Arayüz rengi
+Red=Kırmızı
+Green=Yeşil
+Blue=Mavi
+
+Start program on system startup?=Bu program sistem açılışında başlatılsın mı?
+Yes=Evet
+No=Hayır
+
+Enable keyboard hotkeys?=Klavye kısayolları aktif edilsin mi?
+Yes, but only grab virtual devices (supports some input remapping software)=Evet, ancak yalnızca sanal cihazları yakala (bazı girdi yeniden eşleme yazılımlarını destekler)
+Yes, but don't grab devices (supports all input remapping software)=Evet, ancak cihazları yakalama (tüm girdi yeniden eşleme yazılımlarını destekler)
+
+Show/hide UI:=Arayüzü göster/gizle:
+Turn replay on/off:=Yeniden oynatmayı aç/kapat:
+Save replay:=Yeniden oynatma kaydet:
+Save 1 minute replay:=1 dk. yeniden oynatma kaydet:
+Save 10 minute replay:=10 dk. yeniden oynatma kaydet:
+Start/stop recording:=Kaydı başlat/durdur:
+Pause/unpause recording:=Kaydı duraklat/sürdür:
+Start/stop recording a region:=Bir alanı kaydetmeyi başlat/durdur:
+Start/stop streaming:=Yayını başlat/durdur:
+Take a screenshot:=Ekran görüntüsü al:
+Take a screenshot of a region:=Bir alanın ekran görüntüsünü al:
+Start/stop recording with desktop portal:=Masaüstü portalı ile kaydı başlat/durdur:
+Take a screenshot with desktop portal:=Masaüstü portalı ile ekran görüntüsü al:
+Start/stop recording a window:=Bir pencereyi kaydetmeyi başlat/durdur:
+Take a screenshot of a window:=Bir pencerenin ekran görüntüsünü al:
+Press ESC to go back to the previous page/close the UI.=Önceki sayfaya dönmek/arayüzü kapatmak için ESC tuşuna basın.
+
+Clear hotkeys=Kısayolları temizle
+Reset hotkeys to default=Kısayolları varsayılana sıfırla
+
+Enable controller hotkeys?=Kontrolcü kısayolları etkinleştirilsin mi?
+Press=Basın
+and=ve
+
+Notification speed=Bildirim hızı
+Normal=Normal
+Fast=Hızlı
+
+Language=Dil
+System language=Sistem Dili
+Exclude personal metadata from the video (such as audio track title)=Kişisel meta verileri videodan hariç tut (ses kanalı başlığı gibi)
+
+Exit program=Programdan çık
+Go back to the old UI=Eski arayüze dön
+
+# Subsection headers
+Global=Genel
+Back=Geri
+
+Appearance=Görünüm
+Startup=Başlangıç
+Keyboard hotkeys=Klavye kısayolları
+Controller hotkeys=Kontrolcü kısayolları
+Application info=Uygulama bilgileri
+
+# Version info strings
+GSR version: %s=GSR sürümü: %s
+GSR-UI version: %s=GSR-UI sürümü: %s
+Flatpak version: %s=Flatpak sürümü: %s
+GPU vendor: %s=GPU üreticisi: %s
+
+# Hotkey configuration dialog
+Press a key combination to use for the hotkey: "%s"="%s" kısayolu için kullanmak istediğiniz tuş kombinasyonuna basın
+Alpha-numerical keys can't be used alone in hotkeys, they have to be used one or more of these keys: Alt, Ctrl, Shift and Super.\nPress Esc to cancel or Backspace to remove the hotkey.=Alfasayısal tuşlar kısayollarda tek başına kullanılamaz; Alt, Ctrl, Shift ve Super tuşlarından biri veya birkaçıyla birlikte kullanılmalıdır.\nİptal etmek için Esc'ye, kısayolu kaldırmak için Backspace'e basın.
+
+# Hotkey action names
+Show/hide UI=Arayüzü göster/gizle
+Turn replay on/off=Yeniden oynatmayı aç/kapa
+Save replay=Yeniden oynatmayı kaydet
+Save 1 minute replay=1 dakikalık yeniden oynatma kaydet
+Save 10 minute replay=10 dakikalık yeniden oynatma kaydet
+Start/stop recording=Kaydı başlat/durdur
+Pause/unpause recording=Kaydı duraklat/sürdür
+Start/stop recording a region=Seçilen alanın kaydını başlat/durdur
+Start/stop recording a window=Pencere kaydını başlat/durdur
+Start/stop recording with desktop portal=Masaüstü portalı ile kaydı başlat/durdur
+Start/stop streaming=Yayını başlat/durdur
+Take a screenshot=Ekran görüntüsü al
+Take a screenshot of a region=Seçilen alandan bir ekran görüntüsü al
+Take a screenshot of a window=Pencereden bir ekran görüntüsü al
+Take a screenshot with desktop portal=Masaüstü portalı ile bir ekran görüntüsü al
+
+# Controller hotkey descriptions
+to show/hide the UI=arayüzü göstermek/gizlemek için
+to take a screenshot=ekran görüntüsü almak için
+to save a replay=yeniden oynatmayı kaydetmek için
+to start/stop recording=kaydı başlatmak/durdurmak için
+to turn replay on/off=yeniden oynatmayı açmak/kapatmak için
+to save a 1 minute replay=1 dakikalık yeniden oynatmayı kaydetmek için
+to save a 10 minute replay=10 dakikalık yeniden oynatmayı kaydetmek için
+
+# Error message for duplicate hotkey
+The hotkey %s is already used for something else=%s kısayolu zaten başka bir şey için kullanılıyor
+
+# Screenshot settings page
+Screenshot=Ekran görüntüsü
+Capture=Yakalama
+Image=Görüntü
+File info=Dosya bilgisi
+General=Genel
+Screenshot indicator=Ekran görüntüsü göstergesi
+Script=Betik
+File=Dosya
+
+Back=Geri
+Save=Kaydet
+Cancel=İptal
+
+Capture source:=Yakalama kaynağı:
+Window=Pencere
+Region=Bölge
+Desktop portal=Masaüstü portalı
+Monitor %s (%dx%d)=Monitör %s (%dx%d)
+Screen=Ekran
+
+Image resolution limit:=Görüntü çözünürlük sınırı:
+Change image resolution=Görüntü çözünürlüğünü değiştir
+Restore portal session=Portal oturumunu geri yükle
+
+Image quality:=Görüntü kalitesi:
+Medium=Orta
+High=Yüksek
+Very high (Recommended)=Çok yüksek (Önerilen)
+Ultra=Ultra
+
+Record cursor=İmleci kaydet
+
+Directory to save screenshots:=Ekran görüntülerinin kaydedileceği dizin:
+Image format:=Görüntü biçimi:
+
+Save screenshot in a folder based on the games name=Ekran görüntüsünü oyunun adına göre bir klasöre kaydet
+
+Save screenshot to clipboard=Ekran görüntüsünü panoya kaydet
+Save screenshot to clipboard (Not supported properly by Wayland)=Ekran görüntüsünü panoya kaydet (Wayland tarafından tam desteklenmez)
+Save screenshot to disk=Ekran görüntüsünü diske kaydet
+
+Show screenshot notifications=Ekran görüntüsü bildirimlerini göster
+Blink scroll lock led when taking a screenshot=Ekran görüntüsü alırken Scroll Lock LED'ini yanıp söndür
+
+Command to open the screenshot with:=Ekran görüntüsünü açmak için kullanılacak komut:
+
+# Settings Page UI elements
+
+# View modes
+Simple view=Basit görünüm
+Advanced view=Gelişmiş görünüm
+
+# Capture settings
+Follow focused window=Odaklanılmış pencereyi takip et
+Focused monitor=Odaklanılmış monitör
+
+Area size:=Alan boyutu:
+Video resolution limit:=Video çözünürlük sınırı:
+Change video resolution=Video çözünürlüğünü değiştir
+
+# Webcam settings
+Webcam=Web kamerası
+Webcam source:=Web kamerası kaynağı
+None=Hiçbiri
+Video format:=Video biçimi:
+Auto (recommended)=Otomatik (önerilen)
+YUYV (Fastest)=YUYV (En hızlı)
+Motion-JPEG (Slower)=Motion-JPEG (Daha yavaş)
+Video setup:=Video kurulumu:
+* Right click in the bottom right corner to resize the webcam=* Web kamerasını yeniden boyutlandırmak için sağ alt köşeye sağ tıklayın
+Flip camera horizontally=Kamerayı yatay olarak çevir
+
+# Audio settings
+Audio=Ses
+Audio codec:=Ses kodeği:
+Opus (Recommended)=Opus (Önerilen)
+AAC=AAC
+
+Directory to save videos:=Videoların kaydedileceği dizin:
+Output device:=Çıkış cihazı:
+Input device: =Giriş cihazı:
+Application:     =Uygulama:
+Custom...=Özel...
+
+Save video in a folder based on the games name%s=Videoyu oyunun adına göre bir klasöre kaydet%s
+ (X11 applications only)= (Yalnızca X11 uygulamaları)
+
+Add audio track=Ses kanalı ekle
+Add input device=Giriş cihazı ekle
+Add output device=Çıkış cihazı ekle
+Add application audio=Uygulama sesi ekle
+Record audio from all applications except the selected ones=Seçilenler dışındaki tüm uygulamalardan gelen sesleri kaydet
+Recording output devices and application audio may record all output audio, which is likely not what you want to do. Remove the output devices.=Çıkış cihazlarını ve uygulama seslerini kaydetmek tüm çıkış seslerini kaydedebilir, bu muhtemelen yapmak isteyeceğiniz bir şey değildir. Çıkış cihazlarını kaldırın.
+
+Video=Video
+
+# Video codec settings
+Video codec:=Video kodeği:
+H264=H264
+HEVC=HEVC
+HEVC (10 bit, reduces banding)=HEVC (10 bit, renk şeritlenmesini azaltır)
+HEVC (HDR)=HEVC (HDR)
+AV1=AV1
+AV1 (10 bit, reduces banding)=AV1 (10 bit, renk şeritlenmesini azaltır)
+AV1 (HDR)=AV1 (HDR)
+VP8=VP8
+VP9=VP9
+H264 Software Encoder (Slow, not recommended)=H264 İşlemci Koderi (Yavaş, önerilmez)
+
+# Video quality and bitrate
+Video quality:=Video kalitesi:
+Very high=Çok yüksek
+Video bitrate (Kbps):=Video bitrate'i (Kbps):
+Constant bitrate=Sabit bit hızı
+Constant bitrate (Recommended)=Sabit bit hızı (Önerilen)
+
+# Frame rate settings
+Frame rate:=Kare hızı (FPS):
+Frame rate mode:=Kare hızı modu:
+Auto (Recommended)=Otomatik (Önerilen)
+Constant=Sabit
+Variable=Değişken
+Sync to content=İçeriğe senkronize et
+Sync to content (Only X11 or desktop portal capture)=İçeriğe senkronize et (Yalnızca X11 veya masaüstü portalı yakalamada)
+
+# Color range
+Color range:=Renk aralığı:
+Limited=Sınırlı
+Full=Tümü
+
+# Container format
+Container:=Konteyner:
+
+# Recording settings
+Record in low-power mode=Düşük güç modunda kaydet
+Record cursor=İmleci kaydet
+
+Do not force the GPU to go into high performance mode when recording.\nMay affect recording performance, especially when playing a video at the same time.\nIf enabled then it's recommended to use sync to content frame rate mode to reduce power usage when idle.=Kayıt yaparken GPU'yu yüksek performans moduna geçmeye zorlama.\nÖzellikle aynı anda bir video oynatılırken kayıt performansını etkileyebilir.\nEtkinleştirilirse, boşta güç kullanımını azaltmak için içeriğe senkronize kare hızı modunun kullanılması önerilir.
+Use vulkan video encoding instead of VAAPI/NVENC.\nEnabling this may result in better game performance while recording, especially on NVIDIA.\nNote that this option is experimental. There may be GPU driver issues that causes issues when this is enabled.=VAAPI/NVENC yerine Vulkan video kodlamasını kullan.\nBunu etkinleştirmek, özellikle NVIDIA'da kayıt yaparken daha iyi oyun performansı sağlayabilir.\nNot: Bu seçenek deneyseldir. Bu etkinleştirildiğinde sorunlara neden olan GPU sürücüsü sorunları yaşanabilir.
+Enable vulkan video encoding (experimental)=Vulkan video kodlamasını etkinleştir (deneysel)
+
+Show replay notifications=Yeniden oynatma bildirimlerini göster
+Show recording notifications=Kayıt bildirimlerini göster
+Show streaming notifications=Yayın bildirimlerini göster
+Show replay status with scroll lock LED=Yeniden oynatma durumunu Scroll Lock LED'i ile göster
+Show recording status with scroll lock LED=Kayıt durumunu Scroll Lock LED'i ile göster
+Show streaming status with scroll lock LED=Yayın durumunu Scroll Lock LED'i ile göster
+Recording indicator=Kayıt göstergesi
+
+Simple=Basit
+Audio track #%d=Ses kanalı #%d
+Track title:=Kanal başlığı:
+Output device=Çıkış cihazı
+Input device:   =Giriş cihazı:
+Estimated video file size per minute (excluding audio): %.2fMB=Dakika başına tahmini video dosyası boyutu (ses hariç): %.2fMB
+
+# Replay settings
+Directory to save replays:=Yeniden oynatmaların kaydedileceği dizin:
+Replay indicator=Yeniden oynatma göstergesi
+Turn on replay when starting a game=Bir oyun başlatıldığında yeniden oynatmayı aç
+Autostart=Otobaşlat
+in RAM=RAM'de
+on disk=Disk'te
+Replay duration in seconds:=Saniye cinsinden yeniden oynatma süresi:
+Where should temporary replay data be stored?=Geçici yeniden oynatma verileri nerede saklansın?
+RAM=RAM
+Disk (Not recommended on SSDs)=Disk (SSD'lerde önerilmez)
+Turn on replay when this program starts=Bu program başladığında yeniden oynatmayı aç
+Only turn on replay if a power supply is connected=Yalnızca bir güç kaynağı bağlıysa yeniden oynatmayı aç
+Don't turn on replay automatically=Yeniden oynatmayı otomatik olarak açma
+Restart replay on save=Kaydettikten sonra yeniden oynatmayı yeniden başlat
+Estimated video max file size %s: %.2fMB.\nChange video bitrate or replay duration to change file size.=Tahmini maksimum video dosya boyutu %s: %.2fMB.\nDosya boyutunu değiştirmek için video bit hızını veya yeniden oynatma süresini değiştirin.
+
+# Streaming settings
+Stream service:=Yayın servisi:
+Twitch=Twitch
+YouTube=YouTube
+Kick=Kick
+Rumble=Rumble
+Custom=Özel
+Stream URL:=Yayın URL'si:
+Stream key:=Yayın anahtarı:
+Streaming info=Yayın bilgisi
+Streaming indicator=Yayın göstergesi

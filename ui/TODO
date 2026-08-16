@@ -1,0 +1,253 @@
+setcap nice for good performance when opening overlay when game is running below 60 fps (on amd).
+
+WAYLAND_DISPLAY gamescope-0, DISPLAY=:1 (gamescope xwayland)
+
+Optimize list/page when having a few items in it (dont use vector<unique_ptr<Widget>>).
+
+Only redraw ui if changed (dirty state, propagate upward. Set dirty when adding widget or changing any visible properly on a widget or when event updates how the widget should be displayed).
+
+Use _NET_WM_ALLOWED_ACTIONS. Same for notifications.
+
+Handle events in draw function because the render position of elements is available there so why duplicate it in event handler.
+
+Add nvidia overclock option.
+
+Filechooser should have the option to select list view, search bar and common folders/mounted drives on the left side for quick navigation. Also a button to create a new directory.
+
+Restart replay on system start if monitor resolution changes.
+
+Show warning when selecting hevc/av1 on amd because of amd driver/ffmpeg bug.
+
+Update gsr info and validate saved config when monitors update. The selected monitor/audio may no longer be available.
+
+Have different modes. Overlay, window and side menu. Overlay can be used on x11, window and side menu can be used on both x11 and wayland.
+    Window mode should look similar to overlay.
+
+Show navigation breadcrumbs for settings and deeper navigation (such as selecting a directory to save videos).
+
+Add global setting. In that setting there should be an option to enable/disable gsr-ui from system startup (the systemd service).
+
+Add profiles and hotkey to switch between profiles (show notification when switching profile).
+
+Fix first frame being black when running without a compositor.
+
+Add support for systray.
+
+Move event callbacks to a global list instead of std::function object in each widget. This reduces the size of widgets,
+    since most widgets wont have the event callback set.
+    This event callback would pass the widget as an argument.
+    This could be done transparently by having a function in the widget to set a callback function
+    and that could add a wrapper that checks if the callback received _this_, and that would call the callback set by the user.
+
+Make save-video-in-game-folder.sh and notify-saved-name.sh run ~/.config/gpu-screen-recorder/on-save.sh if it exists.
+    This could for example be used to automatically convert the video to a different format or to upload it to a server.
+    Before this script is called gsr-ui should define an environment variable GSR_PROFILE that specifies the name of the profile.
+    This profile name can be used to decide which action the users script should do, for example to convert the video to a 4chan friendly webm file
+    if the profile is called 4chan.
+    Create a directory of such example scripts, including 4chan webm one.
+
+On nvidia check if suspend fix is applied. If not, show a popup asking the user to apply it (and apply it automatically).
+
+Show warning when using steam deck or when trying to capture hevc/av1 on amd (the same warnings as gpu screen recorder gtk).
+
+Add profile option. Convert view to profile, add an option at the bottom that says "Edit profiles..." which should show a popup where you can create/remove profiles. New profiles should always be in advanced view.
+
+Verify monitor/audio when starting recording. Give an error if the options are no longer valid.
+
+gsr ui window has _NET_WM_STATE _NET_WM_STATE_ABOVE, not _NET_WM_STATE_FULLSCREEN.
+
+For replay on fullscreen detect focused fullscreen window by checking if the window size is the same as the monitor size instead of _NET_WM_STATE_FULLSCREEN.
+
+Play camera shutter sound when saving recording. When another sound when starting recording.
+
+Some games such as "The Finals" crashes/freezes when they lose focus when running them on x11 on a laptop with prime setup and the monitor runs on the iGPU while the game runs on the dGPU.
+
+Add option to select which gpu to record with, or list all monitors and automatically use the gpu associated with the monitor. Do the same in gtk application.
+
+Use global shortcuts desktop portal protocol on wayland when available.
+
+Move ui hover code from ::draw to ::on_event, to properly handle widget event stack.
+
+Save audio devices by name instead of id. This is more robust since audio id can change(?).
+
+Improve linux global hotkeys startup time by parsing /proc/bus/input/devices instead of ioctl. <- Do this!
+
+We can get the name of the running steam game without x11 by listing processes and finding the one that runs a program called "reaper" with the arguments SteamLaunch AppId=<number>. The binary comes after the -- argument, get the name of the game by parsing out name from that, in the format steamapps/common/<name>/.
+
+All steam game names by ID are available at https://api.steampowered.com/ISteamApps/GetAppList/v2/. The name of a single game can be retrieved from http://store.steampowered.com/api/appdetails?appids=115800.
+
+Dont put widget position to int position when scrolling. This makes the UI jitter when it's coming to a halt.
+
+Make gsr-ui flatpak systemd work nicely with non-flatpak gsr-ui. Maybe change ExecStart to do flatpak run ... || gsr-ui, but make it run as a shell command first with /bin/sh -c "".
+
+When enabling X11 global hotkey again only grab lalt, not ralt.
+
+Show an error that prime run will be disabled when using desktop portal capture option. This can cause issues as the user may have selected a video codec option that isn't available on their iGPU but is available on the prime-run dGPU.
+
+For keyboards that report supporting mice the keyboard grab will be delayed until any key has been pressed (and then released), see: https://github.com/dec05eba/gpu-screen-recorder-issues/issues/97
+    See if there is any way around this.
+
+Check if "modprobe uinput" is needed on some systems (old fedora?).
+
+Add recording timer to see duration of recording/streaming.
+
+When clicking on current directory in file manager show a dropdown menu where you can select common directories (HOME, Videos, Downloads and mounted drives) for quick navigation. Maybe even button to search.
+
+Maybe change gsr-ui startup retry time in the systemd service, from 5 seconds to 2 seconds.
+
+Make it possible to take a screenshot through a button in the ui instead of having to use hotkey.
+
+Handle failing to save a replay. gsr should output "failed to save replay, or something like that" to make it possible to detect that.
+
+Dont allow saving replay while a replay save is in progress.
+
+Make input work with cjk input systems (such as fcitx).
+
+System startup option should also support runit and some other init systems, not only soystemd.
+
+Use x11 shm instead of XGetImage (https://stackoverflow.com/questions/43442675/how-to-use-xshmgetimage-and-xshmputimage).
+
+Do xi grab for keys as well. Otherwise the ui cant be used for keyboard input if a program has grabbed the keyboard, and there could possibly be a game that grabs the keyboard as well.
+
+Make inactive buttons gray (in dropdown boxes and in the front page with save, etc when replay is not running).
+
+Add option to do screen-direct recording. But make it clear that it should not be used, except for gsync on x11 nvidia.
+
+Add systray for recording status.
+
+Verify if cursor tracker monitor name is always correct. It uses the wayland monitor name for recording, but gpu screen recorder uses a custom name created from the drm connector name.
+
+Notification with the focused monitor (with CursorTrackerDrm) assumes that the x11 monitor name is the same as the drm monitor name. Same for find_monitor_by_name.
+
+If CursorTrackerDrm fails then fallback to getting focused monitor by window creation trick. Need to take into consideration prime laptop with dGPU that controls external monitors which cant be captured (different /dev/dri/card device).
+    Maybe automatically switch to recording with the device that controls the monitor.
+    In that case also add all monitors available to capture in the capture list and automatically choose the gpu that controls the monitor.
+
+If a keyboard layout is set with setxkbmap (or in desktop environment) on both x11 and wayland (when xwayland is used) then the keyboard layout
+    will be reset for x11 applications when launching gsr ui because gsr-global-hotkeys create a virtual device, so it becomes a hotplug event.
+    The X server resets the keyboard layout when that happens. The user has to set keyboard layout in xorg settings to set the default keyboard layout.
+    This happens even when gsr ui is not used, if you replug the keyboard.
+
+Getting focused monitor on wayland doesn't work when vrr is enabled. This is because it uses software cursor instead (at least on kde plasma wayland).
+    Right now it falls back to create window & getting window position trick if there is no cursor visible (or a software cursor) and one monitor has vrr enabled.
+        Remove this when linux & wayland supports vrr with hardware cursor plane.
+    Find out another way to get cursor position on wayland.
+    This was fixed in linux 6.11 and in kde plasma in this commit: https://invent.kde.org/plasma/kwin/-/merge_requests/7582/diffs.
+
+Add option to start recording/replay/stream after the notification has disappeared. Show "Starting recording on this monitor in 3 seconds".
+    See if we can use hardware overlay plane instead somehow.
+
+When using wayland for mgl try using wlr-layer-shell and set layer to overlay and keyboard interactivity to exclusive. Do something similar for notifications.
+
+When starting gsr-ui remove any temporary replay disk data that has possibly remained from a crash, by looking for all folders that starts with gsr-replay and end with .gsr, in the replay directory.
+
+Add restart program button, in global settings. It should do almost the same thing as exit program, execept execv gsr-ui.
+
+When gpu screen recorder ui can run as a regular window (and supports tray icon and global shortcut portal) remove gpu screen recorder gtk. Then all error checking needs to be moved from that project to this project.
+    May need support for multi windows, or create a small project to display dialogs.
+
+Add a bug report page that automatically includes system info (make this clear to the user).
+    Do this by sending the report to a custom server that stores that data.
+    The server should limit reports per IP to prevent spam.
+
+Make it possible to change controller hotkeys. Also read from /dev/input/eventN instead of /dev/input/jsN. This is readable for controllers.
+
+Show message that replay/streaming has to be restarted if recording settings are changed while replay/streaming is ongoing.
+
+Support vector graphics. Maybe support svg, rendering it to a texture for better performance.
+
+Show .webm container option. It's currently chosen automatically if vp8/vp9 is chosen. The available containers should automatically switch depending on the video codec.
+
+In settings show audio levels for each audio. Maybe show audio level image beside the audio name in the dropdown box and switch to a different image (have 3-4 different images for each level) depending on the volume.
+
+Only use fake cursor on wayland if the focused x11 window is fullscreen.
+
+Create window as a real overlay window, using layer shell protocol, when possible. This will however minimize windows on floating wms. Check if this can be fixed somehow, or only use layer shell in tiling wms.
+
+Add timeout option for screenshots.
+
+Add a window that shows a warning for wayland users, that wayland doesn't support this software and if they experience issues then they should use x11 instead.
+
+Add a window that shows a warning if gpu video encoding isn't supported.
+
+Disable system notifications when recording. Does the notification dbus interface support pausing notifications?
+
+Disable hotkeys if virtual keyboard is found (either at startup or after running), if grab type if not virtual. Show a notification if that happens that hotkeys have been disabled.
+    Detect if keyboard is locked by listening to gsr-ui virtual keyboard events and if no event is received after pressing a key (when writing to it after receiving input from another keyboard)
+    then remove the keyboard grab and show a message or something.
+        This can happen if the gsr-ui virtual keyboard is grabbed by some other software.
+        Maybe this can be fixed automatically by grabbing gsr-ui virtual keyboard and releasing it just before we write to it and then release it again.
+        But wont keyboard remapping software grab the keyboard first if they detect it quickly?
+            If we fail to grab it because some other software did then dont grab any keyboards nor gsr-ui virtual keyboards, just listen to them.
+
+Add option to not capture cursor in screenshot when doing region/window capture.
+
+Window selection doesn't work when a window is fullscreen on x11.
+
+Make it possible to change replay duration of the "save 1 min" and "save 10 min" by adding them to the replay settings as options.
+
+If replay duration is set below the "save 1 min" or "save 10 min" then gray them out and when hovering over those buttons
+    show a tooltip that says that those buttons cant be used because the replay duration in replay settings is set to a lower value than that (and display the replay duration there).
+
+The UI is unusable on a vertical monitor.
+
+Steam overlay interfers with controller input in gsr ui. Maybe move controller handling the gsr-global-hotkeys to do a grab on the controller, to only give the key input to gsr ui.
+
+For joysticks (gamepads) create a virtual device for each one (/dev/uinput) that has the same vendor, product and name. This is to make sure that it behaves the same way in applications since applications
+    access joysticks directly through /dev/input/eventN or /dev/input/jsN. It needs the same number of buttons and pretend to be a controller of the same time, for example a ps4 controller
+    so that games automatically display ps4 buttons if supported.
+    This also allows us to copy event bits and other data from the device instead of saying we support everything.
+    This should fix the issue of not being able to write to /dev/uinput with ABS_X event bit set.
+    Maybe do this for regular keyboard inputs as well?
+
+Use generic icons for controller input in settings and allow configuring them.
+
+Add option to include game name in file name (video and screenshot). Replace / with space.
+
+Check if the focused window is on top on x11 when choosing to take screenshot or show the window as the background of the overlay.
+
+Convert clipboard image to requested type (from jpg to png for example).
+
+Save clipboard image with wayland on wayland. Some wayland compositors (such as hyprland, budgie and maybe more (wlroots based ones?)) don't support copying clipboard image data from x11 applications to wayland applications.
+    This can be done because retarded wayland only supports setting clipboard when the application has focus. This doesn't work with hotkey screenshot use.
+    This is specifically an issue when using wl_data_device_manager, which is a standard protocol. It can be done when using wlr specific protocol.
+
+When gsr supports pausing recording done in replay/streaming session then add support for that in gsr-ui as well.
+
+Add recording timer when recording to show for how long we have been recording for. Maybe the same for live streaming and replay.
+
+Add option to trim video in the ui. Show a list of all videos recorded so you dont have to navigate to them (maybe add option to manually navigate to a video as well). Maybe use mpv to view it (embedded) in the ui and trim regions (multiple) and ffmpeg command to trim it.
+
+Show the currently recorded capture in the ui, to preview if everything looks ok. This is also good for webcam overlay. Do this when gsr supports rpc, which would also include an option to get a fd to the capture texture.
+
+Show a question mark beside options. When hovering the question mark show a tooltip that explains the options.
+
+Remove all mgl::Clock usage in Overlay. We only need to get the time once per update in Overlay::handle_events. Also get time in other places outside handle_events.
+
+Handle stopping replay/stream when recording is running (show notification that the video is saved and move the video to folder with game name).
+
+Sometimes when opening gpu screen recorder ui gsr-global-hotkeys incorrectly detects that keyboard input is locked.
+
+When running replay for a long time and then stopping it it takes a while. Improve this.
+
+Make it possible to resize webcam box from top left, top right and bottom left as well.
+
+The flatpak version can for some get stuck at shutdown when instant replay is running. It only happens in the flatpak version and only when instant replay is running and it happens always. Manual SIGINT on gsr-ui stops gsr-ui properly, so why does it fail when shutting down the computer when the systemd stop signal is SIGINT? Maybe its related to the flatpak version being launched through gsr-gtk. I cant personally reproduce it.
+
+Redesign the UI to allow capturing multiple video sources. Move webcam to capture sources as well then. Maybe design the UI to work more like obs studio then, where you start recording and then add sources at capture time, with a preview.
+
+Add option to choose video container (either flv or mpegts) for youtube livestreaming.
+
+Get wayland cursor position for region selector, otherwise the start position before the cursor moves is off.
+
+Add option to set preset on nvidia. Use -ffmpeg-video-opts for that.
+
+Webcam resolution list is too long for some people. Fix it by separating resolution and framerate. Sort resolution and framerate from highest to lowest. Add scrollbar for dropdown list. POOP.
+
+Allow settings page to select input capture option/audio, to make sure it doesn't blindly select the default option when the sources aren't temporary available when opening the settings.
+
+Add simple video cutting in the ui.
+
+Add a button to listen to microphone device so that we can hear how loud it will be in the video, and also option to set microphone volume.
+
+mgl support dynamically select x11 or wayland when creating a window. That would make the ui work on COSMIC, but using wlr-layer-shell normally and X11 when a fullscreen x11 application has focused.

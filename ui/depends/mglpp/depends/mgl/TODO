@@ -1,0 +1,11 @@
+Bind texture and cache the bound texture to reduce calls to opengl.\
+Use gl triangle instead of quad.\
+Support using multiple textures in shaders by using glActiveTexture for each one and set the uniform sampler2D value for each as as the index.\
+Make sure clock is monotonic (there has been some issues with CLOCK\_MONOTONIC not being monotonic on linux).\
+Verify if using a separate glx context for every window is the correct approach.\
+Experiment with reducing latency by removing GLX_DOUBLEBUFFER and using glFlush&&glFinish&&glXWaitVideoSyncSGI(1, 0, &rem);. Only glFinish is needed when using a compositor and that fixes the flickering. Flipping also needs to be enabled in gpu driver settings. Use glXWaitVideoSyncSGI to limit fps to vsync. Tearing fix with flipping for fullscreen applications only works when fullscreen covers all monitors which is usually not the case, so it really only works when one monitor is plugged in.\
+Only render one glyph for missing symbols.\
+High precision mouse wheel event by using xi2, which also allows us to get which scroll wheel was used and scrolling in y direction.\
+Use XPresent (PresentNotifyMSC, glSwapBuffers, wait for PresentCompleteNotify before doing presentNotifyMsc and glSwapBuffers again), see https://invent.kde.org/plasma/kwin/-/issues/27. This doesn't work on nvidia because nvidia never sends the PresentCompleteNotify event.
+Support drag and drop.\
+Use _NET_WM_SYNC_REQUEST.

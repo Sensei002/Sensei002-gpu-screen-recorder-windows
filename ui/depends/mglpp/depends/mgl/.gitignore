@@ -1,0 +1,11 @@
+# Compiled sibs files
+sibs-build/
+compile_commands.json
+tests/sibs-build/
+tests/compile_commands.json
+build/
+
+src/window/xdg-shell-client-protocol.h
+src/window/xdg-shell-protocol.c
+src/window/xdg-decoration-unstable-v1-client-protocol.h
+src/window/xdg-decoration-unstable-v1-protocol.c

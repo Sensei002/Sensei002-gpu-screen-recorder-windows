@@ -1,0 +1,7 @@
+# Compiled sibs files
+sibs-build/
+compile_commands.json
+tests/sibs-build/
+tests/compile_commands.json
+
+depends/.wraplock

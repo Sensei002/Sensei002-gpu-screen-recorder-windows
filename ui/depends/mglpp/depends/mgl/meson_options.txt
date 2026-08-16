@@ -1,0 +1,2 @@
+option('wayland', type : 'boolean', value : true, description : 'Build with Wayland support')
+option('tests', type : 'boolean', value : false, description : 'Build tests')

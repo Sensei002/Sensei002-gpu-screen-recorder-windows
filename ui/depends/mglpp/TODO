@@ -1,0 +1,1 @@
+Change Init(window_system) default value to WindowSystem::NATIVE.

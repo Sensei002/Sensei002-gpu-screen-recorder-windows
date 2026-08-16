@@ -1,0 +1,84 @@
+.\" Man page for gsr-ui-cli
+.TH GSR-UI-CLI 1 "2026-06-03" "gpu-screen-recorder-ui" "User Commands"
+.SH NAME
+gsr-ui-cli \- command-line interface for gsr-ui
+.SH SYNOPSIS
+.B gsr-ui-cli
+.I command
+.SH DESCRIPTION
+.B gsr-ui-cli
+is the command-line application to control
+.B gsr-ui
+without using \fBgsr-ui\fR's own hotkeys.
+.SH COMMANDS
+.TP
+.B --help, -h
+Show help message.
+.TP
+.B toggle-show
+Show/hide the UI.
+.TP
+.B toggle-record
+Start/stop regular recording.
+.TP
+.B toggle-pause
+Pause/unpause recording (only applies to regular recording).
+.TP
+.B toggle-record-region
+Start/stop recording a region.
+.TP
+.B toggle-record-window
+Start/stop recording a window (or desktop portal on Wayland).
+.TP
+.B toggle-stream
+Start/stop streaming.
+.TP
+.B toggle-replay
+Start/stop replay.
+.TP
+.B replay-save
+Save the current replay.
+.TP
+.B replay-save-1-min
+Save a replay of the last 1 minute.
+.TP
+.B replay-save-10-min
+Save a replay of the last 10 minutes.
+.TP
+.B take-screenshot
+Take a screenshot.
+.TP
+.B take-screenshot-region
+Take a screenshot of a selected region.
+.TP
+.B take-screenshot-window
+Take a screenshot of a window (or desktop portal on Wayland).
+.SH EXAMPLES
+.TP
+.B gsr-ui-cli toggle-show
+Show or hide the main window.
+.TP
+.B gsr-ui-cli toggle-record
+Start or stop screen recording.
+.SH AUTHORS
+This manual page was written by the Debian team.
+.SH REPORTING BUGS
+Report bugs to:
+.UR mailto:dec05eba@protonmail.com
+dec05eba@protonmail.com
+.UE .
+.br
+Please take a look at the FAQ part of the README before reporting a bug: \fIhttps://git.dec05eba.com/gpu-screen-recorder-ui/about\fR.
+.SH COPYRIGHT
+Copyright © dec05eba. Licensed under GPL-3.0-only.
+.SH SEE ALSO
+.UR https://git.dec05eba.com/gpu-screen-recorder-ui
+Project homepage
+.UE
+.br
+.UR https://git.dec05eba.com/gpu-screen-recorder
+GPU Screen Recorder homepage (CLI)
+.UE
+.br
+.BR gpu-screen-recorder (1),
+.BR gsr-ui (1)

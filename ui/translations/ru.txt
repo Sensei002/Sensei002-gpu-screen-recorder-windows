@@ -1,0 +1,419 @@
+# GPU Screen Recorder UI - Russian Translation
+
+Press %s to open the GPU Screen Recorder UI=Нажмите %s, чтобы открыть интерфейс GPU Screen Recorder
+
+# General UI
+Record=Запись
+Instant Replay=Мгновенный повтор
+Livestream=Прямая трансляция
+Settings=Настройки
+
+# Status messages
+Off=Выкл
+On=Вкл
+Not recording=Запись неактивна
+Recording=Идёт запись
+Not streaming=Трансляция неактивна
+Streaming=Идёт трансляция
+Paused=Приостановлено
+
+# Button labels
+Start=Пуск
+Stop=Остановить
+Stop and save=Стоп и сохранить
+Pause=Пауза
+Unpause=Продолжить
+Save=Сохранить
+Save 1 min=Сохр. 1 мин
+Save 10 min=Сохр. 10 мин
+Turn on=Включить
+Turn off=Выключить
+
+# Notifications - Recording
+Recording has been paused=Запись приостановлена
+Recording has been unpaused=Запись возобновлена
+Started recording %s=Начата запись %s
+Saved a %s recording of %s to "%s"=Сохранено %s записи %s в "%s"
+Saved a %s recording of %s=Сохранено %s записи %s
+Failed to start/save recording=Не удалось начать/сохранить запись
+
+# Notifications - Replay
+Replay stopped=Повтор остановлен
+Started replaying %s=Начат повтор %s
+Saving replay, this might take some time=Сохранение повтора, это может занять некоторое время
+Saved a %s replay of %s to "%s"=Сохранено %s повтора %s в "%s"
+Saved a %s replay of %s=Сохранено %s повтора %s
+Replay stopped because of an error=Повтор остановлен из-за ошибки
+Replay settings have been modified. You may need to restart replay to apply the changes.=Настройки повтора изменены. Возможно, потребуется перезапустить повтор для применения изменений.
+Failed to save replay, make sure the replay save directory is mounted and writable=Не удалось сохранить повтор, убедитесь, что каталог для сохранения повторов смонтирован и доступен для записи
+
+# Notifications - Streaming
+Streaming has stopped=Трансляция остановлена
+Started streaming %s=Начата трансляция %s
+Streaming stopped because of an error=Трансляция остановлена из-за ошибки
+Streaming settings have been modified. You may need to restart streaming to apply the changes.=Настройки трансляции изменены. Возможно, потребуется перезапустить трансляцию для применения изменений.
+
+# Notifications - Screenshot
+Saved a screenshot of %s to "%s"=Сохранён снимок %s в "%s"
+Saved a screenshot of %s=Сохранён снимок %s
+Failed to take a screenshot=Не удалось сделать снимок экрана
+
+# Error messages
+Another instance of GPU Screen Recorder UI is already running. Press %s to open the UI.=Один экземпляр GPU Screen Recorder UI уже запущен. Нажмите %s, чтобы открыть интерфейс.
+GPU Screen Recorder is already running in another process. Please close it before using GPU Screen Recorder UI.=GPU Screen Recorder CLI уже запущен в другом процессе. Пожалуйста, закройте его перед использованием GPU Screen Recorder UI.
+Failed to start replay, capture target "%s" is invalid. Please change capture target in settings=Не удалось начать повтор, цель захвата "%s" недействительна. Пожалуйста, измените цель захвата в настройках
+Failed to start recording, capture target "%s" is invalid. Please change capture target in settings=Не удалось начать запись, цель захвата "%s" недействительна. Пожалуйста, измените цель захвата в настройках
+Failed to start streaming, capture target "%s" is invalid. Please change capture target in settings=Не удалось начать трансляцию, цель захвата "%s" недействительна. Пожалуйста, измените цель захвата в настройках
+Failed to take a screenshot, capture target "%s" is invalid. Please change capture target in settings=Не удалось сделать снимок экрана, цель захвата "%s" недействительна. Пожалуйста, измените цель захвата в настройках
+
+Unable to start recording when replay is turned on. Turn off replay before starting recording.=Невозможно начать запись при включённом повторе. Выключите повтор перед началом записи.
+Unable to start streaming when replay is turned on. Turn off replay before starting streaming.=Невозможно начать трансляцию при включённом повторе. Выключите повтор перед началом трансляции.
+Unable to start streaming when recording. Stop recording before starting streaming.=Невозможно начать трансляцию при записи. Остановите запись перед началом трансляции.
+Unable to start recording when streaming. Stop streaming before starting recording.=Невозможно начать запись при трансляции. Остановите трансляцию перед началом записи.
+Unable to start replay when recording. Stop recording before starting replay.=Невозможно начать повтор при записи. Остановите запись перед началом повтора.
+Unable to start replay when streaming. Stop streaming before starting replay.=Невозможно начать повтор при трансляции. Остановите трансляцию перед началом повтора.
+
+Started recording in the replay session=Начата запись в сеансе повтора
+Started recording in the streaming session=Начата запись в сеансе трансляции
+
+Failed to start region capture=Не удалось начать захват региона
+Failed to start window capture=Не удалось начать захват окна
+No window selected=Окно не выбрано
+
+Streaming stopped because of an error. Verify if settings are correct=Трансляция остановлена из-за ошибки. Проверьте правильность настроек
+%s. Verify if settings are correct=%s. Проверьте правильность настроек
+
+# GPU Screen Recorder errors
+Desktop portal capture failed. Either you canceled the desktop portal or your Wayland compositor doesn't support desktop portal capture or it's incorrectly setup on your system.=Захват портала рабочего стола не удался. Вы либо отменили портал рабочего стола, либо ваш композитор Wayland не поддерживает захват портала рабочего стола или он неправильно настроен в вашей системе.
+Monitor capture failed. The monitor you are trying to capture is invalid. Please validate your capture settings.=Захват монитора не удался. Монитор, который вы пытаетесь захватить, недействителен. Пожалуйста, проверьте настройки захвата.
+Capture failed. Neither H264, HEVC nor AV1 video codecs are supported on your system or you are trying to capture at a resolution higher than your system supports for each video codec.=Захват не удался. Ни один из видеокодеков H264, HEVC или AV1 не поддерживается вашей системой или вы пытаетесь захватить видео с разрешением выше, чем поддерживает ваша система для каждого видеокодека.
+Capture failed. Your system doesn't support the resolution you are trying to record at with the video codec you have chosen. Change capture resolution or video codec and try again. Note: AV1 supports the highest resolution, then HEVC and then H264.=Захват не удался. Ваша система не поддерживает разрешение, с которым вы пытаетесь записывать с выбранным видеокодеком. Измените разрешение захвата или видеокодек и попробуйте снова. Примечание: AV1 поддерживает максимальное разрешение, затем HEVC, затем H264.
+Capture failed. Your system doesn't support the video codec you have chosen. Change video codec and try again.=Захват не удался. Ваша система не поддерживает выбранный видеокодек. Измените видеокодек и попробуйте снова.
+Stopped capture because the user canceled the desktop portal=Захват остановлен, так как пользователь отменил портал рабочего стола
+Failed to take a screenshot. Verify if settings are correct=Не удалось сделать снимок экрана. Проверьте правильность настроек
+
+# Launch errors
+Failed to launch gpu-screen-recorder to start replay=Не удалось запустить gpu-screen-recorder для начала повтора
+Failed to launch gpu-screen-recorder to start recording=Не удалось запустить gpu-screen-recorder для начала записи
+Failed to launch gpu-screen-recorder to start streaming=Не удалось запустить gpu-screen-recorder для начала трансляции
+Failed to launch gpu-screen-recorder to take a screenshot=Не удалось запустить gpu-screen-recorder для снимка экрана
+
+# System startup notifications
+Failed to add GPU Screen Recorder to system startup=Не удалось добавить GPU Screen Recorder в автозагрузку системы
+Failed to remove GPU Screen Recorder from system startup=Не удалось удалить GPU Screen Recorder из автозагрузки системы
+To enable autorun: install and configure 'dex' (recommended), or manually add '%s' to your desktop autostart entries.=Для включения автозапуска: установите и настройте 'dex' (рекомендуется) или вручную добавьте '%s' в записи автозапуска рабочего стола.
+GPU Screen Recorder UI startup has been switched from systemd service to XDG autostart.=Автозапуск GPU Screen Recorder UI переключён с сервиса systemd на XDG-автозапуск.
+GPU Screen Recorder UI autostart via systemd is deprecated. To migrate: install and configure 'dex' (recommended), or manually add '%s' to your desktop autostart entries.=Автозапуск GPU Screen Recorder UI через systemd устарел. Для миграции: установите и настройте 'dex' (рекомендуется) или вручную добавьте '%s' в записи автозапуска рабочего стола.
+
+# Wayland warning
+Wayland doesn't support GPU Screen Recorder UI properly, things may not work as expected. Use X11 if you experience issues.=Wayland не поддерживает интерфейс GPU Screen Recorder должным образом, некоторые функции могут не работать. Используйте X11, если возникнут проблемы.
+
+# Hotkey conflicts
+Some keyboard remapping software conflicts with GPU Screen Recorder on your system.\nKeyboards have been ungrabbed, applications will now receive the hotkeys you press.=Некоторое программное обеспечение переназначения клавиатуры конфликтует с GPU Screen Recorder в вашей системе.\nЗахват клавиатуры отключён, приложения теперь будут получать нажатия горячих клавиш.
+
+# Capture targets
+this monitor=этого монитора
+window=окна
+window "%s"=окна "%s"
+window %s=окна %s
+focused=активного
+region=региона
+portal=портала
+
+# Time durations (used in recording/replay saved notifications)
+%d second_one=%d секунда
+%d second_few=%d секунды
+%d second_many=%d секунд
+%d minute_one=%d минута
+%d minute_few=%d минуты
+%d minute_many=%d минут
+%d hour_one=%d час
+%d hour_few=%d часа
+%d hour_many=%d часов
+
+
+# Global Settings Page UI elements
+Accent color=Акцентный цвет
+Red=Красный
+Green=Зелёный
+Blue=Синий
+
+Start program on system startup?=Запускать программу при старте системы?
+Yes=Да
+No=Нет
+
+Enable keyboard hotkeys?=Включить горячие клавиши?
+Yes, but only grab virtual devices (supports some input remapping software)=Да, но только виртуальные устройства (поддержка некоторых программ ремаппинга клавиш)
+Yes, but don't grab devices (supports all input remapping software)=Да, но не захватывать устройства (поддержка всех программ ремаппинга клавиш)
+
+Show/hide UI:=Показать/скрыть интерфейс:
+Turn replay on/off:=Включить/выключить повтор:
+Save replay:=Сохранить повтор:
+Save 1 minute replay:=Сохранить 1 минуту повтора:
+Save 10 minute replay:=Сохранить 10 минут повтора:
+Start/stop recording:=Начать/остановить запись:
+Pause/unpause recording:=Приостановить/возобновить запись:
+Start/stop recording a region:=Начать/остановить запись региона:
+Start/stop streaming:=Начать/остановить трансляцию:
+Take a screenshot:=Сделать снимок экрана:
+Take a screenshot of a region:=Сделать снимок региона:
+Start/stop recording with desktop portal:=Запись через портал:
+Take a screenshot with desktop portal:=Сделать снимок через портал рабочего стола:
+Start/stop recording a window:=Начать/остановить запись окна:
+Take a screenshot of a window:=Сделать снимок окна:
+Press ESC to go back to the previous page/close the UI.=Нажмите ESC, чтобы вернуться на предыдущую страницу/закрыть интерфейс.
+
+Clear hotkeys=Очистить горячие клавиши
+Reset hotkeys to default=Сбросить горячие клавиши по умолчанию
+
+Enable controller hotkeys?=Включить горячие клавиши геймпада?
+Press=Нажмите
+and=и
+
+Notification speed=Скорость уведомлений
+Normal=Обычная
+Fast=Быстрая
+
+Language=Язык
+System language=Системный язык
+Exclude personal metadata from the video (such as audio track title)=Исключить личные метаданные из видео (например, название аудиодорожки)
+
+Exit program=Выйти из программы
+Go back to the old UI=Вернуться к старому интерфейсу
+
+# Subsection headers
+Global=Глобальные
+Back=Назад
+
+Appearance=Внешний вид
+Startup=Автозапуск
+Keyboard hotkeys=Горячие клавиши клавиатуры
+Controller hotkeys=Горячие клавиши геймпада
+Application info=Информация о приложении
+
+# Version info strings
+GSR version: %s=Версия GSR: %s
+GSR-UI version: %s=Версия GSR-UI: %s
+Flatpak version: %s=Версия Flatpak: %s
+GPU vendor: %s=Производитель GPU: %s
+
+# Hotkey configuration dialog
+Press a key combination to use for the hotkey: "%s"=Нажмите комбинацию клавиш для использования в качестве горячей клавиши: "%s"
+Alpha-numerical keys can't be used alone in hotkeys, they have to be used one or more of these keys: Alt, Ctrl, Shift and Super.\nPress Esc to cancel or Backspace to remove the hotkey.=Буквенно-цифровые клавиши нельзя использовать отдельно, их нужно комбинировать с Alt, Ctrl, Shift или Super.\nНажмите Esc для отмены или Backspace для удаления горячей клавиши.
+
+# Hotkey action names (without colons - these appear in the dialog)
+Show/hide UI=Показать/скрыть интерфейс
+Turn replay on/off=Включить/выключить повтор
+Save replay=Сохранить повтор
+Save 1 minute replay=Сохранить 1 минуту повтора
+Save 10 minute replay=Сохранить 10 минут повтора
+Start/stop recording=Начать/остановить запись
+Pause/unpause recording=Приостановить/возобновить запись
+Start/stop recording a region=Начать/остановить запись региона
+Start/stop recording a window=Начать/остановить запись окна
+Start/stop recording with desktop portal=Запись через портал
+Start/stop streaming=Начать/остановить трансляцию
+Take a screenshot=Сделать снимок экрана
+Take a screenshot of a region=Сделать снимок региона
+Take a screenshot of a window=Сделать снимок окна
+Take a screenshot with desktop portal=Сделать снимок через портал рабочего стола
+
+# Controller hotkey descriptions
+to show/hide the UI=для показа/скрытия интерфейса
+to take a screenshot=для снимка экрана
+to save a replay=для сохранения повтора
+to start/stop recording=для начала/остановки записи
+to turn replay on/off=для включения/выключения повтора
+to save a 1 minute replay=для сохранения 1 минуты повтора
+to save a 10 minute replay=для сохранения 10 минут повтора
+
+# Error message for duplicate hotkey
+The hotkey %s is already used for something else=Горячая клавиша %s уже используется для другого действия
+
+
+# Screenshot settings page
+Screenshot=Снимок экрана
+Capture=Захват
+Image=Изображение
+File info=Информация о файле
+General=Общие
+Screenshot indicator=Индикатор снимка
+Script=Скрипт
+File=Файл
+
+Back=Назад
+Save=Сохранить
+Cancel=Отмена
+
+Capture source:=Источник захвата:
+Window=Окно
+Region=Регион
+Desktop portal=Портал рабочего стола
+Monitor %s (%dx%d)=Монитор %s (%dx%d)
+Screen=Экран
+
+Image resolution limit:=Ограничение разрешения изображения:
+Change image resolution=Изменять разрешение изображения
+Restore portal session=Восстановить сессию портала
+
+Image quality:=Качество изображения:
+Medium=Среднее
+High=Высокое
+Very high (Recommended)=Очень высокое (рекомендуется)
+Ultra=Ультра
+
+Record cursor=Записывать курсор
+
+Directory to save screenshots:=Каталог для сохранения снимков:
+Image format:=Формат изображения:
+
+Save screenshot in a folder based on the games name=Сохраните скриншот в папку, названную в честь игры
+
+Save screenshot to clipboard=Сохранять снимок в буфер обмена
+Save screenshot to clipboard (Not supported properly by Wayland)=Сохранять снимок в буфер обмена (в Wayland поддерживается некорректно)
+Save screenshot to disk=Сохранять снимок на диск
+
+Show screenshot notifications=Показывать уведомления о снимках
+Blink scroll lock led when taking a screenshot=Мигать индикатором Scroll Lock при создании снимка
+
+Command to open the screenshot with:=Команда для открытия снимка:
+
+
+# Settings Page UI elements - дополнения
+
+# View modes
+Simple view=Простой вид
+Advanced view=Расширенный вид
+
+# Capture settings
+Follow focused window=Следовать за активным окном
+Focused monitor=Активный монитор
+
+Area size:=Размер области:
+Video resolution limit:=Ограничение разрешения видео:
+Change video resolution=Изменять разрешение видео
+
+# Webcam settings
+Webcam=Веб-камера
+Webcam source:=Источник веб-камеры:
+None=Нет
+Video format:=Формат видео:
+Auto (recommended)=Авто (рекомендуется)
+YUYV (Fastest)=YUYV (Самый быстрый)
+Motion-JPEG (Slower)=Motion-JPEG (Медленнее)
+Video setup:=Настройка видео:
+* Right click in the bottom right corner to resize the webcam=* Нажмите правой кнопкой мыши в нижнем правом углу для изменения размера веб-камеры
+Flip camera horizontally=Отразить камеру горизонтально
+
+# Audio settings
+Audio=Аудио
+Audio codec:=Аудиокодек:
+Opus (Recommended)=Opus (рекомендуется)
+AAC=AAC
+
+Directory to save videos:=Каталог для сохранения видео:
+Output device:=Выходное устройство:
+Input device: =Входное устройство: 
+Application:     =Приложение:     
+Custom...=Другое...
+
+Save video in a folder based on the games name%s=Сохраните видео в папку, названную в честь игры%s
+ (X11 applications only)= (только X11-приложения)
+
+Add audio track=Добавить аудиодорожку
+Add input device=Добавить вход
+Add output device=Добавить вывод
+Add application audio=Добавить аудио приложения
+Record audio from all applications except the selected ones=Записывать аудио из всех приложений кроме выбранных
+Recording output devices and application audio may record all output audio, which is likely not what you want to do. Remove the output devices.=Запись выходных устройств и аудио приложений может записать весь выходной звук, что, вероятно, не то, что вы хотите. Удалите выходные устройства.
+
+Video=Видео
+
+# Video codec settings
+Video codec:=Видеокодек:
+H264=H264
+HEVC=HEVC
+HEVC (10 bit, reduces banding)=HEVC (10 бит, уменьшает полосы)
+HEVC (HDR)=HEVC (HDR)
+AV1=AV1
+AV1 (10 bit, reduces banding)=AV1 (10 бит, уменьшает полосы)
+AV1 (HDR)=AV1 (HDR)
+VP8=VP8
+VP9=VP9
+H264 Software Encoder (Slow, not recommended)=H264 программный кодировщик \n(медленно, не рекомендуется)
+
+# Video quality and bitrate
+Video quality:=Качество видео:
+Very high=Очень высокое
+Video bitrate (Kbps):=Битрейт видео (Кбит/с):
+Constant bitrate=Постоянный битрейт
+Constant bitrate (Recommended)=Постоянный битрейт (рекомендуется)
+
+# Frame rate settings
+Frame rate:=Частота кадров:
+Frame rate mode:=Режим частоты кадров:
+Auto (Recommended)=Авто (рекомендуется)
+Constant=Постоянный
+Variable=Переменный
+Sync to content=Синхр. с контентом
+Sync to content (Only X11 or desktop portal capture)=Синхр. с контентом (только X11 или захват портала)
+
+# Color range
+Color range:=Цветовой диапазон:
+Limited=Ограниченный
+Full=Полный
+
+# Container format
+Container:=Формат:
+
+# Recording settings
+Record in low-power mode=Записывать в режиме низкого энергопотребления
+Record cursor=Записывать курсор
+
+Do not force the GPU to go into high performance mode when recording.\nMay affect recording performance, especially when playing a video at the same time.\nIf enabled then it's recommended to use sync to content frame rate mode to reduce power usage when idle.=Не заставлять GPU переходить в режим высокой производительности при записи.\nМожет повлиять на производительность записи, особенно при одновременном воспроизведении видео.\nЕсли включено, рекомендуется использовать режим частоты кадров синхронизации с контентом\nдля снижения энергопотребления в режиме ожидания.
+Use vulkan video encoding instead of VAAPI/NVENC.\nEnabling this may result in better game performance while recording, especially on NVIDIA.\nNote that this option is experimental. There may be GPU driver issues that causes issues when this is enabled.=Используйте кодирование видео Vulkan вместо VAAPI/NVENC.\nВключение этой опции может улучшить производительность игр во время записи, особенно на видеокартах NVIDIA.\nОбратите внимание, что эта опция является экспериментальной. При её включении могут возникать проблемы с драйверами\nвидеокарт.
+Enable vulkan video encoding (experimental)=Включить кодирование видео Vulkan (экспериментально)
+
+Show replay notifications=Показывать уведомления повтора
+Show recording notifications=Показывать уведомления записи
+Show streaming notifications=Показывать уведомления трансляции
+Show replay status with scroll lock LED=Показывать статус повтора с помощью индикатора Scroll Lock
+Show recording status with scroll lock LED=Показывать статус записи с помощью индикатора Scroll Lock
+Show streaming status with scroll lock LED=Показывать статус трансляции с помощью индикатора Scroll Lock
+Recording indicator=Индикатор записи
+
+Simple=Простой
+Audio track #%d=Аудиодорожка #%d
+Track title:=Название дорожки:
+Output device=Выходное устройство
+Input device:   =Входное устройство:   
+Estimated video file size per minute (excluding audio): %.2fMB=Примерный размер видео файла в минуту (без учёта аудио): %.2fMB
+
+# Replay settings
+Directory to save replays:=Каталог для сохранения повторов:
+Replay indicator=Индикатор повтора
+Turn on replay when starting a game=Включите воспроизведение при запуске игры
+Autostart=Автозапуск
+in RAM=в ОЗУ
+on disk=на диске
+Replay duration in seconds:=Длительность повтора в секундах:
+Where should temporary replay data be stored?=Где должны храниться временные данные повтора?
+RAM=ОЗУ
+Disk (Not recommended on SSDs)=Диск (не рекомендуется для SSD)
+Turn on replay when this program starts=Включать повтор при запуске программы
+Only turn on replay if a power supply is connected=Включайте воспроизведение только при подключенном источнике питания
+Don't turn on replay automatically=Не включать повтор автоматически
+Restart replay on save=Перезапускать повтор при сохранении
+Estimated video max file size %s: %.2fMB.\nChange video bitrate or replay duration to change file size.=Примерный максимальный размер видео файла %s: %.2fMB.\nИзмените битрейт видео или длительность повтора, чтобы изменить размер файла.
+
+# Streaming settings
+Stream service:=Сервис трансляции:
+Twitch=Twitch
+YouTube=YouTube
+Kick=Kick
+Rumble=Rumble
+Custom=Другое
+Stream URL:=URL трансляции:
+Stream key:=Ключ трансляции:
+Streaming info=Информация о трансляции
+Streaming indicator=Индикатор трансляции
