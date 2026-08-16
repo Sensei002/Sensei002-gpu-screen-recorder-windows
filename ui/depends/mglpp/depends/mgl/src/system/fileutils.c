@@ -77,6 +77,7 @@ static int load_options_to_open_flag(const mgl_memory_mapped_file_load_options *
     return open_flag;
 }
 
+#ifndef _WIN32
 static int load_options_to_mmap_prot_flag(const mgl_memory_mapped_file_load_options *load_options) {
     const bool readable = load_options ? load_options->readable : true;
     const bool writable = load_options ? load_options->writable : true;
@@ -89,6 +90,7 @@ static int load_options_to_mmap_prot_flag(const mgl_memory_mapped_file_load_opti
 
     return prot_flag;
 }
+#endif
 
 int mgl_mapped_file_load(const char *filepath, mgl_memory_mapped_file *memory_mapped_file, const mgl_memory_mapped_file_load_options *load_options) {
     memory_mapped_file->data = NULL;
