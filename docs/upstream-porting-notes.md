@@ -517,3 +517,28 @@ differences (not fixable, by design):
 * **`gsr_capture_set_hdr_metadata` is the upstream wrapper now** — the
   Phase 2 always-false stub in `gsr_utils_win32.c` collided with the real
   wrapper once `capture.c` was built (see §3g, same lesson).
+* **The GL context is bound to the thread that made it current.** The
+  recorder (and every GL call it makes — texture import, color-conversion
+  draw, readback) must run on the thread that loaded the egl. The first
+  self-test ran `gsr_recorder_run` on a pthread and every call silently
+  failed (`glGenTextures` returned 0, so the DD frame import failed with
+  NO EGL error — the symptom was a valid-looking recording of black
+  frames). Upstream's CLI runs the recorder on the main thread; the
+  self-test now stops it from a timer thread via `gsr_recorder_stop`
+  (an atomic store, safe cross-thread).
+* **The ffmpeg build has no demuxers.** The script configures
+  `--disable-everything` with `--enable-muxer` only, so libavformat can
+  mux but cannot open a file for reading — the recorder produced a valid
+  mkv that `avformat_open_input` rejected. Validation (and any future
+  file-reading feature) needs `--enable-demuxer=matroska`. The configure
+  args are part of the per-lib stamp, so changing them rebuilds only
+  ffmpeg (~2 min) even with the cached prefix.
+* **`audio_capture.c` needs the `sound_device_*` API stubbed.** The
+  upstream `sound.c` (PulseAudio/PipeWire) is not built, but the
+  audio_capture object that recorder.c pulls in references it. Stubs that
+  return "unavailable" are fine: the recorder with zero audio tracks never
+  calls them. Phase 8 (WASAPI) replaces the stubs.
+* **`gsr_window` is an opaque forward-decl in egl.h but a full vtable
+  struct in window.h** — allocate/`memset` it only where window.h is
+  included, or "storage size isn't known" errors (the win32 egl loader
+  only stores the pointer, so a zeroed instance is safe).
