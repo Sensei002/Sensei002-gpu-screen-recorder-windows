@@ -39,14 +39,14 @@
 #define RECORD_SECONDS 4
 #define FPS 10
 
-typedef struct {
-    gsr_recorder *recorder;
-    int result;
-} run_userdata;
-
-static void *run_recorder_thread(void *userdata) {
-    run_userdata *data = (run_userdata*)userdata;
-    data->result = gsr_recorder_run(data->recorder);
+/* The recorder must run on the thread that made the GL context current
+   (upstream: the CLI thread that loaded egl). gsr_recorder_stop is safe
+   to call from another thread (atomic store), so a timer thread stops the
+   recording while the recorder runs on the main thread. */
+static void *stop_recorder_thread(void *userdata) {
+    gsr_recorder *recorder = (gsr_recorder*)userdata;
+    Sleep(RECORD_SECONDS * 1000);
+    gsr_recorder_stop(recorder);
     return NULL;
 }
 
@@ -179,12 +179,9 @@ int main(void) {
     printf("recorder: created, recording %d seconds of %s at %dfps...\n",
         RECORD_SECONDS, primary->name, (int)settings.fps);
 
-    run_userdata userdata;
-    userdata.recorder = recorder;
-    userdata.result = GSR_ERROR_GENERIC;
-    pthread_t thread;
-    if(pthread_create(&thread, NULL, run_recorder_thread, &userdata) != 0) {
-        fprintf(stderr, "FAIL: could not create recorder thread\n");
+    pthread_t stop_thread;
+    if(pthread_create(&stop_thread, NULL, stop_recorder_thread, recorder) != 0) {
+        fprintf(stderr, "FAIL: could not create stop thread\n");
         gsr_recorder_destroy(recorder, false);
         gsr_capture_sources_deinit(&capture_sources);
         gsr_capture_deps_deinit(&capture_deps);
@@ -192,17 +189,16 @@ int main(void) {
         return 1;
     }
 
-    Sleep(RECORD_SECONDS * 1000);
-    gsr_recorder_stop(recorder);
-    pthread_join(thread, NULL);
+    const int run_result = gsr_recorder_run(recorder);
+    pthread_join(stop_thread, NULL);
 
     gsr_recorder_destroy(recorder, false);
     gsr_capture_sources_deinit(&capture_sources);
     gsr_capture_deps_deinit(&capture_deps);
     free(monitors);
 
-    if(userdata.result != GSR_ERROR_OK) {
-        fprintf(stderr, "FAIL: gsr_recorder_run returned %d\n", userdata.result);
+    if(run_result != GSR_ERROR_OK) {
+        fprintf(stderr, "FAIL: gsr_recorder_run returned %d\n", run_result);
         return 1;
     }
 
