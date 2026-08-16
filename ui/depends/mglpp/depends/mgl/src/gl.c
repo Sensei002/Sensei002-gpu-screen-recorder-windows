@@ -102,9 +102,17 @@ static int mgl_gl_load_gl(mgl_gl *self) {
     };
 
     for(int i = 0; required_dlsym[i].func; ++i) {
+#ifdef _WIN32
+        /* opengl32.dll only exports the GL 1.1 core; GL 1.2+ entry points
+           resolve via wglGetProcAddress once a context is current (see
+           mgl_gl_load_windows_extensions). GDI Generic (CI) implements
+           GL 1.1 only, so those stay NULL there — never fatal. */
+        *required_dlsym[i].func = (void*)GetProcAddress((HMODULE)self->gl_library, required_dlsym[i].name);
+#else
         *required_dlsym[i].func = dlsym_print_fail(self->gl_library, required_dlsym[i].name, 1);
         if(!*required_dlsym[i].func)
             return -1;
+#endif
     }
 
     const dlsym_assign optional_dlsym[] = {
@@ -114,11 +122,60 @@ static int mgl_gl_load_gl(mgl_gl *self) {
     };
 
     for(int i = 0; optional_dlsym[i].func; ++i) {
+#ifdef _WIN32
+        *optional_dlsym[i].func = (void*)GetProcAddress((HMODULE)self->gl_library, optional_dlsym[i].name);
+#else
         *optional_dlsym[i].func = dlsym_print_fail(self->gl_library, optional_dlsym[i].name, 0);
+#endif
     }
 
     return 0;
 }
+
+#ifdef _WIN32
+void mgl_gl_load_windows_extensions(mgl_gl *self) {
+    /* Resolve the GL 1.2+ entry points that opengl32.dll does not export.
+       Must be called while a GL context is current; wglGetProcAddress returns
+       NULL otherwise (GDI Generic implements GL 1.1 only, so these stay NULL
+       there — the renderer must not require them). Only NULL slots are
+       filled; the GL 1.1 core comes from opengl32.dll exports. */
+    const dlsym_assign extensions[] = {
+        { (void**)&self->glBlendFuncSeparate, "glBlendFuncSeparate" },
+        { (void**)&self->glGetTexLevelParameteriv, "glGetTexLevelParameteriv" },
+        { (void**)&self->glGenBuffers, "glGenBuffers" },
+        { (void**)&self->glBindBuffer, "glBindBuffer" },
+        { (void**)&self->glDeleteBuffers, "glDeleteBuffers" },
+        { (void**)&self->glBufferData, "glBufferData" },
+        { (void**)&self->glBufferSubData, "glBufferSubData" },
+        { (void**)&self->glCompileShader, "glCompileShader" },
+        { (void**)&self->glCreateProgram, "glCreateProgram" },
+        { (void**)&self->glCreateShader, "glCreateShader" },
+        { (void**)&self->glDeleteProgram, "glDeleteProgram" },
+        { (void**)&self->glDeleteShader, "glDeleteShader" },
+        { (void**)&self->glGetShaderiv, "glGetShaderiv" },
+        { (void**)&self->glGetShaderInfoLog, "glGetShaderInfoLog" },
+        { (void**)&self->glGetProgramiv, "glGetProgramiv" },
+        { (void**)&self->glGetProgramInfoLog, "glGetProgramInfoLog" },
+        { (void**)&self->glLinkProgram, "glLinkProgram" },
+        { (void**)&self->glShaderSource, "glShaderSource" },
+        { (void**)&self->glUseProgram, "glUseProgram" },
+        { (void**)&self->glAttachShader, "glAttachShader" },
+        { (void**)&self->glGetUniformLocation, "glGetUniformLocation" },
+        { (void**)&self->glUniform1f, "glUniform1f" },
+        { (void**)&self->glUniform2f, "glUniform2f" },
+        { (void**)&self->glUniform3f, "glUniform3f" },
+        { (void**)&self->glUniform4f, "glUniform4f" },
+        { (void**)&self->glGenerateMipmap, "glGenerateMipmap" },
+
+        { NULL, NULL }
+    };
+
+    for(int i = 0; extensions[i].func; ++i) {
+        if(!*extensions[i].func)
+            *extensions[i].func = (void*)wglGetProcAddress(extensions[i].name);
+    }
+}
+#endif
 
 static int mgl_gl_load_glx(mgl_gl *self) {
     const dlsym_assign required_dlsym[] = {

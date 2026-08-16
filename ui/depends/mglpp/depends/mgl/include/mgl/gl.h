@@ -128,4 +128,11 @@ typedef struct {
 int mgl_gl_load(mgl_gl *self);
 void mgl_gl_unload(mgl_gl *self);
 
+#ifdef _WIN32
+/* Resolve the GL 1.2+ entry points that opengl32.dll does not export. Call
+   after a WGL context is current (wglGetProcAddress requires one). Fills
+   only NULL slots; the GL 1.1 core comes from opengl32.dll exports. */
+void mgl_gl_load_windows_extensions(mgl_gl *self);
+#endif
+
 #endif /* MGL_GL_H */

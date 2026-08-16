@@ -1078,6 +1078,14 @@ static bool mgl_window_win32_setup(mgl_window *self, const char *title, const mg
     }
     impl->graphics_ready = true;
 
+#ifdef _WIN32
+    /* opengl32.dll only exports the GL 1.1 core; resolve the 1.2+ entry
+       points (VBOs, shaders, ...) now that the context is current. These
+       stay NULL on GDI Generic (GL 1.1 only) — the renderer must not
+       require them there. */
+    mgl_gl_load_windows_extensions(&mgl_get_context()->gl);
+#endif
+
     self->vsync_enabled = true;
     mgl_graphics_set_swap_interval(&impl->graphics, (mgl_window_handle)impl->window, self->vsync_enabled);
 
