@@ -395,6 +395,34 @@ Tasks:
 4. `--list-audio-devices` / `--list-application-audio` Windows output.
 5. Device-change error handling (upstream TODO parity).
 
+**Milestone A — WASAPI backend ✅ (complete):** the upstream
+`sound_device_*` API (upstream `sound.c`, PulseAudio/PipeWire) is
+implemented over WASAPI in `platform/windows/audio_wasapi.c`, replacing the
+Phase 7 link stubs: shared-mode loopback for render endpoints ("what you
+hear" = `default_output`) and capture for inputs (`default_input`), device
+resolution by name, and a full endpoint listing filling `gsr_audio_devices`
+so `-a` validation works unchanged. A capture thread converts the mix
+format → F32 stereo 48 kHz (format/channel-downmix + linear-resample
+fallbacks) → the requested codec format (AAC/flac→S32, opus→F32/S16) into a
+ring buffer delivered in exact period-sized chunks with the timeout
+contract the engine's A/V sync and shutdown depend on.
+
+Because the CI runner has no audio endpoints at all (verified by a
+diagnostic: 0 active and 0 total), the live path cannot run in CI — the
+conversion math is proven headless instead: `tests/audio-conv-test` drives
+the pipeline with synthetic data (52 checks: format parsing, sample decode,
+downmix, quantization incl. full-scale saturation, end-to-end chunk
+conversion, resampling, ring overflow) via the `audio_wasapi_internal.h`
+test seam. `recorder-self-test` probes the default output and records a
+real AAC track when capturable, validating the audio stream alongside the
+video; machines without audio record video-only. CI green, coverage 50.6%.
+
+**Remaining (milestone B):** per-app audio (`-a app:name` WASAPI session
+enumeration + feasibility decision), the A/V-sync validation harness,
+`--list-audio-devices`/`--list-application-audio` through the CLI, and
+default-device change tracking / device-change error handling. Lessons in
+`docs/upstream-porting-notes.md` §3i.
+
 ---
 
 ## Phase 9 — Replay
@@ -528,18 +556,19 @@ release notes, installer + zip published. Acceptance checklist from the brief
 |---|---|---|
 | 1 | Upstream analysis | ✅ complete |
 | 2 | Windows build infrastructure | ✅ complete (MinGW-w64 chosen, FFmpeg from source, core builds) |
-| 3 | Platform abstraction + tests | ⏳ next |
-| 4 | Monitor enumeration | pending |
-| 5 | Windows Graphics Capture | pending |
-| 6 | DXGI fallback | pending |
-| 7 | NVIDIA NVENC | pending |
-| 8 | WASAPI | pending |
+| 3 | Platform abstraction + tests | ✅ complete |
+| 4 | Monitor enumeration | ✅ complete |
+| 5 | Windows Graphics Capture | ✅ complete |
+| 5b | ANGLE GL render backend | ✅ complete |
+| 6 | DXGI fallback | ✅ complete |
+| 7 | NVIDIA NVENC | ⏳ milestone A (recorder end-to-end) complete; milestone B (NVENC encode path) pending |
+| 8 | WASAPI audio | ⏳ milestone A (backend + tests) complete; per-app audio / A/V-sync harness / CLI listing / device-change handling pending |
 | 9 | Replay | pending |
 | 10 | UI | pending |
 | 11 | Hotkeys/notifications/IPC | pending |
 | 12 | Startup/integration | pending |
 | 13 | Installer + portable zip | pending |
-| 14 | GitHub Actions full pipeline | pending |
+| 14 | GitHub Actions full pipeline | pending (built incrementally: build/test/coverage/package/release already in one workflow) |
 | 15 | Performance | pending |
 | 16 | Parity testing | pending |
 | 17 | Release packaging | pending |

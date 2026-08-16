@@ -542,3 +542,65 @@ differences (not fixable, by design):
   struct in window.h** — allocate/`memset` it only where window.h is
   included, or "storage size isn't known" errors (the win32 egl loader
   only stores the pointer, so a zeroed instance is safe).
+
+## 3i. Phase 8 CI validation lessons (WASAPI audio)
+
+* **The CI runner has NO audio endpoints at all.** `get_pulseaudio_inputs`
+  reports 0 active devices, and a diagnostic added to it shows 0 render + 0
+  capture endpoints *including disabled/unplugged* — the GitHub runner is
+  genuinely without an audio stack. The live WASAPI capture path therefore
+  cannot be exercised in CI (same situation as WGC in Phase 5). The
+  conversion math is proven instead: the pure pipeline (mix-format decode,
+  stereo downmix, 44.1k→48k linear resample, S16/S32/F32 quantize, ring
+  push) was extracted behind `audio_wasapi_internal.h` and is driven with
+  synthetic data by `tests/audio-conv-test` (52 checks). recorder-self-test
+  probes the default output (open + read one chunk) and only then adds the
+  `-a default_output` track, so a machine without audio records video-only
+  instead of failing.
+* **`sound_device_read_next_chunk`'s timeout is load-bearing.** The engine's
+  audio thread is blocked inside it when the recording stops; the timeout
+  (and the -1 return = "no audio, fill silence") is what lets the thread
+  wake and see `running=false`, so `sound_device_close` can join it without
+  deadlocking. Never block indefinitely.
+* **Chunks must be exactly `period_frame_size` frames.** The engine's
+  `swr_convert` consumes exactly `frame_size` frames per call and the A/V
+  sync counts whole chunks — the device must deliver the requested period
+  size, not whatever the OS hands out (WASAPI shared-mode packets are
+  ~10 ms = 480 frames; a ring buffer accumulates them into 1024-frame
+  periods).
+* **The device delivers the *codec's* format, not WASAPI's.**
+  `audio_codec_context_get_audio_format` maps AAC→S32, flac→S32,
+  opus→F32/S16 at GSR_AUDIO_SAMPLE_RATE (48 kHz) stereo. Shared-mode WASAPI
+  is opened with the endpoint's *mix format* (F32/48k/stereo on modern
+  Windows → the conversion is a pass-through) and converted in software;
+  the 16/24-bit, mono/surround, and ≠48 kHz mix-format cases are handled
+  with a documented linear resampler.
+* **The MMDevice/audio-client IIDs are not defined by mingw-w64.**
+  `IID_IAudioClient`, `IID_IAudioCaptureClient`, `CLSID_MMDeviceEnumerator`,
+  `IID_IMMDeviceEnumerator` are declared in the headers but no import
+  library defines them, so taking their address fails to link (the same
+  class of problem as the DXGI IIDs in §3g, but for audio — `libole32.a`
+  does not carry them). Define them locally with external linkage.
+  `DEVICE_STATE_ALL` is likewise missing from mingw's `mmdeviceapi.h`
+  (only the individual states exist); define `0x0000000F`.
+* **S32 quantization has a float trap.** `2147483647` is NOT representable
+  as a float — it rounds to 2³¹, so `(int32_t)(1.0f * 2147483647.0f)` is
+  undefined behavior (wraps to INT32_MIN on x86): full-scale positive audio
+  becomes garbage. Scale by 2ᴺ (libswresample's convention, which the
+  engine feeds downstream) and saturate in integer space against the exact
+  float constants; the same protects int16 (`1.0 * 32768.0f` overflows).
+* **COM is per-thread.** The open path and the WASAPI capture thread each
+  call `CoInitializeEx(COINIT_MULTITHREADED)`; balance S_OK/S_FALSE with
+  `CoUninitialize`, but not `RPC_E_CHANGED_MODE`. The ring buffer needs no
+  locking between producer and consumer beyond the SRWLOCK/condvar used for
+  the read path.
+* **The engine never frees the read buffer.** `read_next_chunk` hands back
+  a pointer that is consumed and discarded — reuse a device-owned buffer
+  (like upstream's ringbuffer read pointer), do not malloc per call or the
+  recorder leaks ~190 small buffers/sec.
+* **The recorder opens devices at create time** (from
+  `gsr_audio_track_init_device_inputs`) but the audio thread starts later;
+  `sound_device_flush` discards the pre-recording ring content so stale
+  audio never enters the file. Default-device change tracking (the upstream
+  "auto-switch" comment) and WASAPI session enumeration for `-a app:name`
+  are documented as not-yet-implemented (roadmap Phase 8, remaining).
