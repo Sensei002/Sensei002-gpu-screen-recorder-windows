@@ -28,11 +28,37 @@
 #include "../../upstream/include/damage.h"
 #include "../../upstream/include/cursor.h"
 #include "../../upstream/include/window/window.h"
+#include "../../upstream/include/sound.h"
 #include "../../upstream/include/utils.h"
 #include "../../upstream/include/log.h"
 
 #include <stdbool.h>
 #include <stddef.h>
+
+/* ---- sound_device_* stubs (upstream sound.c is PulseAudio/PipeWire) -----
+ * audio_capture.c (built since Phase 2) references this API, but the
+ * Windows build has no audio backend yet (that is Phase 8, WASAPI). The
+ * recorder with zero audio tracks never calls these — they exist so the
+ * audio_capture object links. All return "unavailable". */
+
+int sound_device_get_by_name(SoundDevice *device, const char *node_name, const char *device_name, const char *description, unsigned int num_channels, unsigned int period_frame_size, gsr_audio_format audio_format) {
+    (void)device; (void)node_name; (void)device_name; (void)description;
+    (void)num_channels; (void)period_frame_size; (void)audio_format;
+    return -1; /* no audio backend on Windows yet (Phase 8: WASAPI) */
+}
+
+void sound_device_close(SoundDevice *device) {
+    (void)device;
+}
+
+void sound_device_flush(SoundDevice *device) {
+    (void)device;
+}
+
+int sound_device_read_next_chunk(SoundDevice *device, void **buffer, double timeout_sec, double *latency_seconds) {
+    (void)device; (void)buffer; (void)timeout_sec; (void)latency_seconds;
+    return -1; /* no audio backend on Windows yet (Phase 8: WASAPI) */
+}
 
 /* ---- gl_create_texture (upstream utils.c, Windows build) ---------------- */
 
