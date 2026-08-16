@@ -69,6 +69,17 @@
 static const GUID GSR_KSDATAFORMAT_SUBTYPE_PCM = {0x00000001, 0x0000, 0x0010, {0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71}};
 static const GUID GSR_KSDATAFORMAT_SUBTYPE_IEEE_FLOAT = {0x00000003, 0x0000, 0x0010, {0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71}};
 
+/* mingw-w64 *declares* the MMDevice/audio-client IIDs and CLSID in its
+   headers but no import library provides their definitions, so taking
+   their address fails to link (same class of issue as the DXGI IIDs in
+   Phase 4). Define them here with external linkage to satisfy the
+   headers' extern declarations; only this TU references them, so there
+   is no collision. Values are the canonical SDK GUIDs. */
+const IID IID_IAudioClient = {0x1CB9AD4C, 0xDBFA, 0x4c32, {0xB1, 0x78, 0xC2, 0xF5, 0x68, 0xA7, 0x03, 0xB2}};
+const IID IID_IAudioCaptureClient = {0xC8ADBD64, 0xE71E, 0x48a0, {0xA4, 0xDE, 0x18, 0x5C, 0x39, 0x5C, 0xE4, 0x17}};
+const CLSID CLSID_MMDeviceEnumerator = {0xBCDE0395, 0xE52F, 0x467C, {0x8E, 0x3D, 0xC4, 0x57, 0x92, 0x91, 0x69, 0x2E}};
+const IID IID_IMMDeviceEnumerator = {0xA95664D2, 0x9614, 0x4F35, {0xA7, 0x46, 0xDE, 0x8D, 0xB6, 0x36, 0x17, 0xE6}};
+
 #define GSR_RING_FRAMES_MIN 4096           /* never less than ~85 ms @48 kHz */
 #define GSR_RING_PERIODS 32                /* ring capacity in periods       */
 
