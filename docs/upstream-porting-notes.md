@@ -479,3 +479,41 @@ differences (not fixable, by design):
   `6.0.0-w1` → tag `v6.0.0-w1`. Installer/zip filenames are fixed
   (`GPU-Screen-Recorder-Windows-x64-Setup.exe`, `...-Portable.zip`) with the
   version in release metadata, per brief §79.
+
+## 3h. Phase 7 CI validation lessons (end-to-end recorder)
+
+* **recorder.c needs no Windows surgery** — its real X11 surface is one
+  `gsr_window_get_display_server` call plus the `<X11/Xlib.h>` include and
+  a `DefaultRootWindow()` macro (dead code on Windows: the X11 cursor
+  display is always NULL). The damage/cursor systems it drives are
+  X11-only, so the Windows build replaces them with no-op stubs
+  (`gsr_recorder_win32.c`): `gsr_damage_init` returns false, which keeps
+  `use_damage_tracking` off and the recorder's damage OR-gate fed by the
+  capture backends' own `is_damaged()`/`clear_damage()`.
+* **The capture_setup seam is the whole game.** `capture_setup.c` builds
+  X11/KMS/NVFBC/V4L2 captures; the Windows twin
+  (`gsr_capture_setup_win32.c`) implements the same header API over
+  WGC/DXGI: monitor -> `gsr_platform_capture_select_backend()` (WGC
+  preferred, DXGI fallback), window -> WGC window target, region/focused/
+  portal/v4l2 -> honest `GSR_ERROR_UNSUPPORTED`. Cursor/damage deps are
+  no-ops (the backends draw the cursor natively).
+* **`uses_external_image` must be false for the D3D11-import backends.**
+  Phase 5b imports the WGC/DXGI texture as a plain `GL_TEXTURE_2D` and
+  draws with `external_texture=false` — so the backends must report
+  `uses_external_image=false`, or the recorder loads the external-image
+  (OES) shader unnecessarily (Phase 5b shipped this as `true` by mistake;
+  corrected here, where the recorder first consumes the value).
+* **`gl_create_texture` is missing on Windows** — it lives in the
+  X11/DRM `utils.c` which is not built. Straight GL; reimplemented in the
+  recorder shim. The software encoder's `copy_textures_to_frame` reads via
+  `gsr_color_conversion_read_destination_texture` = `glReadPixels`
+  (ANGLE-safe; Phase 5b's `glGetTexImage` was a red herring).
+* **The codec-query/encoder objects are all Linux-side.** `codec_select.c`
+  references `gsr_video_encoder_{vaapi,vulkan,nvenc}_create` and the
+  `gsr_get_supported_video_codecs_*` queries, none of which exist on
+  Windows — guarded with `#ifdef _WIN32` (software path short-circuits to
+  libx264; NVENC probing is Phase 7 milestone B). LTO cannot drop the
+  unreachable branches, so the guards are required even with `-flto`.
+* **`gsr_capture_set_hdr_metadata` is the upstream wrapper now** — the
+  Phase 2 always-false stub in `gsr_utils_win32.c` collided with the real
+  wrapper once `capture.c` was built (see §3g, same lesson).

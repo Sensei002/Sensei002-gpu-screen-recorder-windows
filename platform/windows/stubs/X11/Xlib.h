@@ -16,4 +16,11 @@
    branch (included before <X11/Xlib.h> everywhere), XEvent from the
    compat shim. */
 
+/* recorder.c's cursor-tick call is dead code on Windows (the X11 cursor
+   display is always NULL), but it must still compile. Xlib's
+   DefaultRootWindow is a function-like macro; return a NULL Window. */
+#ifndef DefaultRootWindow
+#define DefaultRootWindow(display) ((Window)0)
+#endif
+
 #endif /* GSR_STUB_X11_XLIB_H */

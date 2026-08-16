@@ -348,9 +348,21 @@ Tasks:
    `-ffmpeg-video-opts` onto nvenc options (same semantics).
 4. Tests: capability-table logic; option mapping; `--info` output.
 
+**Milestone A — end-to-end recorder (in progress):** before any hardware
+encoding exists, the recorder must run on Windows. `recorder.c` is now in
+the build and runs unchanged; its X11-only deps (damage/cursor/window.c,
+utils.c) are replaced by `platform/windows/gsr_recorder_win32.c`, and the
+capture_setup seam by `platform/windows/gsr_capture_setup_win32.c`
+(WGC/DXGI dispatch; region/focused/portal/v4l2 are honest UNSUPPORTED).
+`codec_select.c` has `#ifdef _WIN32` guards for the VAAPI/Vulkan/NVENC
+queries. `recorder-self-test` records the primary monitor through libx264
+into a Matroska file and CI validates it with ffprobe — the NVENC encode
+path (milestone B) then replaces the software encoder on NVIDIA GPUs.
+
 **CI note:** NVENC hardware is not guaranteed on the runner; capability logic
 is unit-tested, and a real-GPU validation checklist is documented
-(`docs/troubleshooting-windows.md`).
+(`docs/troubleshooting-windows.md`). CI records with `-encoder cpu`
+(libx264), which this milestone validates end-to-end.
 
 ---
 

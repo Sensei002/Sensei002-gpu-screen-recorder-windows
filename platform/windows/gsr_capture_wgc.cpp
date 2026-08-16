@@ -379,7 +379,10 @@ static int wgc_capture(gsr_capture *cap, gsr_capture_metadata *capture_metadata,
 
 static bool wgc_uses_external_image(gsr_capture *cap) {
     (void)cap;
-    return true; /* D3D11 texture imported into GL as an external image */
+    /* The D3D11 texture imports as a regular GL_TEXTURE_2D (Phase 5b), so
+       the color conversion must NOT load the external-image (OES) shader
+       and capture() draws with external_texture=false. */
+    return false;
 }
 
 static bool wgc_set_hdr_metadata(gsr_capture *cap, AVMasteringDisplayMetadata *mastering_display_metadata, AVContentLightMetadata *light_metadata) {

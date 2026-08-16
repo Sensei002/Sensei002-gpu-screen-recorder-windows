@@ -25,6 +25,14 @@ gsr_video_encoder* create_video_encoder(gsr_egl *egl, const gsr_recorder_setting
         return video_encoder;
     }
 
+#ifdef _WIN32
+    /* Windows port (Phase 7, milestone A): no VAAPI/Vulkan; NVENC lands in
+       milestone B. With -encoder gpu the encoder stays NULL and the
+       recorder fails with "failed to create video encoder" — honest
+       (upstream never fakes support), so CI and this milestone use
+       -encoder cpu (libx264). */
+    return video_encoder;
+#else
     if(video_codec_is_vulkan(settings->video_codec)) {
         gsr_video_encoder_vulkan_params params;
         params.egl = egl;
@@ -59,6 +67,7 @@ gsr_video_encoder* create_video_encoder(gsr_egl *egl, const gsr_recorder_setting
     }
 
     return video_encoder;
+#endif
 }
 
 bool get_supported_video_codecs(gsr_egl *egl, gsr_video_codec video_codec, bool use_software_video_encoder, bool cleanup, gsr_supported_video_codecs *video_codecs) {
@@ -70,6 +79,14 @@ bool get_supported_video_codecs(gsr_egl *egl, gsr_video_codec video_codec, bool 
         return true;
     }
 
+#ifdef _WIN32
+    /* Windows port (Phase 7, milestone A): the VAAPI/Vulkan/NVENC queries
+       are Linux/NVIDIA-side; NVENC probing lands in milestone B. */
+    (void)video_codec;
+    (void)cleanup;
+    (void)video_codec_is_vulkan;
+    return false;
+#else
     if(video_codec_is_vulkan(video_codec))
         return gsr_get_supported_video_codecs_vulkan(video_codecs, egl->card_path, &egl->vulkan_device_index, cleanup);
 
@@ -84,6 +101,7 @@ bool get_supported_video_codecs(gsr_egl *egl, gsr_video_codec video_codec, bool 
     }
 
     return false;
+#endif
 }
 
 static const AVCodec* get_ffmpeg_video_codec(gsr_video_codec video_codec, gsr_gpu_vendor vendor) {

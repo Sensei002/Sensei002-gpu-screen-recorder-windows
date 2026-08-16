@@ -179,6 +179,16 @@ jobs:
           .\build\cmake\render-self-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\cmake\dxgi-self-test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\cmake\recorder-self-test.exe
+
+      # The recorder self-test produces a real .mkv; validate it with the
+      # ffprobe we just built (video stream present, h264, sane duration).
+      - name: Validate recorded file with ffprobe
+        shell: msys2 {0}
+        run: |
+          cd build/cmake && ../ffmpeg-prefix/bin/ffprobe.exe -v error -show_entries stream=codec_name,width,height,pix_fmt,duration -of default=noprint_wrappers=1 recorder-self-test-output.mkv
+          cd build/cmake && ../ffmpeg-prefix/bin/ffprobe.exe -v error -show_entries format=duration,size -of default=noprint_wrappers=1 recorder-self-test-output.mkv
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -192,6 +202,8 @@ jobs:
             build/cmake/wgc-self-test.exe
             build/cmake/render-self-test.exe
             build/cmake/dxgi-self-test.exe
+            build/cmake/recorder-self-test.exe
+            build/cmake/recorder-self-test-output.mkv
           if-no-files-found: error
 
       # ---------------------------------------------------------------------
@@ -279,6 +291,8 @@ jobs:
           .\build\bin\render-self-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\bin\dxgi-self-test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\bin\recorder-self-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\bin\ci-smoke.exe
 

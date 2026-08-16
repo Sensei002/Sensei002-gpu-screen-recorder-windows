@@ -160,6 +160,22 @@ set(GSR_CORE_SOURCES
     # Phase 6: DXGI Desktop Duplication capture backend (monitor-only
     # fallback; plain C — DD is a DXGI/D3D11 COM interface).
     platform/windows/gsr_capture_dxgi.c
+    # Phase 7 (milestone A): the upstream recorder end-to-end. recorder.c
+    # runs unchanged; its X11-only deps (damage/cursor/window.c, the
+    # X11/DRM utils.c) are replaced by the win32 shims below, and the
+    # capture_setup seam by gsr_capture_setup_win32.c (WGC/DXGI dispatch).
+    # codec_select.c has #ifdef _WIN32 guards for the VAAPI/Vulkan/NVENC
+    # queries (NVENC lands in milestone B).
+    upstream/src/recorder/recorder.c
+    upstream/src/recorder/codec_select.c
+    upstream/src/recorder/replay_save.c
+    upstream/src/recorder/screenshot.c
+    upstream/src/encoder/video/video.c
+    upstream/src/encoder/video/software.c
+    upstream/src/plugins.c
+    upstream/src/image_writer.c
+    platform/windows/gsr_recorder_win32.c
+    platform/windows/gsr_capture_setup_win32.c
 )
 
 add_library(gsr_core STATIC ${GSR_CORE_SOURCES})
@@ -246,13 +262,21 @@ target_link_libraries(render-self-test PRIVATE gsr_core)
 add_executable(dxgi-self-test tests/dxgi-self-test/main.c)
 target_link_libraries(dxgi-self-test PRIVATE gsr_core)
 
+# Phase 7 (milestone A) recorder self-test: drives the upstream recorder
+# end-to-end (live capture -> ANGLE color conversion -> libx264 -> MKV)
+# and validates the output file. SKIPs (exit 0) where no capture backend
+# is available; on CI the runner's Desktop Duplication makes this a REAL
+# end-to-end recording.
+add_executable(recorder-self-test tests/recorder-self-test/main.c)
+target_link_libraries(recorder-self-test PRIVATE gsr_core)
+
 # Link the test executables against the static MinGW runtime so they can be
 # re-run by the workflow's `test` job without the MSYS2 environment.
 # -static-libgcc works with the C driver; the C++ runtime (libstdc++.a),
 # winpthread and atomic are already linked statically via the gsr_core
 # PUBLIC link flags above (-static-libstdc++/-static-libwinpthread are
 # driver options that do nothing when linking with cc).
-foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test dxgi-self-test)
+foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test dxgi-self-test recorder-self-test)
     set_target_properties(${target} PROPERTIES
         LINK_FLAGS "-static-libgcc")
 endforeach()
@@ -264,3 +288,4 @@ add_test(NAME platform-test COMMAND platform-test)
 add_test(NAME wgc-self-test COMMAND wgc-self-test)
 add_test(NAME render-self-test COMMAND render-self-test)
 add_test(NAME dxgi-self-test COMMAND dxgi-self-test)
+add_test(NAME recorder-self-test COMMAND recorder-self-test)
