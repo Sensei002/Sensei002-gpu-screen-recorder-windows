@@ -496,6 +496,10 @@ static bool imported_texture_bind(gsr_egl *egl, gsr_egl_imported_texture *imp, v
     imp->image = egl->eglCreateImage(egl->egl_display, EGL_NO_CONTEXT,
         EGL_D3D_TEXTURE_ANGLE, (EGLClientBuffer)texture, NULL);
     if(!imp->image) {
+        const EGLint import_error = egl->eglGetError();
+        gsr_log(GSR_LOG_LEVEL_ERROR,
+            "gsr_platform_egl_import_texture: eglCreateImage(EGL_D3D_TEXTURE_ANGLE) failed (error 0x%x)",
+            import_error);
         imp->last_texture = NULL;
         return false;
     }
