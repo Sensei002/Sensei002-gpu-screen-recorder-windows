@@ -101,8 +101,10 @@ gsr_nvenc_generation gsr_nvenc_generation_from_adapter_description(const char *d
         return GSR_NVENC_GEN_AMPERE;
     if(contains_ci(description, "quadro rtx"))
         return GSR_NVENC_GEN_TURING;
-    if(contains_ci(description, "ada")) /* e.g. "RTX 4000 Ada Generation" */
-        return GSR_NVENC_GEN_ADA;
+    /* No "ada" rule: the substring appears inside "adapter" and other
+       words, and the Ada pro naming ("RTX 4000 Ada Generation") already
+       matches "rtx 40". Unmatched pro cards fall through to UNKNOWN,
+       which probes every codec — the honest outcome. */
     if(contains_ci(description, "rtx 50"))
         return GSR_NVENC_GEN_BLACKWELL;
     if(contains_ci(description, "rtx 40"))
