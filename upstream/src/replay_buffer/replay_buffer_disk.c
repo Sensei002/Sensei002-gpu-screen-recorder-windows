@@ -125,7 +125,16 @@ static void gsr_replay_buffer_disk_destroy(gsr_replay_buffer *replay_buffer) {
     gsr_replay_buffer_disk_clear(replay_buffer);
 
     if(self->owns_directory) {
+#ifdef _WIN32
+        /* Windows port addition: POSIX remove() on a directory fails on
+           Windows (_unlink cannot remove directories), leaving the session
+           dir behind. Use the Win32 API (declared by the force-included
+           gsr_win32_compat.h's <windows.h>) so a clean exit really removes
+           it, matching the POSIX behavior upstream relies on. */
+        RemoveDirectoryA(self->replay_directory);
+#else
         remove(self->replay_directory);
+#endif
         self->owns_directory = false;
     }
 }

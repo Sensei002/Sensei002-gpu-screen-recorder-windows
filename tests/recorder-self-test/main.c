@@ -79,7 +79,7 @@ static void on_recording_stopped(const char *filepath, void *userdata) {
  * after the restart — which proves -restart-replay-on-save actually works.
  */
 #define REPLAY_OUTPUT_DIR "replay-self-test-output"
-#define REPLAY_RECORD_SECONDS 7
+#define REPLAY_RECORD_SECONDS 8
 #define REPLAY_FPS 10
 
 typedef struct {
@@ -107,8 +107,9 @@ typedef struct {
 } replay_driver;
 
 /* Schedule: save 2s at t=2s, FULL at t=5s (restarts the buffer), FULL again
-   at t=6.5s (must be short), stop at t=7s. The recorder polls the atomic
-   save requests every frame, so each save starts within ~100ms. */
+   at t=6.8s (must be short — it only holds what was recorded after the
+   restart, one keyframe interval), stop at t=7.5s. The recorder polls the
+   atomic save requests every frame, so each save starts within ~100ms. */
 static void *replay_driver_thread(void *userdata) {
     replay_driver *driver = (replay_driver*)userdata;
     gsr_recorder *recorder = driver->recorder;
@@ -116,9 +117,9 @@ static void *replay_driver_thread(void *userdata) {
     gsr_recorder_save_replay(recorder, 2, GSR_RESTART_REPLAY_ENABLE);
     Sleep(3000);
     gsr_recorder_save_replay(recorder, GSR_SAVE_REPLAY_SECONDS_FULL, GSR_RESTART_REPLAY_ENABLE);
-    Sleep(1500);
+    Sleep(1800);
     gsr_recorder_save_replay(recorder, GSR_SAVE_REPLAY_SECONDS_FULL, GSR_RESTART_REPLAY_ENABLE);
-    Sleep(500);
+    Sleep(700);
     gsr_recorder_stop(recorder);
     return NULL;
 }
@@ -225,7 +226,10 @@ static int run_replay_pass(const gsr_egl *egl, const gsr_window *window) {
     settings.is_output_piped = false;
     settings.fps = REPLAY_FPS;
     settings.replay_buffer_size_secs = 8;
-    settings.keyint = 10; /* keyframe every 1s at 10fps, so every save finds one */
+    /* The keyint setting is in SECONDS (x264 keyint = keyint * fps), so 1.0
+       gives a keyframe every 1s — every save finds one, including the save
+       after the restart-clear. */
+    settings.keyint = 1.0;
     settings.restart_replay_on_save = true;
     settings.date_folders = false;
 
@@ -311,9 +315,9 @@ static int run_replay_pass(const gsr_egl *egl, const gsr_window *window) {
     failures += validate_replay_file(saved_replays[0].filepath, 1.0, 4.0, "replay 2s save");
     failures += validate_replay_file(saved_replays[1].filepath, 3.0, 8.0, "replay FULL save");
     /* -restart-replay-on-save cleared the buffer after the FULL save, so
-       this save only contains what was recorded after the restart — it
-       must be shorter than the FULL save. */
-    failures += validate_replay_file(saved_replays[2].filepath, 0.5, 3.0, "replay post-restart save");
+       this save only contains what was recorded after the restart (about
+       one keyframe interval, 1s) — it must be shorter than the FULL save. */
+    failures += validate_replay_file(saved_replays[2].filepath, 0.4, 3.0, "replay post-restart save");
     if(failures == 0) {
         /* Parse the durations out again just for the comparison log. */
         AVFormatContext *fmt = NULL;
