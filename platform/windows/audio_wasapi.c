@@ -81,6 +81,12 @@ const IID IID_IMMDeviceEnumerator = {0xA95664D2, 0x9614, 0x4F35, {0xA7, 0x46, 0x
 #define GSR_RING_FRAMES_MIN 4096           /* never less than ~85 ms @48 kHz */
 #define GSR_RING_PERIODS 32                /* ring capacity in periods       */
 
+/* mingw-w64's mmdeviceapi.h defines DEVICE_STATE_ACTIVE/DISABLED/... but
+   not the DEVICE_STATE_ALL mask. */
+#ifndef DEVICE_STATE_ALL
+#define DEVICE_STATE_ALL 0x0000000F
+#endif
+
 typedef enum {
     GSR_ENDPOINT_RENDER,   /* loopback capture ("what you hear")            */
     GSR_ENDPOINT_CAPTURE   /* normal capture (microphone)                   */
