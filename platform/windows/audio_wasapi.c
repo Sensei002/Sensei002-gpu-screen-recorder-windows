@@ -1093,12 +1093,8 @@ bool gsr_platform_audio_list_devices(gsr_platform_audio_device **out, int *out_c
     return true;
 }
 
-int gsr_platform_audio_format_device_line(const gsr_platform_audio_device *device, char *buf, size_t size) {
-    const int written = snprintf(buf, size, "%s (%s)", device->name, device->description);
-    /* Per the header contract: -1 when the buffer is too small (snprintf
-       would return the would-be length >= size). */
-    return written >= (int)size ? -1 : written;
-}
+/* gsr_platform_audio_format_device_line lives in gsr_platform_win32.c
+   (the Phase 3 pure formatter) — not duplicated here. */
 
 bool gsr_platform_audio_list_apps(gsr_platform_audio_app **out, int *out_count) {
     *out = NULL;
