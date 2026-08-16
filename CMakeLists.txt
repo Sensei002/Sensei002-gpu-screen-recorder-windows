@@ -125,6 +125,9 @@ set(GSR_CORE_SOURCES
     upstream/src/recorder/audio_capture.c
     upstream/src/recorder/audio_input.c
     upstream/src/recorder/capture_source.c
+    # upstream/src/capture/capture.c: the gsr_capture_* vtable wrappers (pure
+    # C, no X11 deps) — the public API the engine and self-tests call.
+    upstream/src/capture/capture.c
     # recorder/muxer.c: the real upstream save-filepath naming function
     # (gsr_create_new_recording_filepath_from_timestamp) that the
     # platform filesystem layer delegates to.
