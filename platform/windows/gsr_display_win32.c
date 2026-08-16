@@ -121,6 +121,12 @@ int gsr_platform_info_write_key_value(char *buf, size_t size, const char *key, c
 
 /* ---- DXGI + GetMonitorInfoW enumeration (Phase 4) ------------------------ */
 
+/* IID_IDXGIOutput6: mingw-w64's libdxgi.a provides the older DXGI IIDs
+ * (IID_IDXGIFactory1, ...) as linkable data exports, but not this
+ * Win10-era one, so define it locally. Value matches mingw-w64 dxgi1_6.h
+ * and the Microsoft docs: 068346e8-aaec-4b84-add7-137f513f77a1. */
+static const GUID GSR_IID_IDXGIOutput6 = {0x068346e8, 0xaaec, 0x4b84, {0xad, 0xd7, 0x13, 0x7f, 0x51, 0x3f, 0x77, 0xa1}};
+
 /* Picks the native (largest-area) mode from the output's mode list and
  * fills *width/*height (native, pre-rotation) and *refresh_rate. Falls back
  * to the desktop-coordinate size (post-rotation) when the mode list is
@@ -268,7 +274,7 @@ bool gsr_platform_display_list_monitors(gsr_platform_monitor **out, int *out_cou
 
                 /* HDR10: color space == HDR10 PQ (the standard check). */
                 IDXGIOutput6 *output6 = NULL;
-                if(SUCCEEDED(output->lpVtbl->QueryInterface(output, &IID_IDXGIOutput6, (void**)&output6))) {
+                if(SUCCEEDED(output->lpVtbl->QueryInterface(output, &GSR_IID_IDXGIOutput6, (void**)&output6))) {
                     DXGI_OUTPUT_DESC1 odesc1;
                     if(SUCCEEDED(output6->lpVtbl->GetDesc1(output6, &odesc1)))
                         m->hdr = (odesc1.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020);

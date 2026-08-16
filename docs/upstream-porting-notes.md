@@ -217,6 +217,13 @@ future phases and upstream syncs should assume them:
   Display Adapter, vendor id 0x1414), so the headless smoke test asserts
   `count >= 1`, sane fields, and exactly one primary — never exact
   resolutions or names (tolerating 1+ virtual monitors).
+* **Not every DXGI IID is a linkable symbol in mingw-w64.**
+  `libdxgi.a` exports the older IIDs (e.g. `IID_IDXGIFactory1`) as data
+  exports, but `IID_IDXGIOutput6` (Win10-era, needed for the HDR
+  `GetDesc1` color-space check) is missing — `undefined reference to
+  IID_IDXGIOutput6`. Define the GUID locally (`static const GUID` with the
+  header's bytes: `068346e8-aaec-4b84-add7-137f513f77a1`) instead of
+  pulling `IID_...` from the import library.
 * **Backslash literals in tests.** Windows device names (`\\.\DISPLAY1`)
   are painful to spell in C string literals and easy to get wrong in
   generated patches; the tests build them at runtime from the structs
