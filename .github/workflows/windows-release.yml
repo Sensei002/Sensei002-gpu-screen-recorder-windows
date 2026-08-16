@@ -101,42 +101,47 @@ jobs:
       # The FFmpeg stack (ffmpeg 9.0 + x264 + opus + mbedtls + srt +
       # nv-codec-headers, pinned and sha256-verified, built from source by
       # scripts/build-ffmpeg-windows.sh) is cached as a whole directory:
-      # sources, install prefix and per-library stamps. On a cache hit the
-      # stamp check makes the build a no-op. The cache key tracks the
-      # source pins (scripts/ffmpeg-sources.sh) and the upstream patches,
-      # but NOT the build script itself: the script's per-library stamps
-      # rebuild only what changed, so diagnostic iterations restore the
-      # built libs and re-run just the failing step. Restore and save are
-      # separate steps: the save runs even when a later step fails, so once
-      # the 5 dependency libs are built they stay cached and an
-      # ffmpeg-stage failure is a ~2 min rebuild of only ffmpeg on the
-      # next run.
+      # install prefix and per-library stamps. On a cache hit the stamp
+      # check makes the build a no-op. The cache key tracks the source
+      # pins (scripts/ffmpeg-sources.sh) and the upstream patches, but NOT
+      # the build script itself: the script's per-library stamps rebuild
+      # only what changed, so diagnostic iterations restore the built libs
+      # and re-run just the failing step.
+      #
+      # build/ffmpeg-sources is deliberately NOT cached: it is the
+      # downloaded+extracted tarball trees (hundreds of MB of redundant
+      # data — re-downloaded from the pins on a miss), and the payload was
+      # the reason saves kept failing. The stamp check runs before any
+      # download, so a cache hit never touches the sources dir.
+      #
+      # Restore and save are separate steps. The save runs even when a
+      # later step fails (stamp-based and idempotent, so restoring a
+      # partial prefix rebuilds only what's absent) BUT only when the
+      # restore missed: actions/cache/save errors on an already-existing
+      # key, so a successful save would otherwise fail the very next run's
+      # save with "cache entry already exists" while doing nothing.
       - name: Restore FFmpeg build cache
+        id: ffmpeg-cache-restore
         uses: actions/cache/restore@v4
         with:
           path: |
             build/ffmpeg-prefix
-            build/ffmpeg-sources
             build/ffmpeg-libs
-          key: ffmpeg-v2-${{ hashFiles('scripts/ffmpeg-sources.sh', 'scripts/patches/*.patch') }}
+          key: ffmpeg-v3-${{ hashFiles('scripts/ffmpeg-sources.sh', 'scripts/patches/*.patch') }}
 
       - name: Build FFmpeg stack from source
         shell: msys2 {0}
         run: |
           ./scripts/build-ffmpeg-windows.sh
 
-      # Save even when a later step fails (the build script is stamp-based
-      # and idempotent, so restoring a partial prefix is safe: missing
-      # stamps rebuild only what's absent).
       - name: Save FFmpeg build cache
-        if: always()
+        if: always() && steps.ffmpeg-cache-restore.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: |
             build/ffmpeg-prefix
-            build/ffmpeg-sources
             build/ffmpeg-libs
-          key: ffmpeg-v2-${{ hashFiles('scripts/ffmpeg-sources.sh', 'scripts/patches/*.patch') }}
+          key: ffmpeg-v3-${{ hashFiles('scripts/ffmpeg-sources.sh', 'scripts/patches/*.patch') }}
 
       - name: Configure
         shell: msys2 {0}
