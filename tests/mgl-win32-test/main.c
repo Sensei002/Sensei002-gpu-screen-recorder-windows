@@ -89,6 +89,7 @@ int main(void) {
     mgl_window window;
     mgl_window_create_params params;
     memset(&params, 0, sizeof(params));
+    params.graphics_api = MGL_GRAPHICS_API_WGL; /* EGL is enum value 0; the zeroed struct would request it */
     params.size = (mgl_vec2i){ 800, 600 };
     params.hidden = true;
 
