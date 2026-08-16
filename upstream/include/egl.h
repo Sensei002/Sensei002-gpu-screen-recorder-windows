@@ -44,9 +44,15 @@ typedef int Bool;
 #define EGL_PLATFORM_DEVICE_EXT 0x313F
 #define EGL_D3D11_DEVICE_ANGLE 0x33A1
 
-/* EGL_ANGLE_d3d_texture_client_buffer: import a D3D11 texture as a
-   GL_TEXTURE_2D sibling with no copy when the display shares the device
-   (the WGC capture import, architecture §3.3 Option B). */
+/* EGL_ANGLE_d3d_texture_client_buffer / EGL_ANGLE_image_d3d11_texture:
+   import a D3D11 texture as a GL_TEXTURE_2D sibling with no copy when the
+   display shares the device (the WGC capture import, architecture §3.3
+   Option B). NOTE: for eglCreateImage the D3D11 target is
+   EGL_D3D11_TEXTURE_ANGLE (0x3484) — EGL_D3D_TEXTURE_ANGLE (0x33A3) is only
+   a client-buffer type for eglCreatePbufferFromClientBuffer and is rejected
+   as an image target with EGL_BAD_PARAMETER (docs/upstream-porting-notes.md
+   §3f). */
+#define EGL_D3D11_TEXTURE_ANGLE 0x3484
 #define EGL_D3D_TEXTURE_ANGLE 0x33A3
 #define EGL_TEXTURE_ANGLE 0x33A4
 #else

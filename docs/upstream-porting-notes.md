@@ -343,13 +343,22 @@ future phases and upstream syncs should assume them:
   EGL_NO_SURFACE, EGL_NO_SURFACE, ctx)`) — no window surface, no Win32
   window dependency. This is what lets the render pipeline run headless on
   CI (WARP) and keeps `gsr_window` out of the capture path.
-* **`EGL_D3D_TEXTURE_ANGLE` images bind as `GL_TEXTURE_2D`, NOT
+* **`EGL_D3D11_TEXTURE_ANGLE` images bind as `GL_TEXTURE_2D`, NOT
   `GL_TEXTURE_EXTERNAL_OES`.** Upstream's external-image shader variants
   (used for DMABUF captures) bind EXTERNAL_OES; passing `external_texture`
   = true to `gsr_color_conversion_draw` would therefore sample an image
   that is not an EXTERNAL_OES texture. The WGC backend imports into
   `GL_TEXTURE_2D` and passes `external_texture=false`, which uses the
   regular sampler2D shaders — correct on ANGLE and still zero-copy.
+* **The eglCreateImage target for a D3D11 texture is
+  `EGL_D3D11_TEXTURE_ANGLE` (0x3484), NOT `EGL_D3D_TEXTURE_ANGLE`
+  (0x33A3).** `ValidateCreateImage` accepts 0x3484 as an image target;
+  0x33A3 is only a *client-buffer type* for `eglCreatePbufferFromClientBuffer`
+  and is rejected with `EGL_BAD_PARAMETER` ("invalid target: 0x%X") — the
+  symptom is the import failing at `eglCreateImage` even though both
+  `EGL_ANGLE_d3d_texture_client_buffer` and `EGL_ANGLE_image_d3d11_texture`
+  are advertised. Same stale-constant trap as `EGL_D3D11_DEVICE_ANGLE`
+  above: read the shipped `eglext_angle.h` before writing extension code.
 * **ANGLE's GL_VENDOR is "Google Inc. (…GPU vendor…)"** — upstream's
   `gl_get_gpu_info` string checks still work on real GPUs, but on a
   software adapter (WARP / Microsoft Basic Render Driver, DXGI vendor

@@ -144,7 +144,7 @@ static void run_pipeline_test(gsr_egl *egl) {
     void *import = gsr_platform_egl_import_texture(egl, texture);
     CHECK(import != NULL);
     if(!import) {
-        fprintf(stderr, "FAIL: EGL_ANGLE_d3d_texture_client_buffer import failed (ANGLE build missing the extension?)\n");
+        fprintf(stderr, "FAIL: EGL_ANGLE_image_d3d11_texture import failed (see gsr error above for the EGL error)\n");
         texture->lpVtbl->Release(texture);
         device->lpVtbl->Release(device);
         return;

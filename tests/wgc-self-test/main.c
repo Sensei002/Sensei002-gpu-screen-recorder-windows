@@ -66,6 +66,7 @@ typedef int (*EGLGetProcAddress_t)(const char *);
 #define EGL_PLATFORM_ANGLE_ANGLE 0x3202
 #define EGL_PLATFORM_DEVICE_EXT 0x313F
 #define EGL_D3D11_DEVICE_ANGLE 0x33A1
+#define EGL_D3D11_TEXTURE_ANGLE 0x3484
 #define EGL_D3D_TEXTURE_ANGLE 0x33A3
 #define EGL_EXTENSIONS 0x3055
 #define GL_TEXTURE_2D 0x0DE1
@@ -179,7 +180,7 @@ static void run_angle_probe(ID3D11Device *device, ID3D11Texture2D *texture) {
     }
 
     /* Import the WGC D3D11 texture as a GL_TEXTURE_2D. */
-    EGLImage image = eglCreateImageKHR(display, EGL_NO_CONTEXT, EGL_D3D_TEXTURE_ANGLE, (EGLClientBuffer)texture, NULL);
+    EGLImage image = eglCreateImageKHR(display, EGL_NO_CONTEXT, EGL_D3D11_TEXTURE_ANGLE, (EGLClientBuffer)texture, NULL);
     printf("angle: eglCreateImageKHR returned %s (texture import %s)\n",
         image ? "an image" : "NULL", image ? "OK" : "FAILED");
     printf("angle: probe complete (informational)\n");
