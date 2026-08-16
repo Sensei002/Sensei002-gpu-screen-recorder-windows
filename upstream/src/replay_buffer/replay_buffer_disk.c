@@ -14,6 +14,17 @@
 #define REPLAY_BUFFER_FILE_SIZE_BYTES 1024 * 1024 * 256 /* 256MB */
 #define FILE_PREFIX "Replay"
 
+/* Windows port addition: the .gsr packet files hold raw binary packet data,
+   so the file descriptors must be opened in BINARY mode. The MinGW CRT
+   defaults to text mode, where read() stops at Ctrl-Z (0x1A) and write()
+   translates '\n' to "\r\n" — both corrupt real packet data (docs/
+   upstream-porting-notes.md §3l). */
+#ifdef _WIN32
+#define GSR_REPLAY_OPEN_BINARY O_BINARY
+#else
+#define GSR_REPLAY_OPEN_BINARY 0
+#endif
+
 static void gsr_replay_buffer_disk_set_impl_funcs(gsr_replay_buffer_disk *self);
 
 static void gsr_av_packet_disk_init(gsr_av_packet_disk *self, const AVPacket *av_packet, size_t data_index, double timestamp) {
@@ -38,7 +49,7 @@ static gsr_replay_buffer_file* gsr_replay_buffer_file_create(char *replay_direct
 
     char filename[PATH_MAX];
     snprintf(filename, sizeof(filename), "%s/%s_%d.gsr", replay_directory, FILE_PREFIX, (int)replay_storage_counter);
-    *replay_storage_fd = creat(filename, 0700);
+    *replay_storage_fd = open(filename, O_CREAT | O_WRONLY | O_TRUNC | GSR_REPLAY_OPEN_BINARY, 0700);
     if(*replay_storage_fd <= 0) {
         gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_av_packet_file_init: failed to create replay file: %s", filename);
         free(self);
@@ -232,7 +243,7 @@ static uint8_t* gsr_replay_buffer_disk_iterator_get_packet_data(gsr_replay_buffe
     if(file->fd <= 0) {
         char filename[PATH_MAX];
         snprintf(filename, sizeof(filename), "%s/%s_%d.gsr", self->replay_directory, FILE_PREFIX, (int)file->id);
-        file->fd = open(filename, O_RDONLY);
+        file->fd = open(filename, O_RDONLY | GSR_REPLAY_OPEN_BINARY);
         if(file->fd <= 0) {
             gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_replay_buffer_disk_iterator_get_packet_data: failed to open file");
             return NULL;

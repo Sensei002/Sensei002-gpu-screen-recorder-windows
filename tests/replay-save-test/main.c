@@ -87,10 +87,13 @@ static void test_disk_trim_and_keyframes(void) {
     CHECK(disk->files[0]->id == 0);
 
     /* Force the 256MB rollover exactly as gsr_replay_buffer_disk_append
-       does when the current file fills up: close the storage fd. The next
-       append then creates file 2. */
+       does when the current file fills up: close the storage fd AND reset
+       the byte counter (the real code resets storage_num_bytes_written to
+       0 at the 256MB boundary, so the next file's packets are indexed
+       from 0 again). The next append then creates file 2. */
     close(disk->storage_fd);
     disk->storage_fd = 0;
+    disk->storage_num_bytes_written = 0;
 
     /* File 2: 100 packets at 0.1s spacing starting at t=200.0; keyframes
        at packet indices 50 (t=205.0) and 80 (t=208.0). The first packet is
@@ -115,12 +118,15 @@ static void test_disk_trim_and_keyframes(void) {
     CHECK(disk->num_files == 1);
     CHECK(disk->files[0]->id == 1);
 
-    /* The removed file is gone from disk; the surviving one is present. */
+    /* The removed file is gone from disk; the surviving one is present.
+       (Copy the session dir first — destroy frees the buffer struct.) */
+    char session_dir[PATH_MAX];
+    snprintf(session_dir, sizeof(session_dir), "%s", disk->replay_directory);
     char removed_file[PATH_MAX];
-    snprintf(removed_file, sizeof(removed_file), "%s/Replay_0.gsr", disk->replay_directory);
+    snprintf(removed_file, sizeof(removed_file), "%s/Replay_0.gsr", session_dir);
     CHECK(!file_exists(removed_file));
     char surviving[PATH_MAX];
-    snprintf(surviving, sizeof(surviving), "%s/Replay_1.gsr", disk->replay_directory);
+    snprintf(surviving, sizeof(surviving), "%s/Replay_1.gsr", session_dir);
     CHECK(file_exists(surviving));
 
     /* Keyframe search across the trimmed buffer finds file 2's first
@@ -147,7 +153,7 @@ static void test_disk_trim_and_keyframes(void) {
     CHECK(count == 100);
 
     gsr_replay_buffer_destroy(rb);
-    CHECK(!file_exists(disk->replay_directory));
+    CHECK(!file_exists(session_dir));
     _rmdir(base);
 }
 
@@ -197,8 +203,10 @@ static void test_crash_cleanup(void) {
 
     /* The current session's own directory is created on first append and
        removed on destroy (the clean-exit path that makes the sweep's
-       "everything else is stale" assumption sound). */
-    const char *own = disk->replay_directory;
+       "everything else is stale" assumption sound). Copy the name first —
+       destroy frees the buffer struct. */
+    char own[PATH_MAX];
+    snprintf(own, sizeof(own), "%s", disk->replay_directory);
     CHECK(!file_exists(own)); /* created lazily */
     AVPacket *p = make_packet(7, 32, true, 0);
     CHECK(gsr_replay_buffer_append(rb, p, 100.0));
