@@ -49,7 +49,7 @@ gsr_nvenc_generation gsr_nvenc_generation_from_adapter_description(const char *d
 
 /* The NVENC codec table for a generation. Never NULL (UNKNOWN returns a
    "probe everything" caps). */
-const gsr_nvenc_generation_caps *gsr_nvenc_generation_caps(gsr_nvenc_generation gen);
+const gsr_nvenc_generation_caps *gsr_nvenc_get_generation_caps(gsr_nvenc_generation gen);
 
 /* True when the description names an NVIDIA adapter. */
 bool gsr_nvenc_description_is_nvidia(const char *description);

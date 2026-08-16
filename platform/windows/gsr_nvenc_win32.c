@@ -36,6 +36,7 @@
 #include "../../upstream/include/codec_query/nvenc.h"
 #include "../../upstream/include/egl.h"
 #include "../../upstream/include/log.h"
+#include "../../upstream/include/utils.h" /* gl_create_texture */
 #include "../include/egl_win32.h"
 
 #include <windows.h>
@@ -43,6 +44,7 @@
 #include <dxgi.h>
 
 #include <libavcodec/avcodec.h>
+#include <libavutil/dict.h>
 #include <libavutil/hwcontext.h>
 #include <libavutil/hwcontext_d3d11va.h>
 #include <libavutil/frame.h>
@@ -124,7 +126,7 @@ static const gsr_nvenc_generation_caps nvenc_generation_caps_table[GSR_NVENC_GEN
     [GSR_NVENC_GEN_BLACKWELL] = {.h264 = true, .hevc = true, .hevc_10bit = true, .av1 = true, .av1_10bit = true, .h264_max = {4096, 4096}, .hevc_av1_max = {8192, 8192}},
 };
 
-const gsr_nvenc_generation_caps *gsr_nvenc_generation_caps(gsr_nvenc_generation gen) {
+const gsr_nvenc_generation_caps *gsr_nvenc_get_generation_caps(gsr_nvenc_generation gen) {
     if(gen <= GSR_NVENC_GEN_UNKNOWN || gen >= GSR_NVENC_GEN_COUNT)
         return &nvenc_generation_caps_table[GSR_NVENC_GEN_UNKNOWN];
     return &nvenc_generation_caps_table[gen];
@@ -186,7 +188,7 @@ static AVBufferRef *nvenc_create_hw_frames(ID3D11Device *device, int width, int 
         return NULL;
     AVHWDeviceContext *hw_device_ctx = (AVHWDeviceContext*)device_ctx->data;
     AVD3D11VADeviceContext *d3d11_ctx = (AVD3D11VADeviceContext*)hw_device_ctx->hwctx;
-    ID3D11Device_AddRef(device); /* FFmpeg releases this on free */
+    device->lpVtbl->AddRef(device); /* FFmpeg releases this on free */
     d3d11_ctx->device = device;
     if(av_hwdevice_ctx_init(device_ctx) < 0) {
         av_buffer_unref(&device_ctx);
@@ -262,7 +264,7 @@ bool gsr_get_supported_video_codecs_nvenc(gsr_supported_video_codecs *video_code
     }
 
     const gsr_nvenc_generation gen = gsr_nvenc_generation_from_adapter_description(description);
-    const gsr_nvenc_generation_caps *caps = gsr_nvenc_generation_caps(gen);
+    const gsr_nvenc_generation_caps *caps = gsr_nvenc_get_generation_caps(gen);
     gsr_log(GSR_LOG_LEVEL_INFO, "nvenc: NVIDIA adapter '%s' (generation %d)", description, (int)gen);
 
     /* The table pre-filters codecs the generation cannot have; each codec

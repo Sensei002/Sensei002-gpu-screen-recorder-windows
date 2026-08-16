@@ -68,7 +68,7 @@ static void check_generation(const char *description, gsr_nvenc_generation expec
 
 static void check_generation_caps(const char *description, bool expect_hevc, bool expect_hevc_10bit, bool expect_av1) {
     const gsr_nvenc_generation gen = gsr_nvenc_generation_from_adapter_description(description);
-    const gsr_nvenc_generation_caps *caps = gsr_nvenc_generation_caps(gen);
+    const gsr_nvenc_generation_caps *caps = gsr_nvenc_get_generation_caps(gen);
     ++num_checks;
     if(caps->hevc != expect_hevc || caps->hevc_10bit != expect_hevc_10bit || caps->av1 != expect_av1) {
         ++num_failures;
@@ -289,7 +289,7 @@ int main(void) {
     check_generation_caps("NVIDIA GeForce RTX 4080", true, true, true);
     check_generation_caps("NVIDIA GeForce RTX 5090", true, true, true);
     /* UNKNOWN generation probes everything. */
-    const gsr_nvenc_generation_caps *unknown_caps = gsr_nvenc_generation_caps(GSR_NVENC_GEN_UNKNOWN);
+    const gsr_nvenc_generation_caps *unknown_caps = gsr_nvenc_get_generation_caps(GSR_NVENC_GEN_UNKNOWN);
     CHECK(unknown_caps->h264 && unknown_caps->hevc && unknown_caps->hevc_10bit && unknown_caps->av1 && unknown_caps->av1_10bit);
 
     /* 2. The live probe must be honest about the actual machine. */
