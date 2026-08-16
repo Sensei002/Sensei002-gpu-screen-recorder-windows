@@ -107,15 +107,19 @@ static void gsr_replay_buffer_file_unref(gsr_replay_buffer_file *self, const cha
 static void gsr_replay_buffer_disk_clear(gsr_replay_buffer *replay_buffer) {
     gsr_replay_buffer_disk *self = (gsr_replay_buffer_disk*)replay_buffer;
 
-    for(size_t i = 0; i < self->num_files; ++i) {
-        gsr_replay_buffer_file_unref(self->files[i], self->replay_directory);
-    }
-    self->num_files = 0;
-
+    /* Windows port addition: close the write fd BEFORE removing the files.
+       POSIX unlink() succeeds on a file that is still open; Windows _unlink
+       fails with a sharing violation, which would leak the current file and
+       then make the destroy path's RemoveDirectoryA fail too. */
     if(self->storage_fd > 0) {
         close(self->storage_fd);
         self->storage_fd = 0;
     }
+
+    for(size_t i = 0; i < self->num_files; ++i) {
+        gsr_replay_buffer_file_unref(self->files[i], self->replay_directory);
+    }
+    self->num_files = 0;
 
     self->storage_num_bytes_written = 0;
 }
