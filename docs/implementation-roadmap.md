@@ -438,11 +438,41 @@ test seam. `recorder-self-test` probes the default output and records a
 real AAC track when capturable, validating the audio stream alongside the
 video; machines without audio record video-only. CI green, coverage 50.6%.
 
-**Remaining (milestone B):** per-app audio (`-a app:name` WASAPI session
-enumeration + feasibility decision), the A/V-sync validation harness,
-`--list-audio-devices`/`--list-application-audio` through the CLI, and
-default-device change tracking / device-change error handling. Lessons in
-`docs/upstream-porting-notes.md` §3i.
+**Milestone B — listing, sync harness, device-change ✅ (complete):**
+
+- `--list-audio-devices` data: `gsr_platform_audio_list_devices` (the two
+  aliases + every ACTIVE WASAPI endpoint) implements the Phase 3
+  `platform/include/audio.h` contract; the `"name (description)"` line
+  formatter already lived in `gsr_platform_win32.c`.
+- `--list-application-audio` data: `gsr_platform_audio_list_apps`
+  enumerates the audio sessions on the default render endpoint via
+  `IAudioSessionManager2` (display name, pid, state) — the Windows
+  Volume Mixer equivalent of upstream's PulseAudio app streams.
+- **Per-app audio decision:** WASAPI has NO per-session capture — loopback
+  is endpoint-wide, and there is no API to capture one app's stream
+  (that needs an APO/virtual device). `-a app:NAME` therefore stays
+  unsupported on Windows: the engine already returns `GSR_ERROR_UNSUPPORTED`
+  (the `GSR_APP_AUDIO` path is upstream's pipewire build), the parse
+  surface is pinned by audio-list-test, and the decision is documented in
+  §3k. The documented fallback is recording `default_output` (all apps)
+  or a virtual cable.
+- **A/V-sync validation harness** (`tests/audio-sync-test`): period-exact
+  chunk delivery over 3 s with zero frame loss, duration-preserving
+  44.1k→48k resampling, sample-accurate ring quantization, the codec
+  delay formulas (aac/opus/flac), and the recorder's derived audio-PTS
+  start offset (`-delay × 48000`) that aligns the first audio sample with
+  the first video frame.
+- **Device-change handling:** an `IMMNotificationClient` flags default-
+  device changes; the capture thread re-resolves and re-opens the
+  endpoint (sound.h's documented auto-switch for
+  `default_output`/`default_input`), throttled and self-healing, and the
+  open/stop path is factored into `wasapi_start_endpoint` /
+  `wasapi_stop_endpoint`. The register/unregister round-trip is
+  headless-tested; the live switch cannot run on the runner (no audio
+  endpoints).
+
+CI green (11/11 ctest incl. the two new tests), coverage 50.1%. Lessons
+in `docs/upstream-porting-notes.md` §3i + §3k.
 
 ---
 
@@ -583,7 +613,7 @@ release notes, installer + zip published. Acceptance checklist from the brief
 | 5b | ANGLE GL render backend | ✅ complete |
 | 6 | DXGI fallback | ✅ complete |
 | 7 | NVIDIA NVENC | ✅ complete (milestone A recorder end-to-end + milestone B d3d11va encode path + honest probe) |
-| 8 | WASAPI audio | ⏳ milestone A (backend + tests) complete; per-app audio / A/V-sync harness / CLI listing / device-change handling pending |
+| 8 | WASAPI audio | ✅ complete (milestone A backend + milestone B listing/session-enum, A/V-sync harness, device-change auto-switch; per-app capture documented unsupported) |
 | 9 | Replay | pending |
 | 10 | UI | pending |
 | 11 | Hotkeys/notifications/IPC | pending |

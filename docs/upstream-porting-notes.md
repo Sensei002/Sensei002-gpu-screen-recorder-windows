@@ -605,6 +605,58 @@ differences (not fixable, by design):
   "auto-switch" comment) and WASAPI session enumeration for `-a app:name`
   are documented as not-yet-implemented (roadmap Phase 8, remaining).
 
+## 3k. Phase 8 (milestone B) CI validation lessons (listing, sync, device-change)
+
+* **Check for an existing definition before implementing a
+  declared-but-unimplemented header function.** `gsr_platform_audio_format_device_line`
+  was declared in platform/include/audio.h with a "Phase 8" comment, and
+  the Phase 8A work implemented the enumeration but NOT the formatter —
+  so I implemented the formatter too and got a multiple-definition link
+  error: the pure formatter had quietly landed in
+  `gsr_platform_win32.c` (Phase 3). `grep -rln` the symbol across
+  `platform/` before writing a header-declared function.
+* **The session-enumeration IIDs are NOT what common web copies say.**
+  `IID_IAudioSessionControl2` is `bfb7ff88-7239-4fc9-...` (NOT
+  `-6799-4fa9-`), and `IID_IAudioSessionEnumerator` is
+  `e2f5bb11-0570-40ca-acdd-3aa01277dee8` (NOT `-3aa47b1f-`). Use the
+  WIDL-generated mingw-w64 header values (audiopolicy.h) — a wrong IID
+  makes `GetService`/`QueryInterface` fail E_NOINTERFACE and the
+  enumeration silently return nothing. Same mingw situation as the
+  mmdevice IIDs: declared, defined by no import library → define locally.
+* **Per-app audio is infeasible with WASAPI — document it, don't fake it.**
+  Loopback capture is endpoint-wide; there is no public API to capture a
+  single app's session (that requires an APO or virtual device). The
+  engine already degrades honestly: the `GSR_APP_AUDIO` code path is
+  upstream's pipewire build, so on Windows `-a app:NAME` returns
+  `GSR_ERROR_UNSUPPORTED` at track setup. What WASAPI DOES offer is
+  session ENUMERATION (`IAudioSessionManager2`), which powers
+  `--list-application-audio` (display name, pid, state — the Volume Mixer
+  view). The parse surface (app:/app-inverse: → APPLICATION tracks) is
+  upstream code, already built, and pinned by tests.
+* **A partial period legitimately stays in the ring.** 144000 frames
+  (3 s @48 kHz) is 140 whole 1024-frame periods + 640 frames; the
+  consumer reads whole periods only, so the harness must assert
+  `consumed + remainder == fed` (nothing lost), NOT `consumed == fed`.
+  The engine discards the partial remainder on stop — by design.
+* **libFLAC's frame size is build-dependent** (4608 with this ffmpeg's
+  libFLAC, not 1024 and not a fixed 4096). The device must deliver
+  whatever the opened codec context reports; don't hardcode it.
+* **The IMMNotificationClient C vtable is easy to get wrong.** The
+  callback layout (OnDeviceStateChanged/OnDeviceAdded/OnDeviceRemoved/
+  OnDefaultDeviceChanged/OnPropertyValueChanged after the IUnknown trio)
+  comes straight from mingw's WIDL mmdeviceapi.h — implement it with
+  `lpVtbl` like the rest of the port, keep the callbacks to Interlocked
+  flags only (they fire on an MMDevice-owned thread), and unregister on
+  the SAME enumerator instance that registered. The default-device
+  auto-switch re-resolves and re-opens on the capture thread, throttled
+  to ≤1/s and self-healing on failure (silence + retry, the same contract
+  as the AUDCLNT_E_DEVICE_INVALIDATED path).
+* **The ffmpeg cache fix is proven end-to-end.** With the v3 key the
+  restore hits, the stamp check makes the build a no-op, and the save
+  correctly SKIPs on a restore hit — a green run that used to take
+  ~12 min now spends ~2 min in the ffmpeg stage (the coverage rebuild is
+  the remaining long pole).
+
 ## 3j. Phase 7 (milestone B) CI validation lessons (NVENC d3d11va)
 
 * **Upstream's GL+CUDA nvenc encoder has no Windows equivalent to copy.**
