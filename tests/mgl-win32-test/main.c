@@ -17,6 +17,13 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
+/* GL constant values (GL_RENDERER, GL_VERSION, GL_NO_ERROR, ...). mgl's gl.h
+   only declares the loader function pointers; the constants come from the
+   platform GL header. MinGW-w64 ships GL/gl.h. */
+#ifdef _WIN32
+#include <GL/gl.h>
+#endif
+
 #include <mgl/mgl.h>
 #include <mgl/window/window.h>
 #include <mgl/window/event.h>
