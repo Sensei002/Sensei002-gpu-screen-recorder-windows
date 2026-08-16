@@ -234,7 +234,9 @@ int main(void) {
 
     gsr_egl egl;
     if(!gsr_egl_load(&egl, NULL, false, false)) {
-        printf("SKIP: ANGLE (libEGL.dll/libGLESv2.dll) not loadable in this session; exit 0\n");
+        /* The loader logs the precise reason (missing libEGL.dll/libGLESv2.dll
+           on the plain runner, an ANGLE/D3D11 init failure elsewhere). */
+        printf("SKIP: ANGLE initialization failed (see gsr error logs above); exit 0\n");
         return 0;
     }
     printf("render: GL_VENDOR=%s GL_RENDERER=%s\n",

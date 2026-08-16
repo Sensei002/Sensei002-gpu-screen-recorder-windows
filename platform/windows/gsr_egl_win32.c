@@ -214,7 +214,9 @@ static bool gsr_egl_load_gl(gsr_egl *self, void *library) {
         { (void**)&self->glTexImage2D, "glTexImage2D" },
         { (void**)&self->glTexSubImage2D, "glTexSubImage2D" },
         { (void**)&self->glTexStorage2D, "glTexStorage2D" },
-        { (void**)&self->glGetTexImage, "glGetTexImage" },
+        /* glGetTexImage is intentionally NOT loaded: it is a desktop-GL
+           function that ANGLE's libGLESv2.dll does not export, and it has
+           zero call sites in the upstream sources. */
         { (void**)&self->glGenFramebuffers, "glGenFramebuffers" },
         { (void**)&self->glBindFramebuffer, "glBindFramebuffer" },
         { (void**)&self->glDeleteFramebuffers, "glDeleteFramebuffers" },
