@@ -25,6 +25,7 @@
 #include "capture.h"
 #include "display.h"
 #include "../../upstream/include/egl.h"
+#include "../../upstream/include/window/window.h" /* full gsr_window struct */
 #include "../../upstream/include/recorder/recorder.h"
 #include "../../upstream/include/recorder/error.h"
 #include "../../upstream/include/recorder/capture_source.h"
