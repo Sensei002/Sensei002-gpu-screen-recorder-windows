@@ -156,6 +156,79 @@ bool gsr_platform_get_videos_dir(char *out, size_t out_size) {
     return false;
 }
 
+/* ---- Phase 9: crash-safe disk replay-buffer cleanup ---------------------- */
+
+static void remove_directory_recursive(const char *dir) {
+    /* Deletes every file and subdirectory under |dir|, then |dir| itself.
+       Uses the wide-char API so non-ASCII names are handled correctly. */
+    char pattern[PATH_MAX];
+    snprintf(pattern, sizeof(pattern), "%s/*", dir);
+
+    wchar_t wide_pattern[PATH_MAX];
+    if(!gsr_platform_utf8_to_wide(pattern, wide_pattern, PATH_MAX))
+        return;
+
+    WIN32_FIND_DATAW find_data;
+    HANDLE find_handle = FindFirstFileW(wide_pattern, &find_data);
+    if(find_handle == INVALID_HANDLE_VALUE)
+        return;
+
+    do {
+        if(wcscmp(find_data.cFileName, L".") == 0 || wcscmp(find_data.cFileName, L"..") == 0)
+            continue;
+
+        char name_utf8[NAME_MAX];
+        if(!gsr_platform_wide_to_utf8(find_data.cFileName, name_utf8, sizeof(name_utf8)))
+            continue;
+
+        char child[PATH_MAX];
+        snprintf(child, sizeof(child), "%s/%s", dir, name_utf8);
+        if(find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            remove_directory_recursive(child);
+        else
+            DeleteFileA(child);
+    } while(FindNextFileW(find_handle, &find_data));
+
+    FindClose(find_handle);
+    RemoveDirectoryA(dir);
+}
+
+int gsr_platform_replay_cleanup_stale_directories(const char *replay_directory, const char *current_session_dirname) {
+    if(!replay_directory || replay_directory[0] == '\0')
+        return -1;
+
+    char pattern[PATH_MAX];
+    snprintf(pattern, sizeof(pattern), "%s/gsr-replay-*.gsr", replay_directory);
+
+    wchar_t wide_pattern[PATH_MAX];
+    if(!gsr_platform_utf8_to_wide(pattern, wide_pattern, PATH_MAX))
+        return -1;
+
+    WIN32_FIND_DATAW find_data;
+    HANDLE find_handle = FindFirstFileW(wide_pattern, &find_data);
+    if(find_handle == INVALID_HANDLE_VALUE)
+        return 0; /* nothing to clean */
+
+    do {
+        char name_utf8[NAME_MAX];
+        if(!gsr_platform_wide_to_utf8(find_data.cFileName, name_utf8, sizeof(name_utf8)))
+            continue;
+
+        if(current_session_dirname && strcasecmp(name_utf8, current_session_dirname) == 0)
+            continue; /* the session that is about to start */
+
+        if(!(find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+            continue; /* pattern-matched file (not a session dir); leave it */
+
+        char stale_dir[PATH_MAX];
+        snprintf(stale_dir, sizeof(stale_dir), "%s/%s", replay_directory, name_utf8);
+        remove_directory_recursive(stale_dir);
+    } while(FindNextFileW(find_handle, &find_data));
+
+    FindClose(find_handle);
+    return 0;
+}
+
 /* ---- save filepath (upstream naming contract) ---------------------------- */
 
 bool gsr_platform_create_recording_filepath(char *filepath, size_t filepath_size, const char *directory, const char *filename_prefix, const char *file_extension, bool date_folders) {

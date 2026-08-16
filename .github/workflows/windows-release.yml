@@ -194,6 +194,8 @@ jobs:
           .\build\cmake\audio-list-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\cmake\audio-sync-test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\cmake\replay-save-test.exe
 
       # Run the recorder self-test in the MSYS2 shell too: this is where the
       # ANGLE DLLs are on PATH, so the verbose recording logs (backend
@@ -229,6 +231,7 @@ jobs:
             build/cmake/nvenc-self-test-output.mkv
             build/cmake/audio-list-test.exe
             build/cmake/audio-sync-test.exe
+            build/cmake/replay-save-test.exe
             build/cmake/recorder-self-test-output.mkv
           if-no-files-found: error
 
@@ -327,6 +330,8 @@ jobs:
           .\build\bin\audio-list-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\bin\audio-sync-test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\bin\replay-save-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\bin\ci-smoke.exe
 

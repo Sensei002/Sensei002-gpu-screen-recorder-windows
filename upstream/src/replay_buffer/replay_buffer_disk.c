@@ -4,6 +4,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
@@ -419,6 +420,16 @@ gsr_replay_buffer* gsr_replay_buffer_disk_create(const char *replay_directory, d
     replay_buffer->replay_buffer_time = replay_buffer_time;
     snprintf(replay_buffer->replay_directory, sizeof(replay_buffer->replay_directory), "%s/gsr-replay-%s.gsr", replay_directory, time_str);
     replay_buffer->owns_directory = true;
+
+#ifdef _WIN32
+    /* Windows port addition — crash-safe cleanup (docs/upstream-porting-notes.md §3l):
+       the session directory above is uniquely timestamped and a clean exit removes
+       it (destroy/destroy_at_exit). Any OTHER gsr-replay-*.gsr directory in the
+       replay directory is therefore a leftover from a crashed previous session;
+       sweep them so a crash does not leak .gsr files forever. The function is
+       declared by the force-included gsr_win32_compat.h. */
+    gsr_platform_replay_cleanup_stale_directories(replay_directory, replay_buffer->replay_directory + strlen(replay_directory) + 1);
+#endif
 
     gsr_replay_buffer_disk_set_impl_funcs(replay_buffer);
     return (gsr_replay_buffer*)replay_buffer;

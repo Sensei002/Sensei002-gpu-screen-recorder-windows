@@ -118,6 +118,24 @@ struct timespec {
 int clock_gettime(int clock_id, struct timespec *tp);
 #endif
 
+/* ---- Platform replay-buffer crash cleanup --------------------------------
+ * The disk replay buffer (upstream/src/replay_buffer/replay_buffer_disk.c)
+ * names each session's working directory gsr-replay-<timestamp>.gsr inside
+ * the replay directory and removes it on a clean exit; a crashed session
+ * leaves it behind. This helper (implemented in gsr_filesystem_win32.c)
+ * sweeps stale ones when the next session starts. Declared here because
+ * this header is force-included into every translation unit, so the
+ * upstream file can call it without a platform include (see
+ * docs/upstream-porting-notes.md §3l). extern "C": the header is also
+ * force-included into the C++ WGC backend TU. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+int gsr_platform_replay_cleanup_stale_directories(const char *replay_directory, const char *current_session_dirname);
+#ifdef __cplusplus
+}
+#endif
+
 /* ---- dlopen/dlsym/dlclose/dlerror --------------------------------------
  * MinGW-w64 may provide <dlfcn.h> + libdl.a; regardless of that, this port
  * ships its own implementation (gsr_win32_compat.c) built on LoadLibrary/

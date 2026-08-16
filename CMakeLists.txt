@@ -313,13 +313,21 @@ target_link_libraries(audio-list-test PRIVATE gsr_core)
 add_executable(audio-sync-test tests/audio-sync-test/main.c)
 target_link_libraries(audio-sync-test PRIVATE gsr_core)
 
+# Phase 9 replay-save test: disk replay-buffer trim (forced file rollover +
+# time-based removal), keyframe boundaries across trimmed files, and the
+# simulated-crash cleanup (stale gsr-replay-*.gsr directories swept when the
+# next session starts). The end-to-end save path lives in recorder-self-test's
+# replay pass (clone -> thread -> Replay_*.mkv, restart-on-save).
+add_executable(replay-save-test tests/replay-save-test/main.c)
+target_link_libraries(replay-save-test PRIVATE gsr_core)
+
 # Link the test executables against the static MinGW runtime so they can be
 # re-run by the workflow's `test` job without the MSYS2 environment.
 # -static-libgcc works with the C driver; the C++ runtime (libstdc++.a),
 # winpthread and atomic are already linked statically via the gsr_core
 # PUBLIC link flags above (-static-libstdc++/-static-libwinpthread are
 # driver options that do nothing when linking with cc).
-foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test dxgi-self-test recorder-self-test audio-conv-test nvenc-self-test audio-list-test audio-sync-test)
+foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test dxgi-self-test recorder-self-test audio-conv-test nvenc-self-test audio-list-test audio-sync-test replay-save-test)
     set_target_properties(${target} PROPERTIES
         LINK_FLAGS "-static-libgcc")
 endforeach()
@@ -336,3 +344,4 @@ add_test(NAME audio-conv-test COMMAND audio-conv-test)
 add_test(NAME nvenc-self-test COMMAND nvenc-self-test)
 add_test(NAME audio-list-test COMMAND audio-list-test)
 add_test(NAME audio-sync-test COMMAND audio-sync-test)
+add_test(NAME replay-save-test COMMAND replay-save-test)

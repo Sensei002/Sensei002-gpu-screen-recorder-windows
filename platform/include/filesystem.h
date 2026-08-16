@@ -72,4 +72,19 @@ bool gsr_platform_get_videos_dir(char *out, size_t out_size);
  */
 bool gsr_platform_create_recording_filepath(char *filepath, size_t filepath_size, const char *directory, const char *filename_prefix, const char *file_extension, bool date_folders);
 
+/* Phase 9: crash-safe disk replay-buffer cleanup.
+ *
+ * The disk replay buffer (upstream/src/replay_buffer/replay_buffer_disk.c)
+ * names each session's working directory `gsr-replay-<timestamp>.gsr`
+ * inside the replay directory and removes it on a clean exit. A crashed
+ * session leaves it (and the Replay_*.gsr files inside) behind forever.
+ * This helper sweeps every such directory inside |replay_directory| EXCEPT
+ * |current_session_dirname| (the directory name of the session that is
+ * about to start), so each new session cleans up the leftovers of previous
+ * crashed ones. |current_session_dirname| may be NULL to sweep everything.
+ * Directories that do not match the `gsr-replay-*.gsr` pattern are never
+ * touched. Returns 0 on success (including when nothing matched).
+ */
+int gsr_platform_replay_cleanup_stale_directories(const char *replay_directory, const char *current_session_dirname);
+
 #endif /* GSR_PLATFORM_FILESYSTEM_H */

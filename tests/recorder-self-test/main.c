@@ -38,6 +38,7 @@
 #include "../../upstream/include/egl.h"
 #include "../../upstream/include/window/window.h" /* full gsr_window struct */
 #include "../../upstream/include/recorder/recorder.h"
+#include "../../upstream/include/recorder/replay_save.h" /* GSR_SAVE_REPLAY_SECONDS_FULL */
 #include "../../upstream/include/recorder/error.h"
 #include "../../upstream/include/recorder/capture_source.h"
 #include "../../upstream/include/recorder/settings.h"
@@ -64,6 +65,287 @@ static void on_recording_stopped(const char *filepath, void *userdata) {
         printf("recorder: recording stopped, file = %s\n", filepath);
     else
         printf("recorder: recording stopped (no file)\n");
+}
+
+/* ---- Phase 9: replay buffer save pass ------------------------------------
+ * A second recording that runs with a replay buffer (-r) and disk storage,
+ * then saves it mid-recording: a 2-second save and two FULL saves with
+ * -restart-replay-on-save enabled. The recorder's replay_save machinery
+ * (clone -> thread -> Replay_*.mkv) is upstream code; this pass is the
+ * end-to-end Windows verification of it. The saved files are validated
+ * like the main recording: container opens, h264 video stream, sane
+ * duration. The third (post-restart) save must be SHORTER than the second
+ * — the restart cleared the buffer, so it only holds what was recorded
+ * after the restart — which proves -restart-replay-on-save actually works.
+ */
+#define REPLAY_OUTPUT_DIR "replay-self-test-output"
+#define REPLAY_RECORD_SECONDS 7
+#define REPLAY_FPS 10
+
+typedef struct {
+    char filepath[PATH_MAX];
+} saved_replay_file;
+
+static saved_replay_file saved_replays[4];
+static int num_saved_replays = 0;
+
+static void on_replay_saved(const char *filepath, void *userdata) {
+    (void)userdata;
+    if(!filepath) {
+        printf("recorder: replay saved (no file — save failed or empty)\n");
+        return;
+    }
+    if(num_saved_replays < 4) {
+        snprintf(saved_replays[num_saved_replays].filepath, sizeof(saved_replays[0].filepath), "%s", filepath);
+        ++num_saved_replays;
+        printf("recorder: replay saved: %s\n", filepath);
+    }
+}
+
+typedef struct {
+    gsr_recorder *recorder;
+} replay_driver;
+
+/* Schedule: save 2s at t=2s, FULL at t=5s (restarts the buffer), FULL again
+   at t=6.5s (must be short), stop at t=7s. The recorder polls the atomic
+   save requests every frame, so each save starts within ~100ms. */
+static void *replay_driver_thread(void *userdata) {
+    replay_driver *driver = (replay_driver*)userdata;
+    gsr_recorder *recorder = driver->recorder;
+    Sleep(2000);
+    gsr_recorder_save_replay(recorder, 2, GSR_RESTART_REPLAY_ENABLE);
+    Sleep(3000);
+    gsr_recorder_save_replay(recorder, GSR_SAVE_REPLAY_SECONDS_FULL, GSR_RESTART_REPLAY_ENABLE);
+    Sleep(1500);
+    gsr_recorder_save_replay(recorder, GSR_SAVE_REPLAY_SECONDS_FULL, GSR_RESTART_REPLAY_ENABLE);
+    Sleep(500);
+    gsr_recorder_stop(recorder);
+    return NULL;
+}
+
+static int validate_replay_file(const char *filepath, double min_duration, double max_duration, const char *label) {
+    AVFormatContext *format = NULL;
+    const int open_result = avformat_open_input(&format, filepath, NULL, NULL);
+    if(open_result != 0) {
+        char errbuf[128] = {0};
+        av_strerror(open_result, errbuf, sizeof(errbuf));
+        fprintf(stderr, "FAIL: %s: could not open '%s': %s\n", label, filepath, errbuf);
+        return 1;
+    }
+    if(avformat_find_stream_info(format, NULL) < 0) {
+        fprintf(stderr, "FAIL: %s: could not read stream info from '%s'\n", label, filepath);
+        avformat_close_input(&format);
+        return 1;
+    }
+
+    int video_stream_index = -1;
+    for(unsigned int i = 0; i < format->nb_streams; ++i) {
+        if(format->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            video_stream_index = (int)i;
+            break;
+        }
+    }
+    if(video_stream_index < 0) {
+        fprintf(stderr, "FAIL: %s: no video stream in '%s'\n", label, filepath);
+        avformat_close_input(&format);
+        return 1;
+    }
+
+    const AVCodecParameters *codecpar = format->streams[video_stream_index]->codecpar;
+    const double duration = format->duration > 0 ? (double)format->duration / AV_TIME_BASE : 0.0;
+    printf("recorder: %s: '%s' = %s %dx%d, duration %.2fs\n", label, filepath,
+        avcodec_get_name(codecpar->codec_id), codecpar->width, codecpar->height, duration);
+
+    int failures = 0;
+    if(codecpar->codec_id != AV_CODEC_ID_H264) {
+        fprintf(stderr, "FAIL: %s: expected h264, got %s\n", label, avcodec_get_name(codecpar->codec_id));
+        ++failures;
+    }
+    if(duration < min_duration || duration > max_duration) {
+        fprintf(stderr, "FAIL: %s: duration %.2fs outside [%.2f, %.2f]\n", label, duration, min_duration, max_duration);
+        ++failures;
+    }
+
+    int video_packets = 0;
+    AVPacket *packet = av_packet_alloc();
+    while(av_read_frame(format, packet) == 0 && video_packets < 5) {
+        if(packet->stream_index == video_stream_index)
+            ++video_packets;
+        av_packet_unref(packet);
+    }
+    av_packet_free(&packet);
+    if(video_packets == 0) {
+        fprintf(stderr, "FAIL: %s: no video packets in '%s'\n", label, filepath);
+        ++failures;
+    }
+
+    avformat_close_input(&format);
+    return failures;
+}
+
+static int run_replay_pass(const gsr_egl *egl, const gsr_window *window) {
+    printf("\nrecorder: ===== Phase 9: replay buffer pass (disk, 2s + FULL saves, restart-on-save) =====\n");
+
+    gsr_platform_monitor *monitors = NULL;
+    int monitor_count = 0;
+    if(!gsr_platform_display_list_monitors(&monitors, &monitor_count) || monitor_count == 0) {
+        fprintf(stderr, "FAIL: replay pass: no monitors enumerated\n");
+        return 1;
+    }
+    const gsr_platform_monitor *primary = &monitors[0];
+    for(int i = 0; i < monitor_count; ++i) {
+        if(monitors[i].is_primary) {
+            primary = &monitors[i];
+            break;
+        }
+    }
+    printf("recorder: replay pass: primary monitor = %s (%dx%d)\n", primary->name, primary->width, primary->height);
+
+    /* Replay mode: -o is a DIRECTORY (-c is required), -r sets the buffer. */
+    gsr_recorder_settings settings;
+    memset(&settings, 0, sizeof(settings));
+    settings.video_encoder = GSR_VIDEO_ENCODER_HW_CPU;
+    settings.pixel_format = GSR_PIXEL_FORMAT_YUV420;
+    settings.framerate_mode = GSR_FRAMERATE_MODE_CONSTANT;
+    settings.color_range = GSR_COLOR_RANGE_LIMITED;
+    settings.tune = GSR_TUNE_QUALITY;
+    settings.video_codec = GSR_VIDEO_CODEC_H264;
+    settings.audio_codec = GSR_AUDIO_CODEC_AAC;
+    settings.bitrate_mode = GSR_BITRATE_MODE_QP;
+    settings.video_quality = GSR_VIDEO_QUALITY_HIGH;
+    settings.replay_storage = GSR_REPLAY_STORAGE_DISK;
+    settings.capture_source = primary->name;
+    settings.container_format = "matroska";
+    settings.filename = REPLAY_OUTPUT_DIR;
+    settings.verbose = true;
+    settings.fallback_cpu_encoding = true;
+    settings.record_cursor = false;
+    settings.is_replaying = true;
+    settings.is_livestream = false;
+    settings.is_output_piped = false;
+    settings.fps = REPLAY_FPS;
+    settings.replay_buffer_size_secs = 8;
+    settings.keyint = 10; /* keyframe every 1s at 10fps, so every save finds one */
+    settings.restart_replay_on_save = true;
+    settings.date_folders = false;
+
+    gsr_windowing windowing;
+    memset(&windowing, 0, sizeof(windowing));
+    windowing.window = (gsr_window*)window;
+    windowing.egl = *egl;
+    windowing.egl_loaded = true;
+
+    gsr_capture_deps capture_deps;
+    gsr_capture_deps_init(&capture_deps);
+    gsr_capture_deps_init_cursor(&capture_deps, &windowing.egl, false);
+
+    gsr_capture_sources capture_sources;
+    const int parse_result = gsr_capture_sources_parse(&capture_sources, primary->name, (vec2i){0, 0}, (vec2i){0, 0});
+    if(parse_result != GSR_ERROR_OK || capture_sources.num_items == 0) {
+        fprintf(stderr, "FAIL: replay pass: could not parse capture source '%s'\n", primary->name);
+        free(monitors);
+        return 1;
+    }
+
+    gsr_audio_input_tracks audio_input_tracks;
+    memset(&audio_input_tracks, 0, sizeof(audio_input_tracks)); /* video-only */
+
+    gsr_recorder_params params;
+    memset(&params, 0, sizeof(params));
+    params.settings = &settings;
+    params.windowing = &windowing;
+    params.capture_deps = &capture_deps;
+    params.capture_sources = &capture_sources;
+    params.audio_input_tracks = &audio_input_tracks;
+    params.plugin_filepaths = NULL;
+    params.num_plugin_filepaths = 0;
+
+    gsr_recorder_callbacks callbacks;
+    memset(&callbacks, 0, sizeof(callbacks));
+    callbacks.replay_saved = on_replay_saved;
+
+    int error = GSR_ERROR_GENERIC;
+    gsr_recorder *recorder = gsr_recorder_create(&params, &callbacks, &error);
+    if(!recorder) {
+        fprintf(stderr, "FAIL: replay pass: gsr_recorder_create failed (error %d)\n", error);
+        gsr_capture_sources_deinit(&capture_sources);
+        gsr_capture_deps_deinit(&capture_deps);
+        free(monitors);
+        return 1;
+    }
+    printf("recorder: replay pass: recording %d seconds with a %d-second replay buffer...\n",
+        REPLAY_RECORD_SECONDS, (int)settings.replay_buffer_size_secs);
+
+    num_saved_replays = 0;
+    replay_driver driver;
+    driver.recorder = recorder;
+    pthread_t driver_thread;
+    if(pthread_create(&driver_thread, NULL, replay_driver_thread, &driver) != 0) {
+        fprintf(stderr, "FAIL: replay pass: could not create driver thread\n");
+        gsr_recorder_destroy(recorder, false);
+        gsr_capture_sources_deinit(&capture_sources);
+        gsr_capture_deps_deinit(&capture_deps);
+        free(monitors);
+        return 1;
+    }
+
+    const int run_result = gsr_recorder_run(recorder);
+    pthread_join(driver_thread, NULL);
+
+    gsr_recorder_destroy(recorder, false);
+    gsr_capture_sources_deinit(&capture_sources);
+    gsr_capture_deps_deinit(&capture_deps);
+    gsr_audio_input_tracks_deinit(&audio_input_tracks);
+    free(monitors);
+
+    if(run_result != GSR_ERROR_OK) {
+        fprintf(stderr, "FAIL: replay pass: gsr_recorder_run returned %d\n", run_result);
+        return 1;
+    }
+    if(num_saved_replays != 3) {
+        fprintf(stderr, "FAIL: replay pass: expected 3 saved replays, got %d\n", num_saved_replays);
+        return 1;
+    }
+
+    int failures = 0;
+    failures += validate_replay_file(saved_replays[0].filepath, 1.0, 4.0, "replay 2s save");
+    failures += validate_replay_file(saved_replays[1].filepath, 3.0, 8.0, "replay FULL save");
+    /* -restart-replay-on-save cleared the buffer after the FULL save, so
+       this save only contains what was recorded after the restart — it
+       must be shorter than the FULL save. */
+    failures += validate_replay_file(saved_replays[2].filepath, 0.5, 3.0, "replay post-restart save");
+    if(failures == 0) {
+        /* Parse the durations out again just for the comparison log. */
+        AVFormatContext *fmt = NULL;
+        if(avformat_open_input(&fmt, saved_replays[1].filepath, NULL, NULL) == 0) {
+            avformat_find_stream_info(fmt, NULL);
+            const double full_duration = fmt->duration > 0 ? (double)fmt->duration / AV_TIME_BASE : 0.0;
+            avformat_close_input(&fmt);
+            fmt = NULL;
+            if(avformat_open_input(&fmt, saved_replays[2].filepath, NULL, NULL) == 0) {
+                avformat_find_stream_info(fmt, NULL);
+                const double post_restart_duration = fmt->duration > 0 ? (double)fmt->duration / AV_TIME_BASE : 0.0;
+                avformat_close_input(&fmt);
+                printf("recorder: restart-replay-on-save: FULL=%.2fs vs post-restart=%.2fs\n",
+                    full_duration, post_restart_duration);
+                if(post_restart_duration >= full_duration) {
+                    fprintf(stderr, "FAIL: replay pass: buffer was not restarted by the FULL save\n");
+                    ++failures;
+                }
+            }
+        }
+    }
+
+    /* Clean up the saved files and the output directory (the recorder
+       already removed the disk buffer's own session directory). */
+    for(int i = 0; i < num_saved_replays; ++i)
+        remove(saved_replays[i].filepath);
+    RemoveDirectoryA(REPLAY_OUTPUT_DIR);
+
+    if(failures > 0)
+        return 1;
+    printf("recorder: replay pass OK\n");
+    return 0;
 }
 
 int main(void) {
@@ -347,6 +629,13 @@ int main(void) {
     avformat_close_input(&format);
 
     printf("recorder: end-to-end recording OK\n");
+
+    /* 11. Phase 9: the replay-buffer save pass (reuses the loaded egl). */
+    if(run_replay_pass(&egl, &window) != 0) {
+        fprintf(stderr, "FAIL: replay buffer pass failed\n");
+        return 1;
+    }
+
     printf("\nPASS\n");
     return 0;
 }
