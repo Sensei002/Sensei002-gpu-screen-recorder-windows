@@ -90,6 +90,10 @@ jobs:
             mingw-w64-x86_64-python-packaging
             mingw-w64-x86_64-curl
             mingw-w64-x86_64-cppwinrt
+            # Phase 5b: ANGLE (libEGL.dll/libGLESv2.dll) so the render
+            # pipeline self-test runs the real GL path headless on WARP
+            # in the ctest step (architecture §3.3 Option B).
+            mingw-w64-x86_64-angleproject
             make
             patch
 

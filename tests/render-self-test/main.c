@@ -73,6 +73,7 @@ static void fill_split(unsigned char *pixels, int w, int h) {
 
 /* Replaces the contents of a D3D11 texture (the per-frame WGC equivalent). */
 static void update_texture(ID3D11Device *device, ID3D11Texture2D *texture, const unsigned char *pixels, int w, int h) {
+    (void)h;
     ID3D11DeviceContext *context = NULL;
     device->lpVtbl->GetImmediateContext(device, &context);
     if(!context)
