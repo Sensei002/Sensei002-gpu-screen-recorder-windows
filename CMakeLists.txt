@@ -274,13 +274,21 @@ target_link_libraries(dxgi-self-test PRIVATE gsr_core)
 add_executable(recorder-self-test tests/recorder-self-test/main.c)
 target_link_libraries(recorder-self-test PRIVATE gsr_core)
 
+# Phase 8 audio conversion self-test: headless tests of the WASAPI
+# mix-format -> codec-format conversion pipeline (decode/downmix/resample/
+# quantize/ring) with synthetic data. The live WASAPI capture path needs a
+# real endpoint (recorder-self-test covers it on machines that have one);
+# the CI runner has none, so the math is proven here instead.
+add_executable(audio-conv-test tests/audio-conv-test/main.c)
+target_link_libraries(audio-conv-test PRIVATE gsr_core)
+
 # Link the test executables against the static MinGW runtime so they can be
 # re-run by the workflow's `test` job without the MSYS2 environment.
 # -static-libgcc works with the C driver; the C++ runtime (libstdc++.a),
 # winpthread and atomic are already linked statically via the gsr_core
 # PUBLIC link flags above (-static-libstdc++/-static-libwinpthread are
 # driver options that do nothing when linking with cc).
-foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test dxgi-self-test recorder-self-test)
+foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test dxgi-self-test recorder-self-test audio-conv-test)
     set_target_properties(${target} PROPERTIES
         LINK_FLAGS "-static-libgcc")
 endforeach()
@@ -293,3 +301,4 @@ add_test(NAME wgc-self-test COMMAND wgc-self-test)
 add_test(NAME render-self-test COMMAND render-self-test)
 add_test(NAME dxgi-self-test COMMAND dxgi-self-test)
 add_test(NAME recorder-self-test COMMAND recorder-self-test)
+add_test(NAME audio-conv-test COMMAND audio-conv-test)

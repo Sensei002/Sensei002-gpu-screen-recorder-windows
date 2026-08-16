@@ -50,10 +50,8 @@
 #include "../../upstream/include/log.h"
 #include "../../upstream/include/utils.h"
 
-#include <windows.h>
-#include <audioclient.h>
-#include <mmdeviceapi.h>
-#include <mmreg.h>
+#include "audio_wasapi_internal.h" /* conversion pipeline (test seam) */
+
 #include <functiondiscoverykeys_devpkey.h>
 #include <propsys.h>
 
@@ -87,50 +85,6 @@ typedef enum {
     GSR_ENDPOINT_RENDER,   /* loopback capture ("what you hear")            */
     GSR_ENDPOINT_CAPTURE   /* normal capture (microphone)                   */
 } gsr_endpoint_kind;
-
-typedef struct {
-    bool is_float;
-    int sample_bytes;      /* container size per sample (2, 3 or 4)         */
-    int bits;              /* wBitsPerSample (valid data bits)              */
-    int num_channels;
-    DWORD sample_rate;
-} mix_format_info;
-
-typedef struct {
-    /* capture parameters (copied from the sound_device_get_by_name args) */
-    unsigned int num_channels;        /* always 2 (stereo)                  */
-    unsigned int period_frame_size;   /* frames per read_next_chunk chunk   */
-    gsr_audio_format audio_format;    /* chunk format (S16/S32/F32)         */
-    size_t frame_bytes;               /* bytes per interleaved frame        */
-
-    /* WASAPI objects (created on the calling thread, used by the capture
-       thread; COM is initialized per-thread) */
-    IAudioClient *audio_client;
-    IAudioCaptureClient *capture_client;
-
-    /* capture thread */
-    HANDLE thread;
-    volatile LONG stop_requested;
-    bool thread_created;
-
-    /* ring buffer (frames stored in the requested audio_format) */
-    uint8_t *ring;
-    size_t ring_capacity_frames;
-    size_t ring_head_frames;
-    size_t ring_count_frames;
-    SRWLOCK ring_lock;
-    CONDITION_VARIABLE ring_cond;
-
-    /* reusable read buffer (the engine keeps the pointer we hand back and
-       never frees it, like upstream's ringbuffer read pointer) */
-    uint8_t *read_buffer;
-
-    /* mix-format conversion state (parsed at open; used by the capture
-       thread) */
-    mix_format_info mix_info;
-    WAVEFORMATEX *mix_format;         /* freed in close                     */
-    double resample_pos;              /* fractional input-frame position    */
-} wasapi_sound_device;
 
 /* ---- small helpers ------------------------------------------------------ */
 
@@ -218,7 +172,7 @@ static HRESULT resolve_endpoint(const char *name, gsr_endpoint_kind *out_kind, I
 
 /* ---- mix-format -> requested format conversion (capture thread) --------- */
 
-static bool mix_format_info_get(const WAVEFORMATEX *format, mix_format_info *info) {
+bool mix_format_info_get(const WAVEFORMATEX *format, mix_format_info *info) {
     memset(info, 0, sizeof(*info));
     info->num_channels = format->nChannels;
     info->sample_rate = format->nSamplesPerSec;
@@ -247,7 +201,7 @@ static bool mix_format_info_get(const WAVEFORMATEX *format, mix_format_info *inf
 }
 
 /* Decode one sample from the mix format to float. */
-static float decode_sample(const mix_format_info *info, const uint8_t *data, size_t sample_index) {
+float decode_sample(const mix_format_info *info, const uint8_t *data, size_t sample_index) {
     const uint8_t *p = data + (size_t)info->sample_bytes * sample_index;
     if(info->is_float) {
         if(info->sample_bytes == 4) {
@@ -284,7 +238,7 @@ static float decode_sample(const mix_format_info *info, const uint8_t *data, siz
 /* Mix n_channels interleaved float samples down to stereo (into out_l/out_r
    arrays of num_frames each). Simple, documented approximation for
    surround formats; the front L/R pair is the primary source. */
-static void downmix_to_stereo(const float *in, int num_channels, float *out_l, float *out_r, size_t num_frames) {
+void downmix_to_stereo(const float *in, int num_channels, float *out_l, float *out_r, size_t num_frames) {
     for(size_t i = 0; i < num_frames; ++i) {
         const float *s = in + (size_t)num_channels * i;
         float l, r;
@@ -303,7 +257,7 @@ static void downmix_to_stereo(const float *in, int num_channels, float *out_l, f
 
 /* Encode F32 stereo frames into the requested format (interleaved bytes).
    Returns a malloc'd buffer of num_frames * frame_bytes. */
-static uint8_t *encode_stereo(const float *l, const float *r, size_t num_frames, gsr_audio_format format, size_t frame_bytes) {
+uint8_t *encode_stereo(const float *l, const float *r, size_t num_frames, gsr_audio_format format, size_t frame_bytes) {
     uint8_t *out = malloc(num_frames * frame_bytes);
     if(!out)
         return NULL;
@@ -338,7 +292,7 @@ static uint8_t *encode_stereo(const float *l, const float *r, size_t num_frames,
 
 /* Convert one WASAPI chunk into the ring buffer (requested format).
    Returns the number of frames pushed. Called with the ring lock held. */
-static size_t convert_chunk_to_ring(wasapi_sound_device *self, const BYTE *data, UINT32 num_frames) {
+size_t convert_chunk_to_ring(wasapi_sound_device *self, const BYTE *data, UINT32 num_frames) {
     const mix_format_info *info = &self->mix_info;
     const DWORD mix_rate = info->sample_rate;
     const double ratio = (double)GSR_AUDIO_SAMPLE_RATE / (double)mix_rate;
@@ -772,6 +726,21 @@ void get_pulseaudio_inputs(gsr_audio_devices *audio_devices) {
 
     audio_devices_set_default(audio_devices, enumerator, eRender, audio_devices->default_output, sizeof(audio_devices->default_output));
     audio_devices_set_default(audio_devices, enumerator, eCapture, audio_devices->default_input, sizeof(audio_devices->default_input));
+
+    /* Diagnostic: how many endpoints exist at all (including disabled and
+       unplugged)? The runner reports 0 ACTIVE endpoints, which tells us
+       nothing about whether a disabled endpoint exists — this count does.
+       (The listing above only includes ACTIVE endpoints, since those are
+       the only ones that can be captured.) */
+    for(int flow = 0; flow < 2; ++flow) {
+        IMMDeviceCollection *all = NULL;
+        if(SUCCEEDED(enumerator->lpVtbl->EnumAudioEndpoints(enumerator, flow == 0 ? eRender : eCapture, DEVICE_STATE_ALL, &all)) && all) {
+            UINT count = 0;
+            all->lpVtbl->GetCount(all, &count);
+            gsr_log(GSR_LOG_LEVEL_INFO, "wasapi: %u %s endpoint(s) total (incl. disabled/unplugged)", (unsigned)count, flow == 0 ? "render" : "capture");
+            all->lpVtbl->Release(all);
+        }
+    }
 
     for(int flow = 0; flow < 2; ++flow) {
         const EDataFlow data_flow = flow == 0 ? eRender : eCapture;

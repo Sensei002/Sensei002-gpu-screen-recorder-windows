@@ -181,6 +181,8 @@ jobs:
           .\build\cmake\dxgi-self-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\cmake\recorder-self-test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\cmake\audio-conv-test.exe
 
       # Run the recorder self-test in the MSYS2 shell too: this is where the
       # ANGLE DLLs are on PATH, so the verbose recording logs (backend
@@ -203,6 +205,7 @@ jobs:
             build/cmake/render-self-test.exe
             build/cmake/dxgi-self-test.exe
             build/cmake/recorder-self-test.exe
+            build/cmake/audio-conv-test.exe
             build/cmake/recorder-self-test-output.mkv
           if-no-files-found: error
 
@@ -293,6 +296,8 @@ jobs:
           .\build\bin\dxgi-self-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\bin\recorder-self-test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\bin\audio-conv-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\bin\ci-smoke.exe
 
