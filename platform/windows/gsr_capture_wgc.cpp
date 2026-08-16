@@ -43,8 +43,10 @@
 #include <new>
 
 #include "../../platform/include/capture.h"
+#include "../../platform/include/egl_win32.h"
 #include "../../upstream/include/capture/capture.h"
 #include "../../upstream/include/vec2.h"
+#include "../../upstream/include/utils.h"
 
 /* upstream's log.h has no extern "C" guard; gsr_log is defined as C in
    log.c, so the include must be wrapped or the C++ TU links a mangled
@@ -144,6 +146,12 @@ typedef struct gsr_capture_wgc {
     winrt::com_ptr<ID3D11Texture2D> latest_texture;
     int frame_width;
     int frame_height;
+
+    /* Phase 5b: the imported GL texture (EGL_ANGLE_d3d_texture_client_buffer)
+       drawn into the color conversion by capture(). NULL until capture()
+       runs with a GL pipeline. */
+    void *import_handle;
+    gsr_egl *egl;
 } gsr_capture_wgc;
 
 /* ---- vtable implementations ---------------------------------------------- */
@@ -154,27 +162,36 @@ static int wgc_start(gsr_capture *cap, gsr_capture_metadata *capture_metadata) {
         return 0;
 
     try {
-        /* 1. D3D11 device: hardware first, WARP fallback (CI runners have no
-           real GPU; the pure fallback decision lives in the helpers). */
-        static const D3D_FEATURE_LEVEL levels[] = {
-            D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0,
-            D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0,
-        };
-        const UINT create_flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT; /* ANGLE interop */
-        D3D_FEATURE_LEVEL got_level = D3D_FEATURE_LEVEL_10_0;
-        winrt::com_ptr<ID3D11Device> device;
-        HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, create_flags,
-            levels, (UINT)(sizeof(levels) / sizeof(levels[0])), D3D11_SDK_VERSION, device.put(), &got_level, nullptr);
-        if(FAILED(hr)) {
-            gsr_log(GSR_LOG_LEVEL_INFO, "gsr_capture_wgc_start: hardware device unavailable (0x%08lx), using WARP", (unsigned long)hr);
-            hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, create_flags,
+        /* 1. D3D11 device. Phase 5b: when a GL pipeline (ANGLE egl) is
+           configured, the WGC frame pool MUST run on the SAME device ANGLE
+           runs on, or the EGL_ANGLE_d3d_texture_client_buffer import is a
+           copy (or fails) — share it. Standalone (self-test without egl):
+           hardware first, WARP fallback. */
+        self->egl = self->options.egl;
+        if(self->egl && self->egl->d3d11_device) {
+            self->device.copy_from((ID3D11Device*)self->egl->d3d11_device);
+            gsr_log(GSR_LOG_LEVEL_INFO, "gsr_capture_wgc_start: using the shared ANGLE D3D11 device");
+        } else {
+            static const D3D_FEATURE_LEVEL levels[] = {
+                D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0,
+                D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0,
+            };
+            const UINT create_flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT; /* ANGLE interop */
+            D3D_FEATURE_LEVEL got_level = D3D_FEATURE_LEVEL_10_0;
+            winrt::com_ptr<ID3D11Device> device;
+            HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, create_flags,
                 levels, (UINT)(sizeof(levels) / sizeof(levels[0])), D3D11_SDK_VERSION, device.put(), &got_level, nullptr);
+            if(FAILED(hr)) {
+                gsr_log(GSR_LOG_LEVEL_INFO, "gsr_capture_wgc_start: hardware device unavailable (0x%08lx), using WARP", (unsigned long)hr);
+                hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, create_flags,
+                    levels, (UINT)(sizeof(levels) / sizeof(levels[0])), D3D11_SDK_VERSION, device.put(), &got_level, nullptr);
+            }
+            if(FAILED(hr)) {
+                gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_capture_wgc_start: D3D11CreateDevice failed (0x%08lx)", (unsigned long)hr);
+                return -1;
+            }
+            self->device = device;
         }
-        if(FAILED(hr)) {
-            gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_capture_wgc_start: D3D11CreateDevice failed (0x%08lx)", (unsigned long)hr);
-            return -1;
-        }
-        self->device = device;
 
         /* 2. Wrap the D3D11 device as a WinRT IDirect3DDevice for the frame
            pool (Windows.Graphics.DirectX.Direct3D11.dll ships with Win10+;
@@ -304,20 +321,52 @@ static bool wgc_should_stop(gsr_capture *cap, bool *err) {
 }
 
 static int wgc_capture(gsr_capture *cap, gsr_capture_metadata *capture_metadata, gsr_color_conversion *color_conversion) {
-    (void)capture_metadata;
-    (void)color_conversion;
     gsr_capture_wgc *self = (gsr_capture_wgc*)cap->priv;
 
     /* The recorder calls clear_damage() BEFORE capture() (recorder.c:
        recorder_capture_and_encode_frame), so capture() must not gate on
        the damage flag — it delivers the latest frame whenever one exists.
-       The captured texture (latest_texture) is handed to the GL pipeline
-       here via EGL_ANGLE_d3d_texture_client_buffer (architecture §3.3
-       Option B). The ANGLE render backend lands in the next phase; until
-       then the frame is exposed through
-       gsr_platform_capture_wgc_get_frame (used by the self-test). */
+       Returns -1 only when no frame has arrived yet. */
     if(!self->latest_texture)
         return -1;
+
+    /* Phase 5b: import the WGC texture into GL (EGL_ANGLE_d3d_texture_client_buffer,
+       zero-copy on the shared device) and draw it into the color conversion.
+       When no GL pipeline is configured (standalone self-test), the frame is
+       exposed through gsr_platform_capture_wgc_get_frame instead. */
+    gsr_egl *egl = color_conversion ? color_conversion->params.egl : NULL;
+    if(!egl)
+        return 0;
+
+    if(!self->import_handle) {
+        self->import_handle = gsr_platform_egl_import_texture(egl, self->latest_texture.get());
+        if(!self->import_handle) {
+            gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_capture_wgc_capture: failed to import WGC texture into GL");
+            return -1;
+        }
+    } else if(!gsr_platform_egl_update_texture(egl, self->import_handle, self->latest_texture.get())) {
+        gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_capture_wgc_capture: failed to update imported GL texture");
+        return -1;
+    }
+
+    const unsigned int texture_id = gsr_platform_egl_texture_id(egl, self->import_handle);
+    const vec2i frame_size = {self->frame_width, self->frame_height};
+    vec2i recording_size = capture_metadata->recording_size;
+    if(recording_size.x <= 0 || recording_size.y <= 0)
+        recording_size = capture_metadata->video_size;
+    const vec2i output_size = scale_keep_aspect_ratio(frame_size, recording_size);
+    const vec2i target_pos = gsr_capture_get_target_position(output_size, capture_metadata);
+
+    /* WGC delivers rotated content already rotated, so the draw rotation is
+       GSR_ROT_0 (see wgc_start). The D3D11 texture is imported as a
+       GL_TEXTURE_2D, so external_texture=false (the external shader variants
+       bind GL_TEXTURE_EXTERNAL_OES, which this import is not — the ANGLE
+       client-buffer image is a GL_TEXTURE_2D sibling). Source is BGRA8 =
+       GSR_SOURCE_COLOR_BGR. */
+    gsr_color_conversion_draw(color_conversion, texture_id,
+        target_pos, output_size,
+        (vec2i){0, 0}, frame_size, frame_size,
+        GSR_ROT_0, capture_metadata->flip, GSR_SOURCE_COLOR_BGR, false);
     return 0;
 }
 
@@ -355,6 +404,10 @@ static void wgc_destroy(gsr_capture *cap) {
                 self->frame_pool.Close();
         } catch(...) {
             /* Best-effort teardown */
+        }
+        if(self->import_handle && self->egl) {
+            gsr_platform_egl_destroy_imported_texture(self->egl, self->import_handle);
+            self->import_handle = NULL;
         }
         delete self;
         cap->priv = NULL;

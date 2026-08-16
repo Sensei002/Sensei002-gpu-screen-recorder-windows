@@ -51,6 +51,11 @@ gsr_video_encoder* create_video_encoder(gsr_egl *egl, const gsr_recorder_setting
             video_encoder = gsr_video_encoder_nvenc_create(&params);
             break;
         }
+        case GSR_GPU_VENDOR_UNKNOWN:
+            /* Windows port addition (§3f): software adapter (WARP); no GPU
+               encoder is available, so the caller falls back to the CPU
+               encoder. */
+            break;
     }
 
     return video_encoder;

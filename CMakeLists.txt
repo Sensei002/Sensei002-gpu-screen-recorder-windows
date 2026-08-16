@@ -129,6 +129,13 @@ set(GSR_CORE_SOURCES
     # (gsr_create_new_recording_filepath_from_timestamp) that the
     # platform filesystem layer delegates to.
     upstream/src/recorder/muxer.c
+    # Phase 5b: the GL pipeline (architecture §3.3 Option B — upstream's GL
+    # color-conversion/shader code runs unchanged on ANGLE). egl.c keeps its
+    # Linux loader for reference and branches to gsr_egl_load_win32() on
+    # Windows (see upstream-porting-notes.md §3f).
+    upstream/src/color_conversion.c
+    upstream/src/shader.c
+    upstream/src/egl.c
     # Phase 2 shims.
     platform/windows/gsr_win32_compat.c
     platform/windows/gsr_utils_win32.c
@@ -143,6 +150,10 @@ set(GSR_CORE_SOURCES
     # plus the C++/WinRT backend itself (extern "C" surface in capture.h).
     platform/windows/gsr_capture_wgc_helpers.c
     platform/windows/gsr_capture_wgc.cpp
+    # Phase 5b: the Windows ANGLE-on-D3D11 gsr_egl loader + the D3D11-texture
+    # import helpers (EGL_ANGLE_d3d_texture_client_buffer) + the Windows
+    # gl_get_gpu_info (upstream's lives in the X11/DRM utils.c, not built).
+    platform/windows/gsr_egl_win32.c
 )
 
 add_library(gsr_core STATIC ${GSR_CORE_SOURCES})
@@ -214,13 +225,21 @@ target_link_libraries(platform-test PRIVATE gsr_core)
 add_executable(wgc-self-test tests/wgc-self-test/main.c)
 target_link_libraries(wgc-self-test PRIVATE gsr_core)
 
+# Phase 5b render pipeline self-test: D3D11 texture -> ANGLE import
+# (EGL_ANGLE_d3d_texture_client_buffer) -> upstream gsr_color_conversion
+# draw -> readback validation. Runs headless on the WARP adapter in the
+# MSYS2 ctest step (ANGLE installed); SKIPs (exit 0) where libEGL.dll is
+# not loadable (plain runner).
+add_executable(render-self-test tests/render-self-test/main.c)
+target_link_libraries(render-self-test PRIVATE gsr_core)
+
 # Link the test executables against the static MinGW runtime so they can be
 # re-run by the workflow's `test` job without the MSYS2 environment.
 # -static-libgcc works with the C driver; the C++ runtime (libstdc++.a),
 # winpthread and atomic are already linked statically via the gsr_core
 # PUBLIC link flags above (-static-libstdc++/-static-libwinpthread are
 # driver options that do nothing when linking with cc).
-foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test)
+foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test)
     set_target_properties(${target} PROPERTIES
         LINK_FLAGS "-static-libgcc")
 endforeach()
@@ -230,3 +249,4 @@ add_test(NAME ci-smoke COMMAND ci-smoke)
 add_test(NAME gsr-core-test COMMAND gsr-core-test)
 add_test(NAME platform-test COMMAND platform-test)
 add_test(NAME wgc-self-test COMMAND wgc-self-test)
+add_test(NAME render-self-test COMMAND render-self-test)

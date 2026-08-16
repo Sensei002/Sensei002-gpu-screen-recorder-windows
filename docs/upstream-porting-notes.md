@@ -300,6 +300,64 @@ future phases and upstream syncs should assume them:
   Win10/11 desktop; CI covers compile, pure logic, and the graceful-SKIP
   path.
 
+## 3f. Phase 5b CI validation lessons (ANGLE GL render backend)
+
+* **The upstream `gsr_egl` loader is Linux-only in three hard ways**:
+  `dlopen("libEGL.so.1")`-style library names, an X11 native display for
+  `eglGetDisplay`, and `gsr_egl_proc_load_egl()` **hard-requiring the Mesa
+  DMABUF export extensions** (`eglExportDMABUFImageQueryMESA`/`MESA`) which
+  ANGLE does not implement. The DMABUF exports have **zero call sites** in
+  upstream (dead requirements) — the Windows loader simply does not load
+  them. The seam is `#ifdef _WIN32` inside `gsr_egl_load`/`gsr_egl_unload`
+  in `upstream/src/egl.c`, delegating to `platform/windows/gsr_egl_win32.c`.
+  The unused Linux static helpers in egl.c are eliminated by -O3, so they
+  need no `#ifdef`.
+* **ANGLE is a first-class MSYS2 package** (`mingw-w64-x86_64-angleproject`,
+  arch-qualified name — same API-vs-repo naming trap as §3e): `libEGL.dll`
+  + `libGLESv2.dll` land in `/mingw64/bin` (on PATH in the MSYS2 shell), so
+  the loader uses the existing `dlopen`/`dlsym` shim with the plain DLL
+  names and needs no import libs.
+* **The ANGLE display is created on an explicit device, not a native
+  display**: `eglCreateDeviceANGLE(EGL_D3D11_DEVICE_ANGLE, device, NULL)`
+  then `eglGetPlatformDisplayEXT(EGL_PLATFORM_ANGLE_ANGLE, device,
+  {EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, ..._D3D11_ANGLE, EGL_NONE})`.
+  The D3D11 device is created by the loader (hardware, WARP fallback) and
+  shared with capture backends via the Windows-only `d3d11_device` fields
+  added to the `gsr_egl` struct — the WGC frame pool MUST run on the SAME
+  device for a zero-copy `EGL_D3D_TEXTURE_ANGLE` import.
+* **The context is surfaceless** (EGL 1.5: `eglMakeCurrent(display,
+  EGL_NO_SURFACE, EGL_NO_SURFACE, ctx)`) — no window surface, no Win32
+  window dependency. This is what lets the render pipeline run headless on
+  CI (WARP) and keeps `gsr_window` out of the capture path.
+* **`EGL_D3D_TEXTURE_ANGLE` images bind as `GL_TEXTURE_2D`, NOT
+  `GL_TEXTURE_EXTERNAL_OES`.** Upstream's external-image shader variants
+  (used for DMABUF captures) bind EXTERNAL_OES; passing `external_texture`
+  = true to `gsr_color_conversion_draw` would therefore sample an image
+  that is not an EXTERNAL_OES texture. The WGC backend imports into
+  `GL_TEXTURE_2D` and passes `external_texture=false`, which uses the
+  regular sampler2D shaders — correct on ANGLE and still zero-copy.
+* **ANGLE's GL_VENDOR is "Google Inc. (…GPU vendor…)"** — upstream's
+  `gl_get_gpu_info` string checks still work on real GPUs, but on a
+  software adapter (WARP / Microsoft Basic Render Driver, DXGI vendor
+  0x1414) it returns false and upstream `gsr_egl_load` would FAIL. The
+  Windows build adds `GSR_GPU_VENDOR_UNKNOWN` to the vendor enum, a
+  DXGI-adapter VendorId fallback in the Windows `gl_get_gpu_info` (the
+  upstream one lives in the X11/DRM utils.c which is not compiled), and
+  default cases in the two vendor switches (`cli/commands.c`,
+  `recorder/codec_select.c`) — honest "unknown/software" reporting instead
+  of a hard failure.
+* **The `gsr_egl` struct grows Windows-only fields** (`d3d11_device`,
+  `d3d11_device_context`, `egl_angle_device`) and the ANGLE platform
+  constants (`EGL_D3D_TEXTURE_ANGLE` etc.) under the existing `_WIN32`
+  block in `upstream/include/egl.h` — same documented-patch approach as the
+  X11-type shims.
+* **`render-self-test` validates the whole Option-B path headless**: the
+  loader, the import, and the UNCHANGED upstream `color_conversion.c`/
+  `shader.c` now compile into `gsr_core` and run on WARP in the ctest
+  step. The test checks the BGR swizzle (BGRA8 → RGB), draw orientation,
+  and `GSR_ROT_180`. This is the same code path `wgc_capture()` takes,
+  minus WGC itself.
+
 ## 4. Known behavioral differences (kept up to date per phase)
 
 See `docs/windows-port-parity.md` for the full matrix. Summary of *inherent*

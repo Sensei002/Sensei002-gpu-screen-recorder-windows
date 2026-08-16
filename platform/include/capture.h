@@ -27,6 +27,7 @@ extern "C" {
 #endif
 
 typedef struct gsr_capture gsr_capture; /* upstream capture vtable type */
+typedef struct gsr_egl gsr_egl;         /* upstream GL table (egl.h) */
 
 /* ---- backend identity + selection (Phase 3) ------------------------------ */
 
@@ -75,6 +76,14 @@ typedef struct {
 typedef struct {
     bool cursor;         /* capture the cursor (default true upstream) */
     bool hdr;            /* target is HDR; enables set_hdr_metadata */
+    gsr_egl *egl;        /* Phase 5b: the shared ANGLE GL table. When set, the
+                            backend creates its WGC frame pool on the SAME
+                            D3D11 device ANGLE runs on (architecture §3.3
+                            Option B) so the per-frame texture import via
+                            EGL_ANGLE_d3d_texture_client_buffer is zero-copy,
+                            and capture() draws into the color conversion.
+                            NULL = standalone (self-test without a GL
+                            pipeline; use gsr_platform_capture_wgc_get_frame). */
 } gsr_platform_wgc_options;
 
 /* Creates the WGC capture backend for the target. Returns NULL (and logs)

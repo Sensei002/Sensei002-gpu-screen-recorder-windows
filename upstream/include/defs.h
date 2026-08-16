@@ -11,7 +11,11 @@ typedef enum {
     GSR_GPU_VENDOR_INTEL,
     GSR_GPU_VENDOR_NVIDIA,
     GSR_GPU_VENDOR_BROADCOM,
-    GSR_GPU_VENDOR_APPLE
+    GSR_GPU_VENDOR_APPLE,
+    /* Windows port addition (docs/upstream-porting-notes.md §3f): ANGLE on a
+       software adapter (WARP / Microsoft Basic Render Driver) or a GPU whose
+       vendor string is unrecognized. The Linux build never produces this. */
+    GSR_GPU_VENDOR_UNKNOWN
 } gsr_gpu_vendor;
 
 typedef struct {

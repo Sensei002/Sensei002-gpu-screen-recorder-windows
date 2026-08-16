@@ -131,6 +131,17 @@ CaptureBackend (gsr_capture)
   accepted: ANGLE runtime dependency (bundled with the installer) and the
   D3D11/GL interop layer is ANGLE-specific.
 
+**Validation status (Phase 5b, 2026-08-16):** the ANGLE render backend is
+SHIPPED and CI-green. `gsr_egl_load` on Windows runs ANGLE on a shared
+D3D11 device (hardware → WARP) with a surfaceless ES3 context; the WGC
+backend imports its D3D11 texture with `EGL_D3D_TEXTURE_ANGLE` and draws
+through the unchanged upstream `gsr_color_conversion`. `render-self-test`
+validates the full path headless on WARP (synthetic texture → import →
+draw → readback; BGR swizzle, orientation, rotation). End-to-end
+WGC→encode still needs a real Win10/11 desktop (the Server-SKU CI runner
+lacks the WGC interop DLL, §3e) — see `docs/implementation-roadmap.md`
+Phase 5b.
+
 Either way the encoder input is an `AVFrame` in a hardware pixel format; the
 existing `gsr_video_encoder` interface is preserved.
 

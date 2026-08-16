@@ -5,13 +5,46 @@
 
 /* Windows port modification (see docs/upstream-porting-notes.md): on Windows the
    X11 headers are not available, so the handful of X11 types this header uses
-   (XID, Bool, Display, Window) are provided directly. The Linux build is unchanged. */
+   (XID, Bool, Display, Window) are provided directly. The Linux build is unchanged.
+
+   Phase 5b also adds the ANGLE-on-D3D11 pieces: the EGL_ANGLE_* platform
+   constants used by gsr_egl_load_win32() (platform/windows/gsr_egl_win32.c),
+   EGL_D3D_TEXTURE_ANGLE for the zero-copy WGC texture import
+   (EGL_ANGLE_d3d_texture_client_buffer), and the Windows-only gsr_egl fields
+   that hold the shared D3D11 device/context and the ANGLE EGLDeviceEXT. */
 #if defined(_WIN32)
 #include <stdint.h>
 typedef unsigned long XID;   /* X11-compatible: 64-bit on x64 */
 typedef unsigned long Window;
 typedef struct _XDisplay Display;
 typedef int Bool;
+
+/* EGL 1.5 sentinels (used by the surfaceless-context path on Windows). */
+#ifndef EGL_NO_DISPLAY
+#define EGL_NO_DISPLAY ((EGLDisplay)0)
+#endif
+#ifndef EGL_NO_CONTEXT
+#define EGL_NO_CONTEXT ((EGLContext)0)
+#endif
+#ifndef EGL_NO_SURFACE
+#define EGL_NO_SURFACE ((EGLSurface)0)
+#endif
+#ifndef EGL_NO_IMAGE
+#define EGL_NO_IMAGE ((EGLImage)0)
+#endif
+
+/* ANGLE platform display (EGL_ANGLE_platform_angle). */
+#define EGL_PLATFORM_ANGLE_ANGLE 0x3202
+#define EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE 0x3209
+#define EGL_PLATFORM_ANGLE_DEVICE_TYPE_D3D11_ANGLE 0x320B
+#define EGL_PLATFORM_ANGLE_DEVICE_TYPE_D3D11_WARP_ANGLE 0x320C
+#define EGL_D3D11_DEVICE_ANGLE 0x33A2
+
+/* EGL_ANGLE_d3d_texture_client_buffer: import a D3D11 texture as a
+   GL_TEXTURE_2D sibling with no copy when the display shares the device
+   (the WGC capture import, architecture §3.3 Option B). */
+#define EGL_D3D_TEXTURE_ANGLE 0x33A3
+#define EGL_TEXTURE_ANGLE 0x33A4
 #else
 #include <X11/X.h>
 #include <X11/Xutil.h>
@@ -204,6 +237,16 @@ struct gsr_egl {
     EGLContext egl_context;
     const char *dri_card_path;
 
+#ifdef _WIN32
+    /* Phase 5b (architecture §3.3 Option B): the D3D11 device/context that
+       ANGLE runs on and that capture backends share (WGC's frame pool must
+       use the SAME device for a zero-copy EGL_ANGLE_d3d_texture_client_buffer
+       import). Owned by the Windows gsr_egl loader. */
+    void *d3d11_device;       /* ID3D11Device* */
+    void *d3d11_device_context; /* ID3D11DeviceContext* */
+    void *egl_angle_device;   /* EGLDeviceEXT (EGL_ANGLE_device_d3d) */
+#endif
+
     void *glx_context;
     void *glx_fb_config;
 
@@ -334,6 +377,14 @@ struct gsr_egl {
 
 bool gsr_egl_load(gsr_egl *self, gsr_window *window, bool is_monitor_capture, bool enable_debug);
 void gsr_egl_unload(gsr_egl *self);
+
+#ifdef _WIN32
+/* Phase 5b: the Windows (ANGLE-on-D3D11) implementations of the loader,
+   in platform/windows/gsr_egl_win32.c. |window| may be NULL — the ANGLE
+   context is surfaceless and needs no native window. */
+bool gsr_egl_load_win32(gsr_egl *self, gsr_window *window, bool enable_debug);
+void gsr_egl_unload_win32(gsr_egl *self);
+#endif
 
 /* Does opengl swap with egl or glx, depending on which one is active */
 void gsr_egl_swap_buffers(gsr_egl *self);

@@ -253,6 +253,52 @@ Tasks:
 
 ---
 
+## Phase 5b — ANGLE GL render backend (Option B pipeline)
+
+**Goal:** run upstream's GL color-conversion pipeline on Windows via ANGLE,
+importing the WGC D3D11 texture zero-copy
+(`EGL_ANGLE_d3d_texture_client_buffer` + `EGL_ANGLE_device_d3d`), per
+architecture §3.3 Option B.
+
+**Status: SHIPPED and CI-green.** The full render path is validated headless
+on CI with a synthetic D3D11 texture (WGC itself still SKIPs on the Server
+runner, §3e): `render-self-test` runs
+D3D11 texture → ANGLE import → upstream `gsr_color_conversion_draw` →
+readback, checking the BGR swizzle, draw orientation, and rotation.
+
+Tasks:
+
+1. ✅ Windows `gsr_egl` loader (`platform/windows/gsr_egl_win32.c`): loads
+   ANGLE (`libEGL.dll`/`libGLESv2.dll`), creates a D3D11 device (hardware →
+   WARP), an ANGLE platform display on that device, and a **surfaceless**
+   ES3 context (no native window — matches the windowless WGC model).
+   `gsr_egl_load`/`gsr_egl_unload` in upstream `egl.c` branch to it on
+   `_WIN32`; the Mesa-only DMABUF-export requirements are skipped.
+2. ✅ Shared D3D11 device: the `gsr_egl` struct carries the device;
+   `gsr_platform_egl_get_d3d11_device()` hands it to capture backends, and
+   the WGC backend's `start()` creates its frame pool on it (zero-copy
+   import requirement).
+3. ✅ Texture import: `gsr_platform_egl_import_texture()` / `_update_texture()`
+   / `_texture_id()` / `_destroy_imported_texture()` wrap
+   `eglCreateImage(EGL_D3D_TEXTURE_ANGLE)` + `glEGLImageTargetTexture2DOES`
+   with a stable GL texture id (per-frame rebind, no per-frame GL objects).
+4. ✅ WGC integration: `wgc_capture()` imports the latest frame and calls
+   `gsr_color_conversion_draw` with `GSR_SOURCE_COLOR_BGR` and
+   `external_texture=false` — the ANGLE client-buffer image is a
+   `GL_TEXTURE_2D` sibling, NOT a `GL_TEXTURE_EXTERNAL_OES` image (the
+   external shader variants bind EXTERNAL_OES, so they are not used).
+5. ✅ `GSR_GPU_VENDOR_UNKNOWN` (software adapters / WARP) with honest
+   handling in the two vendor switches; `gl_get_gpu_info` Windows version
+   with a DXGI-adapter fallback.
+6. ✅ CI: `render-self-test` runs headless on WARP in the ctest step
+   (ANGLE installed via `mingw-w64-x86_64-angleproject`); SKIPs where
+   ANGLE is absent. Upstream `color_conversion.c`/`shader.c`/`egl.c` now
+   compile into `gsr_core` unchanged.
+
+**CI deliverables:** `render-self-test` green (WARP); `test` job green.
+
+---
+
 ## Phase 6 — DXGI Desktop Duplication fallback
 
 Tasks:

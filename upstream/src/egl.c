@@ -400,6 +400,16 @@ static void gsr_egl_disable_vsync(gsr_egl *self) {
 }
 
 bool gsr_egl_load(gsr_egl *self, gsr_window *window, bool is_monitor_capture, bool enable_debug) {
+#ifdef _WIN32
+    /* Windows port modification (docs/upstream-porting-notes.md §3f): the
+       Linux loader below dlopens libEGL.so.1/libGLX/libGL, creates an X11
+       window surface, hard-requires the Mesa DMABUF export extensions and
+       probes /proc for NVIDIA. The Windows build replaces the whole load
+       with an ANGLE-on-D3D11 loader (platform/windows/gsr_egl_win32.c);
+       |window| may be NULL (surfaceless context). */
+    (void)is_monitor_capture;
+    return gsr_egl_load_win32(self, window, enable_debug);
+#else
     memset(self, 0, sizeof(gsr_egl));
     self->context_type = GSR_GL_CONTEXT_TYPE_EGL;
     self->window = window;
@@ -477,9 +487,15 @@ bool gsr_egl_load(gsr_egl *self, gsr_window *window, bool is_monitor_capture, bo
     fail:
     gsr_egl_unload(self);
     return false;
+#endif /* !_WIN32 */
 }
 
 void gsr_egl_unload(gsr_egl *self) {
+#ifdef _WIN32
+    /* Windows port modification (see above / §3f). */
+    gsr_egl_unload_win32(self);
+    return;
+#else
     if(self->egl_context) {
         self->eglMakeCurrent(self->egl_display, NULL, NULL, NULL);
         self->eglDestroyContext(self->egl_display, self->egl_context);
@@ -521,6 +537,7 @@ void gsr_egl_unload(gsr_egl *self) {
     }
 
     memset(self, 0, sizeof(gsr_egl));
+#endif /* !_WIN32 */
 }
 
 void gsr_egl_swap_buffers(gsr_egl *self) {
