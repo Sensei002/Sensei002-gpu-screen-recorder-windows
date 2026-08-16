@@ -242,18 +242,21 @@ static int run_fallback_recording(void) {
         if(format->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
             ++video_streams;
     }
+    /* Copy the fields we need BEFORE closing the input: codecpar is owned
+       by the format context and freed by avformat_close_input. */
     const AVCodecParameters *codecpar = video_streams > 0 ? format->streams[0]->codecpar : NULL;
     printf("nvenc: fallback file validated: %d video stream(s), codec %s, %dx%d\n",
         video_streams,
         codecpar ? avcodec_get_name(codecpar->codec_id) : "(none)",
         codecpar ? codecpar->width : 0, codecpar ? codecpar->height : 0);
+    const enum AVCodecID codec_id = codecpar ? codecpar->codec_id : AV_CODEC_ID_NONE;
     avformat_close_input(&format);
     if(video_streams == 0) {
         fprintf(stderr, "FAIL: no video stream in the fallback recording\n");
         return 1;
     }
-    if(codecpar && codecpar->codec_id != AV_CODEC_ID_H264) {
-        fprintf(stderr, "FAIL: fallback recording is %s, expected h264 (libx264)\n", avcodec_get_name(codecpar->codec_id));
+    if(codec_id != AV_CODEC_ID_H264) {
+        fprintf(stderr, "FAIL: fallback recording is %s, expected h264 (libx264)\n", avcodec_get_name(codec_id));
         return 1;
     }
     printf("nvenc: -encoder gpu fallback recorded h264 via the software encoder OK\n");

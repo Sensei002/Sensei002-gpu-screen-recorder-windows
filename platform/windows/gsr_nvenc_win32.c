@@ -92,21 +92,23 @@ bool gsr_nvenc_description_is_nvidia(const char *description) {
 gsr_nvenc_generation gsr_nvenc_generation_from_adapter_description(const char *description) {
     if(!description)
         return GSR_NVENC_GEN_UNKNOWN;
-    /* Precedence matters: GeForce RTX 40/30/20xx are Ada/Ampere/Turing,
-       but the Quadro naming is ambiguous — "Quadro RTX 4000" is Turing
-       while "Quadro RTX A4000" is Ampere. Check the RTX A-series (which
-       always contains "rtx a") and the Ampere/Ada/Blackwell pro names
-       BEFORE the plain "quadro rtx" pattern. */
+    /* Precedence matters — the professional naming is ambiguous with the
+       consumer one: "Quadro RTX 4000" is Turing but "GeForce RTX 4080" is
+       Ada ("rtx 40" is a substring of both), and "Quadro RTX A6000" is
+       Ampere. Check the pro patterns (RTX A-series, quadro rtx, "ada"
+       naming) BEFORE the consumer "rtx N0" series. */
+    if(contains_ci(description, "rtx a") || contains_ci(description, "a100") || contains_ci(description, "a2000") || contains_ci(description, "a4000") || contains_ci(description, "a5000") || contains_ci(description, "a6000"))
+        return GSR_NVENC_GEN_AMPERE;
+    if(contains_ci(description, "quadro rtx"))
+        return GSR_NVENC_GEN_TURING;
+    if(contains_ci(description, "ada")) /* e.g. "RTX 4000 Ada Generation" */
+        return GSR_NVENC_GEN_ADA;
     if(contains_ci(description, "rtx 50"))
         return GSR_NVENC_GEN_BLACKWELL;
     if(contains_ci(description, "rtx 40"))
         return GSR_NVENC_GEN_ADA;
     if(contains_ci(description, "rtx 30"))
         return GSR_NVENC_GEN_AMPERE;
-    if(contains_ci(description, "rtx a") || contains_ci(description, "a100") || contains_ci(description, "a2000") || contains_ci(description, "a4000") || contains_ci(description, "a5000") || contains_ci(description, "a6000"))
-        return GSR_NVENC_GEN_AMPERE;
-    if(contains_ci(description, "quadro rtx"))
-        return GSR_NVENC_GEN_TURING;
     if(contains_ci(description, "rtx 20") || contains_ci(description, "gtx 16") || contains_ci(description, "v100") || contains_ci(description, "titan v"))
         return GSR_NVENC_GEN_TURING;
     if(contains_ci(description, "gtx 10") || contains_ci(description, "p100") || contains_ci(description, "p2000") || contains_ci(description, "p4000") || contains_ci(description, "p5000") || contains_ci(description, "p6000"))
