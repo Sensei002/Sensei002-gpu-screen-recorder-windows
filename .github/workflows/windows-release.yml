@@ -70,6 +70,10 @@ jobs:
       # NOTE: comments must NOT go inside the folded install list below —
       # setup-msys2 passes each line to pacman, so comment words would be
       # treated as package names.
+      # Phase 5b: mingw-w64-x86_64-angleproject installs ANGLE
+      # (libEGL.dll/libGLESv2.dll) so the render pipeline self-test runs
+      # the real GL path headless on WARP in the ctest step (architecture
+      # §3.3 Option B).
       - name: Setup MSYS2 (MINGW64)
         uses: msys2/setup-msys2@v2
         with:
@@ -90,9 +94,6 @@ jobs:
             mingw-w64-x86_64-python-packaging
             mingw-w64-x86_64-curl
             mingw-w64-x86_64-cppwinrt
-            # Phase 5b: ANGLE (libEGL.dll/libGLESv2.dll) so the render
-            # pipeline self-test runs the real GL path headless on WARP
-            # in the ctest step (architecture §3.3 Option B).
             mingw-w64-x86_64-angleproject
             make
             patch
