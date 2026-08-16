@@ -429,6 +429,24 @@ future phases and upstream syncs should assume them:
   (hardware device + `DuplicateOutput` on the primary monitor) is what
   `gsr_platform_capture_backend_available` uses for the DXGI branch, and
   `dxgi-self-test` exercises a REAL capture path on CI when it succeeds.
+* **`DuplicateOutput`'s device parameter is `IUnknown*`** — C has no
+  implicit upcast, so every call site needs an explicit `(IUnknown*)`
+  cast; the first CI build failed with `-Wincompatible-pointer-types` on
+  all three call sites (this is a C-only issue; the C++ WGC backend gets
+  the upcast for free).
+* **`upstream/src/capture/capture.c` (the `gsr_capture_*` vtable
+  wrappers) is not in the Windows build by default** — it must be added
+  to the CMake source list. It is pure C with no X11 deps (only
+  `capture/capture.h` + `<assert.h>`), and the wrappers are the public
+  API the engine and self-tests call (the dxgi-self-test hit undefined
+  references until it was added).
+* **Phase 2 stubs that duplicate upstream wrapper names must be removed
+  when the real wrapper is introduced.** `gsr_utils_win32.c` carried a
+  `gsr_capture_set_hdr_metadata` stub (kept muxer.c linkable before the
+  capture backends existed); once `capture.c` was built the two collided
+  at link time (`multiple definition`). The upstream wrapper dispatches
+  to the backend's `set_hdr_metadata`, which the Phase 5/6 backends
+  implement — strictly better than the always-false stub.
 * **IID lesson (repeat of §3d)**: `IID_IDXGIOutput1` and
   `IID_ID3D11Texture2D` are declared as local GUID constants rather than
   referencing mingw-w64's linkable symbols — the same DXGI IID trap.
