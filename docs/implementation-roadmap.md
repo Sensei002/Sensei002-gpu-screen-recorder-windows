@@ -139,6 +139,26 @@ Tasks:
 
 **CI deliverables:** `test` job green on every push; coverage report artifact.
 
+**Status: COMPLETE.** All tasks delivered and validated green in CI:
+
+- `platform/include/` interface headers (13 total — the 11 above plus
+  `config.h` and `codec_caps.h`), documented with a caller map in
+  `docs/platform-interfaces.md`.
+- `platform/windows/` backends: `gsr_filesystem_win32.c`,
+  `gsr_ipc_protocol.c`, `gsr_config_win32.c`, `gsr_codec_caps_win32.c`,
+  `gsr_display_win32.c`, `gsr_platform_win32.c`; real upstream `muxer.c`
+  added to `gsr_core` (with `gsr_capture_set_hdr_metadata` stub).
+- `tests/platform-test/main.c` (filesystem, IPC codec, config round-trip,
+  codec caps, display/info format) plus the existing ci-smoke and
+  gsr-core-test suites; all green via ctest and on the plain runner.
+- Coverage job: `GSR_ENABLE_COVERAGE` builds with `--coverage`;
+  gcovr runs under the mingw64 python with a Windows-style `--root`,
+  producing a real report artifact — currently **42.3% lines (1382/3270)**.
+- Lessons from the grind (header shadowing, X11/DRM stub headers,
+  `-lpthread`/`-lstdc++`/`-lgcc_s`/`-latomic` static linkage,
+  MSYS-vs-mingw64 python path styles) are in
+  `docs/upstream-porting-notes.md` §3c/§3d.
+
 ---
 
 ## Phase 4 — Monitor / display enumeration
