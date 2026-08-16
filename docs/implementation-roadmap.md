@@ -476,12 +476,41 @@ in `docs/upstream-porting-notes.md` §3i + §3k.
 
 ---
 
-## Phase 9 — Replay
+## Phase 9 — Replay ✅ (complete)
 
-Tasks: replay is already portable; verify end-to-end on Windows:
-RAM + disk buffers, save full/N-seconds, `-restart-replay-on-save`, `-df`,
-`-replay-storage`, crash-safe disk buffer cleanup. Tests: buffer trim,
-keyframe boundaries, save-path naming, temp-file cleanup on crash (simulated).
+The upstream replay machinery (RAM/disk buffers, `gsr_replay_save` clone
+thread, `-restart-replay-on-save`, `-df` naming, `-replay-storage`) was
+already built and portable; this phase verified it end-to-end on Windows
+and closed the one real gap: crash safety. What shipped:
+
+- **End-to-end replay save** in `recorder-self-test`'s replay pass: a real
+  `-r 8 -replay-storage disk` recording (replay mode = `-o` is a
+  directory) saves 2s, FULL, and FULL again mid-recording. Each saved
+  `Replay_*.mkv` is validated (container, h264, duration), and
+  `-restart-replay-on-save` is PROVEN: the post-restart save holds only
+  what was recorded after the restart (FULL=3.9s vs post-restart=1.4s in
+  the green run).
+- **Crash-safe disk buffer cleanup**: a crashed session leaks its
+  timestamped `gsr-replay-<ts>.gsr` session directory (only the clean-exit
+  destroy removed it). `gsr_platform_replay_cleanup_stale_directories`
+  (platform/filesystem) sweeps stale session dirs when the next session's
+  buffer is created (hooked into `gsr_replay_buffer_disk_create` under
+  `#ifdef _WIN32`), never touching the current session or non-matching
+  dirs.
+- **`replay-save-test`** (headless, 327 checks): disk trim via forced file
+  rollover + real time-based removal (old `Replay_N.gsr` gone from disk,
+  surviving file intact), keyframe search across trimmed files + not-found,
+  and the simulated-crash sweep (fabricated stale session dir removed,
+  unrelated dir preserved).
+
+Three real Windows bugs found and fixed along the way (details in
+`docs/upstream-porting-notes.md` §3l): the MinGW CRT's text-mode default
+corrupting binary packet I/O, `remove()` being unable to remove
+ directories on Windows, and `_unlink` failing on open files.
+
+CI green (12/12 ctest incl. `replay-save-test`; recorder replay pass in
+the MSYS2 runs), coverage 52.9%. Lessons in
+`docs/upstream-porting-notes.md` §3l.
 
 ---
 
@@ -614,7 +643,7 @@ release notes, installer + zip published. Acceptance checklist from the brief
 | 6 | DXGI fallback | ✅ complete |
 | 7 | NVIDIA NVENC | ✅ complete (milestone A recorder end-to-end + milestone B d3d11va encode path + honest probe) |
 | 8 | WASAPI audio | ✅ complete (milestone A backend + milestone B listing/session-enum, A/V-sync harness, device-change auto-switch; per-app capture documented unsupported) |
-| 9 | Replay | pending |
+| 9 | Replay | ✅ complete (RAM + disk buffers verified end-to-end: 2s + FULL saves, -restart-replay-on-save proven, -df naming; crash-safe disk buffer cleanup via stale-session sweep; tests: trim, keyframe boundaries, simulated-crash cleanup) |
 | 10 | UI | pending |
 | 11 | Hotkeys/notifications/IPC | pending |
 | 12 | Startup/integration | pending |

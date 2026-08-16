@@ -716,3 +716,59 @@ differences (not fixable, by design):
   silently fail (texture 0 → black frames that "validate"). Same lesson
   as recorder-self-test (§3h): GL is thread-bound, keep it on the thread
   that loaded egl.
+
+## 3l. Phase 9 CI validation lessons (replay save, crash cleanup)
+
+* **The MinGW CRT defaults open/creat/read/write to TEXT mode, and that
+  silently corrupts binary packet I/O.** A text-mode `read()` stops at the
+  first Ctrl-Z (0x1A) byte, and a text-mode `write()` translates '\n' to
+  "\r\n". Real x264 packet data contains 0x1A, so the replay save thread's
+  first read failed ("failed to read data from file") and every save
+  reported failure. `gsr-core-test` never caught it because its synthetic
+  packets use a single-byte fill (0x00-0x04) that contains no 0x1A — the
+  first REAL packet data exposed it. The .gsr files are now opened with
+  `O_BINARY` (`GSR_REPLAY_OPEN_BINARY` in replay_buffer_disk.c, 0 on
+  POSIX where binary is the default). Lesson: any upstream code doing
+  POSIX file I/O on binary data needs `O_BINARY` on this port; text-mode
+  test data can hide it.
+* **POSIX remove() cannot remove a DIRECTORY on Windows.** `_unlink` only
+  removes files, so `gsr_replay_buffer_disk_destroy`'s `remove(session_dir)`
+  silently leaked the session directory after every disk-buffer session
+  (the files were gone, the empty dir stayed). Use `RemoveDirectoryA` on
+  Windows (available everywhere — the compat header force-includes
+  windows.h). `gsr-core-test` missed it because it only checks that the
+  BASE replay directory still exists.
+* **Windows _unlink fails on a file that is still open (sharing
+  violation); POSIX unlink() does not.** `gsr_replay_buffer_disk_clear`
+  removed the files while the current file's write fd was still open, so
+  the current `Replay_N.gsr` leaked and the directory removal then failed
+  too. Close `storage_fd` BEFORE the file loop. This is an upstream
+  ordering assumption that only manifests on Windows.
+* **Crash-safe cleanup is free because session dirs are timestamped.** The
+  disk buffer names each session's dir `gsr-replay-<timestamp>.gsr` and
+  removes it on a clean exit, so any OTHER `gsr-replay-*.gsr` dir in the
+  replay directory is by construction a crashed session's leftover.
+  `gsr_platform_replay_cleanup_stale_directories` sweeps those at the next
+  `gsr_replay_buffer_disk_create` (skipping the current session's name,
+  pattern-guarded so unrelated dirs survive) — the same assumption makes
+  multi-instance-on-one-directory a documented non-goal.
+* **The recorder's keyint setting is in SECONDS, not frames.** x264's
+  keyint = `settings.keyint * fps` (keyint=10 at 10fps produced
+  `keyint=100` = a keyframe every 10s), so a 7s recording had exactly one
+  keyframe and the post-restart save found none. Use `keyint=1.0` for a
+  1s cadence in tests that must always find a keyframe.
+* **Simulating the disk buffer's 256MB rollover in a unit test requires
+  BOTH halves of the real code's behavior**: close `storage_fd` AND reset
+  `storage_num_bytes_written` to 0 (the append path resets it at the
+  boundary). Forgetting the reset leaves the next file's packets indexed
+  from a stale byte offset, so reads return the wrong data or hit EOF.
+* **`gsr_replay_buffer_destroy` frees the buffer struct** (unlike
+  `destroy_at_exit`), so dereferencing `rb->replay_directory` (or any
+  field) after destroy is a use-after-free. Copy paths out before
+  destroying.
+* **Saved replay durations are pts-derived and short on slow runners.**
+  The recorder's pts runs ~1.2s behind wall time during its startup burst
+  on the CI runner, so duration assertions on saved replays must be loose
+  (real content > 0.3s); the robust proof of `-restart-replay-on-save` is
+  the post-restart save being clearly SHORTER than the pre-restart FULL
+  save, not exact durations.
