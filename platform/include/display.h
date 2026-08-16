@@ -56,6 +56,12 @@ int gsr_platform_display_find_monitor(const gsr_platform_monitor *monitors, int 
  * Microsoft/VMware/Parallels/Qualcomm, "Unknown" otherwise). Pure logic. */
 const char *gsr_platform_display_vendor_name(uint32_t vendor_id);
 
+/* Resolves a monitor name (device name "\\\\.\\DISPLAYn" or friendly name,
+ * case-insensitive) to its HMONITOR. Returns NULL when no monitor matches.
+ * This is the Win32 half of find_monitor: the Phase 5/6 capture backends
+ * use it to turn a -w monitor argument into the handle WGC needs. */
+void *gsr_platform_display_find_hmonitor(const char *name);
+
 /* Formats one monitor as the `--list-monitors` line: "name|WxH" using the
  * EFFECTIVE (post-rotation) size, matching upstream's Wayland output
  * (native size stored in the struct; swapped at print time for 90/270).

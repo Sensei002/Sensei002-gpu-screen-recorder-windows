@@ -608,6 +608,58 @@ static void test_display_enumeration(void) {
     free(monitors);
 }
 
+/* ---------------------------------------------- Phase 5 WGC pure logic */
+
+static void test_wgc_helpers(void) {
+    printf("-- wgc capture helpers\n");
+
+    /* Rotation mapping: monitor degrees -> gsr_rotation enum */
+    CHECK(gsr_platform_wgc_rotation_from_monitor(0) == GSR_PLATFORM_WGC_ROT_0);
+    CHECK(gsr_platform_wgc_rotation_from_monitor(90) == GSR_PLATFORM_WGC_ROT_90);
+    CHECK(gsr_platform_wgc_rotation_from_monitor(180) == GSR_PLATFORM_WGC_ROT_180);
+    CHECK(gsr_platform_wgc_rotation_from_monitor(270) == GSR_PLATFORM_WGC_ROT_270);
+    CHECK(gsr_platform_wgc_rotation_from_monitor(45) == GSR_PLATFORM_WGC_ROT_0);
+    CHECK(gsr_platform_wgc_rotation_from_monitor(-90) == GSR_PLATFORM_WGC_ROT_0);
+
+    /* Flip mapping: upstream GSR_FLIP_HORIZONTAL/VERTICAL bits (0/1) */
+    CHECK(gsr_platform_wgc_flip_from_source(0) == GSR_PLATFORM_WGC_FLIP_NONE);
+    CHECK(gsr_platform_wgc_flip_from_source(1u << 0) == GSR_PLATFORM_WGC_FLIP_HORIZONTAL);
+    CHECK(gsr_platform_wgc_flip_from_source(1u << 1) == GSR_PLATFORM_WGC_FLIP_VERTICAL);
+    CHECK(gsr_platform_wgc_flip_from_source((1u << 0) | (1u << 1)) ==
+          (GSR_PLATFORM_WGC_FLIP_HORIZONTAL | GSR_PLATFORM_WGC_FLIP_VERTICAL));
+
+    /* WGC frames are BGRA8 (DXGI_FORMAT_B8G8R8A8_UNORM = 87); anything
+       else is treated as RGB (never hit today). */
+    CHECK(gsr_platform_wgc_source_color_from_pixel_format(87) == GSR_PLATFORM_WGC_SOURCE_BGR);
+    CHECK(gsr_platform_wgc_source_color_from_pixel_format(28) == GSR_PLATFORM_WGC_SOURCE_RGB);
+    CHECK(gsr_platform_wgc_source_color_from_pixel_format(0) == GSR_PLATFORM_WGC_SOURCE_RGB);
+
+    /* Device selection: hardware when available, WARP otherwise (CI has no
+       real GPU, so the WGC backend falls back to WARP there). */
+    CHECK(gsr_platform_wgc_select_device(true) == GSR_PLATFORM_WGC_DEVICE_HARDWARE);
+    CHECK(gsr_platform_wgc_select_device(false) == GSR_PLATFORM_WGC_DEVICE_WARP);
+
+    /* Damage state machine (the recorder's tick/is_damaged/clear_damage/
+       capture contract from recorder.c). */
+    gsr_platform_wgc_damage damage;
+    gsr_platform_wgc_damage_init(&damage);
+    CHECK(!gsr_platform_wgc_damage_is_damaged(&damage));
+
+    gsr_platform_wgc_damage_on_frame(&damage); /* tick() delivered a frame */
+    CHECK(gsr_platform_wgc_damage_is_damaged(&damage));
+
+    gsr_platform_wgc_damage_consume(&damage); /* clear_damage() */
+    CHECK(!gsr_platform_wgc_damage_is_damaged(&damage));
+
+    gsr_platform_wgc_damage_on_frame(&damage); /* next frame arrives */
+    CHECK(gsr_platform_wgc_damage_is_damaged(&damage));
+
+    /* Backend selection is already covered by the Phase 3 checks above
+       (select_backend + backend_name); the WGC runtime probe itself
+       (gsr_platform_capture_backend_available) is exercised by the
+       wgc-self-test binary, which needs a real capture session. */
+}
+
 int main(void) {
     /* Unbuffered stdout: section headers survive a crash for diagnosis. */
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -620,6 +672,7 @@ int main(void) {
     test_display_and_misc();
     test_display_logic();
     test_display_enumeration();
+    test_wgc_helpers();
 
     printf("\n%d checks, %d failures\n", num_checks, num_failures);
     return num_failures == 0 ? 0 : 1;

@@ -11,10 +11,13 @@
 #           upstream static-ffmpeg recipe); located via pkg-config.
 # =============================================================================
 cmake_minimum_required(VERSION 3.25)
-project(gpu_screen_recorder_windows C)
+# Phase 5: the WGC capture backend (gsr_capture_wgc.cpp) is C++/WinRT.
+project(gpu_screen_recorder_windows C CXX)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(NOT MINGW)
     message(FATAL_ERROR
@@ -23,7 +26,9 @@ if(NOT MINGW)
 endif()
 
 # Match upstream compiler flags where meaningful (meson: -Wshadow, warning_level=2).
-add_compile_options(-std=gnu11 -Wshadow -Wall -Wextra)
+# -std=gnu11 is scoped to C: CMAKE_CXX_STANDARD 17 provides -std=gnu++17 for
+# the Phase 5 C++/WinRT backend (a global -std would fight it).
+add_compile_options($<$<COMPILE_LANGUAGE:C>:-std=gnu11> -Wshadow -Wall -Wextra)
 
 # The engine version string (upstream meson passes -DGSR_VERSION="...").
 add_compile_definitions(GSR_VERSION="6.0.0-w1")
@@ -132,6 +137,10 @@ set(GSR_CORE_SOURCES
     platform/windows/gsr_codec_caps_win32.c
     platform/windows/gsr_display_win32.c
     platform/windows/gsr_platform_win32.c
+    # Phase 5: WGC capture backend — pure logic helpers (C, headless-tested)
+    # plus the C++/WinRT backend itself (extern "C" surface in capture.h).
+    platform/windows/gsr_capture_wgc_helpers.c
+    platform/windows/gsr_capture_wgc.cpp
 )
 
 add_library(gsr_core STATIC ${GSR_CORE_SOURCES})
@@ -154,6 +163,9 @@ target_link_libraries(gsr_core PUBLIC
     ole32    # CoTaskMemFree (gsr_platform_get_videos_dir)
     dxgi     # Phase 4 monitor enumeration (CreateDXGIFactory1, IDXGIOutput6)
     shcore   # Phase 4 per-monitor DPI (GetDpiForMonitor)
+    d3d11        # Phase 5 WGC backend (D3D11CreateDevice, ID3D11Texture2D)
+    windowsapp   # Phase 5 WGC backend (RoGetActivationFactory/RoInitialize,
+                 # exported by mingw-w64's libwindowsapp.a)
     # MinGW runtime libs, statically (the executables must run without the
     # MSYS2 runtime DLLs, which the workflow's `test` job relies on):
     #   - winpthreads: MSYS2's gcc 16 dropped the -static-libwinpthread
@@ -191,13 +203,22 @@ target_link_libraries(gsr-core-test PRIVATE gsr_core)
 add_executable(platform-test tests/platform-test/main.c)
 target_link_libraries(platform-test PRIVATE gsr_core)
 
+# Phase 5 WGC capture self-test: runs a real WGC capture of the primary
+# monitor on CI's virtual display and validates the damage/clear/capture
+# contract plus the D3D11 texture. SKIPs (exit 0) when WGC is unavailable
+# in the session; FAILs on any real capture failure. The ANGLE interop
+# probe inside is informational (needs libEGL.dll, only in the MSYS2
+# ctest step).
+add_executable(wgc-self-test tests/wgc-self-test/main.c)
+target_link_libraries(wgc-self-test PRIVATE gsr_core)
+
 # Link the test executables against the static MinGW runtime so they can be
 # re-run by the workflow's `test` job without the MSYS2 environment.
 # -static-libgcc works with the C driver; the C++ runtime (libstdc++.a),
 # winpthread and atomic are already linked statically via the gsr_core
 # PUBLIC link flags above (-static-libstdc++/-static-libwinpthread are
 # driver options that do nothing when linking with cc).
-foreach(target ci-smoke compat-probe gsr-core-test platform-test)
+foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test)
     set_target_properties(${target} PROPERTIES
         LINK_FLAGS "-static-libgcc")
 endforeach()
@@ -206,3 +227,4 @@ enable_testing()
 add_test(NAME ci-smoke COMMAND ci-smoke)
 add_test(NAME gsr-core-test COMMAND gsr-core-test)
 add_test(NAME platform-test COMMAND platform-test)
+add_test(NAME wgc-self-test COMMAND wgc-self-test)

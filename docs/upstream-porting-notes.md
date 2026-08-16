@@ -230,6 +230,63 @@ future phases and upstream syncs should assume them:
   (lowercase a copy for case-insensitivity, mutate the last digit for a
   no-match case) instead of hardcoding the escape sequences.
 
+## 3e. Phase 5 CI validation lessons (WGC capture, C++/WinRT)
+
+* **C++/WinRT is a first-class MSYS2 package** (`mingw-w64-x86_64-cppwinrt`,
+  arch-qualified name — the packages.msys2.org API shows archless names, the
+  pacman repo uses `mingw-w64-x86_64-*`). The projected headers install to
+  `/mingw64/include/winrt` and compile cleanly with g++ (C++17).
+  `project(... C CXX)` + `CMAKE_CXX_STANDARD 17`; the global
+  `-std=gnu11` compile option must be scoped to C with a generator
+  expression (`$<$<COMPILE_LANGUAGE:C>:-std=gnu11>`) or it fights the
+  C++ standard flag.
+* **The desktop-interop interfaces are NOT in the C++/WinRT projection.**
+  `IGraphicsCaptureItemInterop` and `IDirect3DDxgiInterfaceAccess` live in
+  the Windows SDK's `windows.graphics.capture.interop.h` /
+  `windows.graphics.directx.direct3d11.interop.h`, which MinGW-w64 does not
+  ship (and which are not projected by the MSYS2 cppwinrt package). Declare
+  them locally with `__declspec(uuid(...))` using the documented IIDs
+  (verified against Microsoft Learn + the projection headers):
+  `IGraphicsCaptureItemInterop = {3628e81b-3cac-4c60-b7f4-23ce0e0c3356}`,
+  `IDirect3DDxgiInterfaceAccess = {a9b3d012-3df2-4ee3-b8d1-8695f457d3c1}`.
+* **`CreateDirect3D11DeviceFromDXGIDevice` needs no import lib.** It is a
+  free function exported by `Windows.Graphics.DirectX.Direct3D11.dll`;
+  `LoadLibraryW` + `GetProcAddress` avoids the header/import-lib entirely.
+* **WinRT activation links against `libwindowsapp.a`, not runtimeobject.**
+  `RoGetActivationFactory` / `RoInitialize` are exported by mingw-w64's
+  `libwindowsapp.a` (the crt package); `libruntimeobject.a` and
+  `libonecore*.a` also contain the symbol, so add `windowsapp` to the link
+  and keep it there.
+* **The shared C API header needs `extern "C"` guards.** `capture.h` is
+  included by both the pure-C engine/tests and the C++ TU. Without
+  `#ifdef __cplusplus extern "C" { ... }`, the C++ TU sees C++-linkage
+  declarations and references mangled symbols for functions defined as C
+  (the helpers) or with `extern "C"` in the .cpp (the backend).
+* **The recorder calls `clear_damage()` BEFORE `capture()`**
+  (recorder.c `recorder_capture_and_encode_frame`), so a backend's
+  `capture()` must NOT gate on its damage flag — it would drop every frame.
+  `capture()` delivers the latest frame when one exists and returns -1 only
+  when there is none; `is_damaged()`/`clear_damage()` are the recorder's
+  pacing gate. (The first implementation gated capture on the damage state
+  and would have recorded nothing — the self-test caught the contract
+  mismatch before wiring.)
+* **The `-include` compat shim is C++-safe** (has `extern "C"` around the
+  dl* declarations), which is required because CMake force-includes it into
+  every TU including the .cpp.
+* **WGC frame delivery is pull-based, not event-driven.**
+  `Direct3D11CaptureFramePool::TryGetNextFrame` in `tick()` (draining up to
+  N frames and keeping the newest) matches the recorder's tick model with
+  no DispatcherQueue. The session must stay alive while the frame is
+  referenced (WGC reuses pool buffers), so the latest `Direct3D11CaptureFrame`
+  is held in the backend state.
+* **The `--capture-self-test` contract:** `GraphicsCaptureSession::IsSupported()
+  == false` → SKIP/exit 0 (environment-limited, brief §64); a real capture
+  failure → FAIL/exit 1. The runner's virtual display supports WGC capture
+  on CI, so the self-test exercises the full start→frame→texture path when
+  a display is available. The ANGLE interop probe inside is informational
+  (needs `libEGL.dll` from `mingw-w64-x86_64-angleproject`, present in the
+  MSYS2 ctest step but not on the plain runner) and never fails the run.
+
 ## 4. Known behavioral differences (kept up to date per phase)
 
 See `docs/windows-port-parity.md` for the full matrix. Summary of *inherent*

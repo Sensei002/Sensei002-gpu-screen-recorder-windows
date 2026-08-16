@@ -121,6 +121,56 @@ int gsr_platform_info_write_key_value(char *buf, size_t size, const char *key, c
 
 /* ---- DXGI + GetMonitorInfoW enumeration (Phase 4) ------------------------ */
 
+/* EnumDisplayMonitors callback for gsr_platform_display_find_hmonitor. */
+typedef struct {
+    const char *name;   /* requested monitor name (device or friendly) */
+    HMONITOR found;     /* matching HMONITOR, or NULL */
+} find_hmonitor_userdata;
+
+static BOOL CALLBACK find_hmonitor_callback(HMONITOR hmon, HDC hdc, LPRECT rect, LPARAM lp) {
+    (void)hdc;
+    (void)rect;
+    find_hmonitor_userdata *ud = (find_hmonitor_userdata*)lp;
+
+    MONITORINFOEXW mi;
+    memset(&mi, 0, sizeof(mi));
+    mi.cbSize = sizeof(mi);
+    if(!GetMonitorInfoW(hmon, (MONITORINFO*)&mi))
+        return TRUE; /* keep looking */
+
+    char device_name[64];
+    gsr_platform_wide_to_utf8(mi.szDevice, device_name, sizeof(device_name));
+    if(name_equals_ci(device_name, ud->name)) {
+        ud->found = hmon;
+        return FALSE;
+    }
+
+    /* Friendly-name match: second EnumDisplayDevices call, like
+       get_friendly_name, but against this specific HMONITOR's device. */
+    DISPLAY_DEVICEW dd;
+    memset(&dd, 0, sizeof(dd));
+    dd.cb = sizeof(dd);
+    if(EnumDisplayDevicesW(mi.szDevice, 0, &dd, 0)) {
+        char friendly[128];
+        if(gsr_platform_wide_to_utf8(dd.DeviceString, friendly, sizeof(friendly)) && friendly[0] != '\0' && name_equals_ci(friendly, ud->name)) {
+            ud->found = hmon;
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+void *gsr_platform_display_find_hmonitor(const char *name) {
+    if(!name)
+        return NULL;
+
+    find_hmonitor_userdata ud;
+    ud.name = name;
+    ud.found = NULL;
+    EnumDisplayMonitors(NULL, NULL, find_hmonitor_callback, (LPARAM)&ud);
+    return (void*)ud.found;
+}
+
 /* IID_IDXGIOutput6: mingw-w64's libdxgi.a provides the older DXGI IIDs
  * (IID_IDXGIFactory1, ...) as linkable data exports, but not this
  * Win10-era one, so define it locally. Value matches mingw-w64 dxgi1_6.h

@@ -20,7 +20,7 @@ serves), its Windows implementation, and the phase that implements it.
 | `gsr_time.h` | ns-resolution monotonic clock, wall-clock ms | engine `utils.h` clock (seconds only), UI timers | `gsr_platform_win32.c` (QPC) | 3 ✅ |
 | `filesystem.h` | filename sanitization, path join, UTF-8↔UTF-16, Videos dir, save-filepath naming | `recorder/muxer.c` `gsr_create_new_recording_filepath_from_timestamp` (delegated to, not replaced), UI save-dir settings | `gsr_filesystem_win32.c` | 3 ✅ |
 | `display.h` | monitor model + `--list-monitors`/`--info` output format | `cli/commands.c` (`--list-monitors`, `--info` key\|value lines), UI monitor picker | `gsr_display_win32.c` (format + DXGI/GetMonitorInfoW enumeration, Phase 4); `gsr_platform_display_find_monitor` resolves `-w` monitor names for the Phase 5/6 capture backends | 3 ✅ format, 4 ✅ enumeration |
-| `capture.h` | capture backend identity + auto-selection (WGC / DXGI) | engine `gsr_capture` vtable (kept unchanged) — this header is the *selection* layer | `gsr_platform_win32.c` (select/name) now; probes in Phase 5/6 | 3 ✅ logic, 5/6 probes |
+| `capture.h` | capture backend identity + auto-selection (WGC / DXGI) + the WGC backend's C API and pure logic | engine `gsr_capture` vtable (kept unchanged) — this header is the *selection* layer + the WGC backend's extern "C" surface | `gsr_platform_win32.c` (select/name); `gsr_capture_wgc.cpp` (WGC backend, C++/WinRT, extern "C" API) + `gsr_capture_wgc_helpers.c` (pure logic) | 3 ✅ logic, 5 ✅ WGC backend + self-test, 6 probes |
 | `audio.h` | WASAPI endpoint model + `--list-audio-devices` line format | engine `sound.h` `sound_device_*` (kept unchanged) — this header is the *enumeration* layer | `gsr_platform_win32.c` (line format) now; enumeration in `audio_wasapi.c` | 3 ✅ format, 8 enumeration |
 | `hotkeys.h` | global hotkey registration | UI `GlobalHotkeys/*` (X11/joystick) | `hotkeys.c` (RegisterHotKey) | 11 |
 | `ipc.h` | IPC protocol codec + named-pipe transport | engine `cli/ipc.c` (Unix socket), `cli/commands.c` request handling, `tools/gsr-cli` | `gsr_ipc_protocol.c` (codec, byte-identical wire format) now; pipe transport in `ipc.c` | 3 ✅ codec, 11 transport |
@@ -35,7 +35,7 @@ serves), its Windows implementation, and the phase that implements it.
 
 | Upstream surface | Windows plan |
 |---|---|
-| `src/capture/*` (portal, xcomposite, ximage, kms, nvfbc, v4l2) | `gsr_capture` vtable unchanged; backends are `capture.h`-selected WGC (Phase 5) / DXGI duplication (Phase 6) |
+| `src/capture/*` (portal, xcomposite, ximage, kms, nvfbc, v4l2) | `gsr_capture` vtable unchanged; backends are `capture.h`-selected WGC (Phase 5, shipped: `gsr_capture_wgc.cpp`) / DXGI duplication (Phase 6) |
 | `src/codec_query/vaapi.c`, `vulkan.c` | dropped (NVIDIA-only scope); `codec_caps.h` decides from the `gsr_supported_video_codecs` probe |
 | `src/sound.c`, `src/pipewire_audio.c` | `sound.h` interface unchanged; WASAPI backend (Phase 8) + `audio.h` enumeration |
 | `src/cli/ipc.c`, `tools/gsr-cli` | `ipc.h` codec (byte-identical JSON) + named-pipe transport (Phase 11) |

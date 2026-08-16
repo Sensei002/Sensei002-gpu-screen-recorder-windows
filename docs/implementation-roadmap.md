@@ -212,25 +212,39 @@ live in the same file):
 
 **Goal:** real monitor + window capture via WGC, feeding the encoder pipeline.
 
+**Status: backend + self-test SHIPPED and CI-green; render path + cursor
+land in the next capture increment (Phase 5b / Phase 6 work).** See
+`docs/upstream-porting-notes.md` §3e for the CI lessons.
+
 Tasks:
 
-1. D3D11 device + WGC `GraphicsCaptureSession` for monitor items and window
-   items; cursor capture via WGC cursor APIs.
-2. Render/encode pipeline decision (architecture §3.3):
-   - Option A spike: D3D11 texture → FFmpeg d3d11va hwframe → nvenc.
-   - Option B spike: GL-on-Windows (EGL/WGL) with imported textures.
-   - Choose, document, and implement the color-conversion path accordingly.
-3. `gsr_capture_windows_graphics_capture.c` implements the `gsr_capture`
-   vtable (start/capture/tick/should_stop/is_damaged/set_hdr_metadata/...).
-4. Frame pacing + damage semantics: WGC delivers frames as the desktop
-   changes; map to the recorder's damage/fps model (VFR default stays).
-5. Device loss / resolution change: detect and recreate capture session;
-   recorder `should_stop` on unrecoverable failure (no crash).
-6. CI: compile the full production capture code (WGC/D3D11) on the runner;
-   unit-test the pure logic (metadata, rotation, damage flags). Physical
-   capture validation is documented as a hardware-limited item (brief §64) —
-   provide a `--capture-self-test` mode that CI can run where a display is
-   available, and manual validation instructions for real hardware.
+1. ✅ D3D11 device + WGC `GraphicsCaptureSession` for monitor items (window
+   items use the same `CreateForWindow` interop path — implemented, not yet
+   exercised on CI); cursor capture via WGC cursor APIs (pending — the
+   `IsCursorCaptureEnabled(false)` opt-out is wired, the default-on path
+   needs no code).
+2. ✅ Render/encode pipeline decision (architecture §3.3): **Option B — GL
+   via ANGLE** (user-approved spike decision): ANGLE's
+   `EGL_ANGLE_d3d_texture_client_buffer` imports the WGC D3D11 texture into
+   a GL context on the SAME D3D11 device (`EGL_ANGLE_device_d3d`) —
+   zero-copy, and the upstream color-conversion pipeline stays unchanged.
+   The self-test probes the import on CI where ANGLE is present.
+3. ✅ `gsr_capture_wgc.cpp` implements the `gsr_capture` vtable
+   (start/tick/should_stop/capture/is_damaged/clear_damage/set_hdr_metadata
+   /uses_external_image/destroy); C API in `platform/include/capture.h`;
+   pure logic headless-tested in `gsr_capture_wgc_helpers.c`.
+4. ✅ Frame pacing + damage semantics: WGC delivers frames as the desktop
+   changes; `tick()` drains the pool (TryGetNextFrame, newest frame wins)
+   into the recorder's damage/clear/capture model.
+5. 🔲 Device loss / resolution change: `GetDeviceRemovedReason` is checked
+   in tick (hard stop on removal); session recreation on mode change is
+   pending.
+6. ✅ CI: full production capture code (WGC/D3D11/C++/WinRT) compiles on the
+   runner; pure logic unit-tested headless; `wgc-self-test` binary runs a
+   real WGC capture of the primary monitor where a display exists and
+   SKIPs (exit 0) where it doesn't; the ANGLE import probe runs
+   informationally in the ctest step. Manual validation instructions for
+   real hardware: see the self-test's output contract.
 
 **CI deliverables:** full production build includes WGC; `test` job green.
 

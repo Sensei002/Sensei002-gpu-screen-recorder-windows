@@ -105,9 +105,9 @@ CaptureBackend (gsr_capture)
 
 ### 3.3 Rendering / encode path decision
 
-Two candidate pipelines; **the decision is made in Phase 5 after a CI spike**:
+**DECIDED (Phase 5 spike, user-approved): Option B — GL via ANGLE.**
 
-* **Option A (preferred): D3D11-native.** WGC/DXGI → D3D11 texture →
+* **Option A (rejected): D3D11-native.** WGC/DXGI → D3D11 texture →
   FFmpeg `d3d11va` hwframe (`av_hwframe_ctx` with `AV_HWDEVICE_TYPE_D3D11VA`)
   → `h264_nvenc` / `hevc_nvenc` / `av1_nvenc` / `libx264`. Color conversion and
   scaling are done with D3D11 shaders (re-implement `color_conversion.c`
@@ -116,11 +116,20 @@ Two candidate pipelines; **the decision is made in Phase 5 after a CI spike**:
   "GPU-only" pipeline. Plugin rendering (upstream draws with GL) is the main
   casualty: plugins get a D3D11 rendering context via the same plugin.h ABI,
   or GL is kept only for plugins (§3.4).
-* **Option B: GL-on-Windows.** Provide an EGL/WGL backend so upstream's
-  `egl.c`/`shader.c`/`color_conversion.c`/`plugins.c` run unchanged; import
-  D3D11 capture textures into GL via `EGL_KHR_platform_d3d11`/ANGLE or copy
-  via staging. Lower porting effort for the render path, higher risk of
-  texture-sharing overhead and ANGLE dependency.
+* **Option B (chosen): GL-on-Windows via ANGLE.** Provide an EGL backend via
+  ANGLE so upstream's `egl.c`/`shader.c`/`color_conversion.c`/`plugins.c`
+  run unchanged; import WGC's D3D11 capture textures into GL with
+  `EGL_ANGLE_d3d_texture_client_buffer` + `EGL_ANGLE_device_d3d`, running
+  ANGLE on the SAME D3D11 device WGC uses — zero-copy, no staging copy.
+  Rationale (Phase 5 spike): (a) the entire upstream color-conversion and
+  plugin render path stays byte-for-byte identical — the lowest-risk path to
+  parity; (b) `mingw-w64-x86_64-angleproject` is a first-class MSYS2
+  package, so the dependency is CI-installable; (c) the extension spec
+  (chromium.googlesource.com/angle/...) confirms `eglCreateImageKHR` with
+  target `EGL_D3D_TEXTURE_ANGLE` wraps a D3D11 texture as a `GL_TEXTURE_2D`
+  sibling with no copy when the display shares the device. Trade-offs
+  accepted: ANGLE runtime dependency (bundled with the installer) and the
+  D3D11/GL interop layer is ANGLE-specific.
 
 Either way the encoder input is an `AVFrame` in a hardware pixel format; the
 existing `gsr_video_encoder` interface is preserved.

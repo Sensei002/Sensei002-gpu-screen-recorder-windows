@@ -80,11 +80,9 @@ gsr_capture_backend_type gsr_platform_capture_select_backend(bool wgc_supported,
     return GSR_CAPTURE_BACKEND_WGC;
 }
 
-bool gsr_platform_capture_backend_available(gsr_capture_backend_type backend) {
-    /* Runtime probes implemented in Phase 5 (WGC) / Phase 6 (DXGI). */
-    (void)backend;
-    return false;
-}
+/* gsr_platform_capture_backend_available is implemented in the Phase 5
+   WGC backend (gsr_capture_wgc.cpp, extern "C") and will gain the DXGI
+   Desktop Duplication probe in Phase 6. */
 
 /* ---- audio device line (pure formatter; enumeration is Phase 8) ---------- */
 

@@ -89,6 +89,7 @@ jobs:
             mingw-w64-x86_64-python-pygments
             mingw-w64-x86_64-python-packaging
             mingw-w64-x86_64-curl
+            mingw-w64-x86_64-cppwinrt
             make
             patch
 
@@ -159,6 +160,8 @@ jobs:
           .\build\cmake\gsr-core-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\cmake\platform-test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\cmake\wgc-self-test.exe
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -169,6 +172,7 @@ jobs:
             build/cmake/compat-probe.exe
             build/cmake/gsr-core-test.exe
             build/cmake/platform-test.exe
+            build/cmake/wgc-self-test.exe
           if-no-files-found: error
 
       # ---------------------------------------------------------------------
@@ -250,6 +254,8 @@ jobs:
           .\build\bin\gsr-core-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\bin\platform-test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\bin\wgc-self-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\bin\ci-smoke.exe
 
