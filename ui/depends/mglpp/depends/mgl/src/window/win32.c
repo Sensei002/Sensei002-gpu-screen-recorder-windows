@@ -694,6 +694,9 @@ static void mgl_window_win32_deinit(mgl_window *self) {
 
     mgl_graphics_deinit(&impl->graphics);
 
+    if(mgl_get_context()->current_window == self)
+        mgl_get_context()->current_window = NULL;
+
     if(impl->subclassed && impl->window && IsWindow(impl->window)) {
         SetWindowLongPtrW(impl->window, GWLP_WNDPROC, (LONG_PTR)impl->prev_wnd_proc);
         SetWindowLongPtrW(impl->window, GWLP_USERDATA, 0);
@@ -1119,6 +1122,7 @@ bool mgl_window_win32_init(mgl_window *self, const char *title, const mgl_window
         mgl_window_win32_deinit(self);
         return false;
     }
+    mgl_get_context()->current_window = self;
     return true;
 }
 

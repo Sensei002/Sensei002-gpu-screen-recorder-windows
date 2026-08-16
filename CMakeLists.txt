@@ -106,6 +106,33 @@ endforeach()
 set(GSR_FFMPEG_LIBS_FLAGS_LIST ${GSR_FFMPEG_LIBS_FLAGS_FILTERED})
 
 # ---------------------------------------------------------------------------
+# pangoft2 for the mgl text pipeline (Phase 10 milestone B): text.c,
+# text_edit.c and font_atlas.c rasterize glyphs through pango + fontconfig +
+# freetype, exactly as on Linux (no platform divergence in shaping or
+# layout). MSYS2 ships these as shared DLLs, so the mgl test executables
+# bundle them next to the exe (workflow ldd step) — the eventual installer
+# bundles them too (Phase 13/17).
+# ---------------------------------------------------------------------------
+execute_process(
+    COMMAND ${PKG_CONFIG_EXECUTABLE} --cflags pangoft2
+    OUTPUT_VARIABLE MGL_PANGO_CFLAGS
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE MGL_PANGO_PKG_RESULT)
+if(NOT MGL_PANGO_PKG_RESULT EQUAL 0)
+    message(FATAL_ERROR
+        "pkg-config could not find pangoft2. Install mingw-w64-x86_64-pango "
+        "(pulls fontconfig/freetype/glib2/harfbuzz) in the MSYS2 MINGW64 "
+        "environment.")
+endif()
+execute_process(
+    COMMAND ${PKG_CONFIG_EXECUTABLE} --libs pangoft2
+    OUTPUT_VARIABLE MGL_PANGO_LIBS_FLAGS
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+separate_arguments(MGL_PANGO_CFLAGS_LIST UNIX_COMMAND "${MGL_PANGO_CFLAGS}")
+separate_arguments(MGL_PANGO_LIBS_FLAGS_LIST UNIX_COMMAND "${MGL_PANGO_LIBS_FLAGS}")
+
+# ---------------------------------------------------------------------------
 # gsr_core — the portable engine core (upstream sources + Windows shims).
 # ---------------------------------------------------------------------------
 set(GSR_CORE_SOURCES
@@ -323,16 +350,19 @@ target_link_libraries(replay-save-test PRIVATE gsr_core)
 
 # ---------------------------------------------------------------------------
 # mgl_core — the vendored upstream UI rendering library (ui/depends/mglpp/
-# depends/mgl), compiled for Win32 with the new Win32 window backend and the
-# WGL graphics backend (Phase 10 milestone A). The pango text pipeline
-# (font_atlas.c/text.c/text_edit.c) is excluded for now behind the MGL_NO_TEXT
-# seam and lands with the milestone that needs it (see
-# docs/upstream-porting-notes.md §3m). WGL + opengl32.dll needs no extra
-# packages, and CI's GDI Generic software GL covers the headless smoke test.
+# depends/mgl), compiled for Win32 with the new Win32 window backend, the
+# WGL graphics backend (Phase 10 milestone A) and the pango text pipeline
+# (Phase 10 milestone B: font_atlas.c/text.c/text_edit.c rasterize glyphs
+# through pangoft2 + fontconfig + freetype, exactly as on Linux). WGL +
+# opengl32.dll needs no extra packages; pango comes from MSYS2 as shared
+# DLLs (bundled next to the test exes by the workflow). CI's GDI Generic
+# software GL (GL 1.1) covers the headless smoke test — the text pipeline
+# uses only GL 1.1 (client arrays, no VBOs).
 # ---------------------------------------------------------------------------
 set(MGL_CORE_SOURCES
     ui/depends/mglpp/depends/mgl/src/graphics/backend/graphics.c
     ui/depends/mglpp/depends/mgl/src/graphics/backend/wgl.c
+    ui/depends/mglpp/depends/mgl/src/graphics/font_atlas.c
     ui/depends/mglpp/depends/mgl/src/graphics/glyph_map.c
     ui/depends/mglpp/depends/mgl/src/graphics/image.c
     ui/depends/mglpp/depends/mgl/src/graphics/primitive_type.c
@@ -340,6 +370,8 @@ set(MGL_CORE_SOURCES
     ui/depends/mglpp/depends/mgl/src/graphics/rectangle.c
     ui/depends/mglpp/depends/mgl/src/graphics/shader.c
     ui/depends/mglpp/depends/mgl/src/graphics/sprite.c
+    ui/depends/mglpp/depends/mgl/src/graphics/text.c
+    ui/depends/mglpp/depends/mgl/src/graphics/text_edit.c
     ui/depends/mglpp/depends/mgl/src/graphics/texture.c
     ui/depends/mglpp/depends/mgl/src/graphics/vertex.c
     ui/depends/mglpp/depends/mgl/src/graphics/vertex_buffer.c
@@ -354,8 +386,8 @@ set(MGL_CORE_SOURCES
 )
 add_library(mgl_core STATIC ${MGL_CORE_SOURCES})
 target_include_directories(mgl_core PUBLIC ${CMAKE_SOURCE_DIR}/ui/depends/mglpp/depends/mgl/include)
-target_compile_definitions(mgl_core PUBLIC MGL_NO_TEXT)
-target_link_libraries(mgl_core PUBLIC opengl32 user32 gdi32)
+target_compile_options(mgl_core PRIVATE ${MGL_PANGO_CFLAGS_LIST})
+target_link_libraries(mgl_core PUBLIC opengl32 user32 gdi32 ${MGL_PANGO_LIBS_FLAGS_LIST})
 
 # Phase 10 (milestone A) mgl Win32 backend smoke test: window creation
 # (hidden), WGL context + GL sanity, input events (key/char/mouse/wheel via

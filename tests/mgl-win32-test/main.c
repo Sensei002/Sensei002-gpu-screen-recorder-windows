@@ -27,6 +27,8 @@
 #include <mgl/mgl.h>
 #include <mgl/window/window.h>
 #include <mgl/window/event.h>
+#include <mgl/graphics/text.h>
+#include <mgl/graphics/font_atlas.h>
 
 static int checks = 0;
 static int failures = 0;
@@ -126,6 +128,78 @@ int main(void) {
        sharing integration is a later milestone). */
     CHECK(mgl_window_get_egl_display(&window) == NULL);
     CHECK(mgl_window_get_egl_context(&window) == NULL);
+
+    /* ---- text pipeline (Phase 10 milestone B) ---------------------------- */
+    /* The default UI font must resolve without GSettings on Windows. */
+    char default_font[64];
+    CHECK(mgl_text_get_default_font_name(default_font, sizeof(default_font)));
+    CHECK(strlen(default_font) > 0);
+    fprintf(stderr, "default font: %s\n", default_font);
+
+    mgl_text text;
+    mgl_text_init(&text, "Hello mgl text", -1, "Sans 16");
+    CHECK(mgl_text_get_string(&text, NULL) != NULL);
+    CHECK(mgl_text_get_font_size(&text) > 0);
+
+    mgl_vec2i text_size = mgl_text_get_size(&text);
+    CHECK(text_size.x > 0);
+    CHECK(text_size.y > 0);
+    fprintf(stderr, "text size: %dx%d\n", text_size.x, text_size.y);
+
+    /* Wrapping + max rows (ellipsis). */
+    mgl_text_set_wrap_width(&text, 100);
+    mgl_text_set_max_rows(&text, 2);
+    mgl_text_set_wrap_width(&text, 0);
+    mgl_text_set_max_rows(&text, 0);
+
+    /* Caret/position lookups. */
+    mgl_vec2f char_pos = mgl_text_find_character_pos(&text, 2);
+    CHECK(char_pos.x >= 0.0f);
+    mgl_index_codepoint_pair caret =
+        mgl_text_find_closest_caret_index_by_position(&text, (mgl_vec2f){ 4.0f, 4.0f });
+    CHECK(caret.byte_index >= 0);
+    CHECK(caret.codepoint_index >= 0);
+
+    /* Copy + string set. */
+    mgl_text text_copy;
+    mgl_text_copy(&text, &text_copy);
+    CHECK(mgl_text_get_size(&text_copy).x > 0);
+    mgl_text_set_string(&text, "short");
+    int text_len = 0;
+    const char *str = mgl_text_get_string(&text, &text_len);
+    CHECK(text_len == 5);
+    CHECK(strcmp(str, "short") == 0);
+
+    /* Draw: rasterizes glyphs into the font atlas (freetype via pangoft2)
+       and draws the quads through the GL 1.1 batch — the full path. */
+    mgl_text_set_string(&text, "Hello mgl text", -1);
+    mgl_text_set_position(&text, (mgl_vec2f){ 8.0f, 8.0f });
+    mgl_text_set_color(&text, (mgl_color){ 255, 255, 255, 255 });
+    mgl_text_draw(&text);
+
+    const mgl_font_atlas *atlas =
+        mgl_text_renderer_get_atlas(mgl_get_text_renderer());
+    CHECK(atlas->cache.count > 0);
+    fprintf(stderr, "atlas glyphs: %u\n", atlas->cache.count);
+
+    /* Second draw reuses the cached glyphs (no new atlas entries needed
+       for the same string). */
+    const uint32_t glyphs_after_first_draw = atlas->cache.count;
+    mgl_text_draw(&text);
+    CHECK(atlas->cache.count == glyphs_after_first_draw);
+
+    /* Mixed-script text exercises font fallback (e.g. Yu Gothic for the
+       CJK glyphs when fontconfig finds it). Informational only — the CI
+       runner's font set is not guaranteed to include a CJK face. */
+    mgl_text fallback_text;
+    mgl_text_init(&fallback_text, "Hello 世界", -1, "Sans 14");
+    CHECK(mgl_text_get_size(&fallback_text).x > 0);
+    mgl_text_draw(&fallback_text);
+    fprintf(stderr, "fallback atlas glyphs: %u\n", atlas->cache.count);
+    mgl_text_deinit(&fallback_text);
+
+    mgl_text_deinit(&text_copy);
+    mgl_text_deinit(&text);
 
     /* ---- title ----------------------------------------------------------- */
     mgl_window_set_title(&window, "renamed");

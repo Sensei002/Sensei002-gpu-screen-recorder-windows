@@ -6,6 +6,7 @@
 #include <gio/gio.h>
 #include <assert.h>
 #include <math.h>
+#include <string.h>
 
 #define SCREEN_DPI 96.0
 
@@ -189,6 +190,16 @@ bool mgl_text_get_default_font_name(char *font_name_buffer, size_t len) {
         return false;
     font_name_buffer[0] = '\0';
 
+#ifdef _WIN32
+    /* No GSettings/GNOME on Windows; the Windows UI default is Segoe UI.
+       The UI's Theme.cpp falls back to this when no font is configured. */
+    const char *default_font = "Segoe UI";
+    if(len > strlen(default_font)) {
+        strcpy(font_name_buffer, default_font);
+        return true;
+    }
+    return false;
+#else
     GSettingsSchemaSource *schema_source = g_settings_schema_source_get_default();
     if(!schema_source)
         return false;
@@ -224,6 +235,7 @@ bool mgl_text_get_default_font_name(char *font_name_buffer, size_t len) {
 
     g_object_unref(settings);
     return true;
+#endif
 }
 
 /* Set text_len to -1 to automatically calculate the length of the text */

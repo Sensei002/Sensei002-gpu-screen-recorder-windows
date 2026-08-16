@@ -95,6 +95,10 @@ jobs:
             mingw-w64-x86_64-curl
             mingw-w64-x86_64-cppwinrt
             mingw-w64-x86_64-angleproject
+            mingw-w64-x86_64-pango
+            mingw-w64-x86_64-fontconfig
+            mingw-w64-x86_64-freetype
+            mingw-w64-x86_64-glib2
             make
             patch
 
@@ -156,9 +160,29 @@ jobs:
         shell: msys2 {0}
         run: cmake --build build/cmake --parallel
 
+      # Bundle the pango/fontconfig/freetype/glib DLLs next to the mgl test
+      # binary so the direct runs (plain runner) and the `test` job find
+      # them without MSYS2 — same DLLs the installer will bundle (Phase
+      # 13/17).
+      - name: Bundle pango DLLs next to mgl test binaries
+        shell: msys2 {0}
+        run: |
+          for exe in build/cmake/mgl-win32-test.exe; do
+            for dll in $(ldd "$exe" 2>/dev/null | awk '{print $3}' | grep '^/mingw64/bin/'); do
+              cp -n "$dll" "$(dirname "$exe")/" 2>/dev/null || true
+            done
+          done
+          ls build/cmake/*.dll 2>/dev/null || echo "no dlls to bundle"
+
+      # FONTCONFIG_PATH: MSYS2's fontconfig has the package-builder's
+      # sysconfdir (C:\msys64\etc\fonts) baked in, which doesn't exist on
+      # the runner; tests/fonts.conf points fontconfig at C:/Windows/Fonts
+      # so the mgl text pipeline (Phase 10 milestone B) finds real fonts.
       - name: Run unit tests (ctest)
         shell: msys2 {0}
-        run: ctest --test-dir build/cmake --output-on-failure
+        run: |
+          export FONTCONFIG_PATH="$(cygpath -m "$PWD/tests")"
+          ctest --test-dir build/cmake --output-on-failure
 
       # Phase 5b: run the render pipeline self-test inside the MSYS2 shell so
       # ANGLE (libEGL.dll on /mingw64/bin PATH) is found and the full
@@ -168,11 +192,13 @@ jobs:
         shell: msys2 {0}
         run: ./build/cmake/render-self-test.exe
 
-      # Run the test binaries directly as well: the static-linked executables
-      # run on any Windows system, which is what the `test` job relies on.
+      # Run the test binaries directly as well: the executables run on any
+      # Windows system, which is what the `test` job relies on (the mgl
+      # binaries bundle their pango DLLs next to the exe).
       - name: Run tests directly (static-linked binaries)
         shell: pwsh
         run: |
+          $env:FONTCONFIG_PATH = "$PWD\tests"
           .\build\cmake\ci-smoke.exe
           .\build\cmake\compat-probe.exe
           .\build\cmake\gsr-core-test.exe
@@ -236,6 +262,7 @@ jobs:
             build/cmake/replay-save-test.exe
             build/cmake/mgl-win32-test.exe
             build/cmake/recorder-self-test-output.mkv
+            build/cmake/*.dll
           if-no-files-found: error
 
       # ---------------------------------------------------------------------
@@ -268,7 +295,9 @@ jobs:
 
       - name: Run tests (coverage)
         shell: msys2 {0}
-        run: ctest --test-dir build/coverage --output-on-failure
+        run: |
+          export FONTCONFIG_PATH="$(cygpath -m "$PWD/tests")"
+          ctest --test-dir build/coverage --output-on-failure
 
       - name: Generate coverage report
         shell: msys2 {0}
@@ -312,6 +341,7 @@ jobs:
       - name: Run unit tests
         shell: pwsh
         run: |
+          $env:FONTCONFIG_PATH = "$PWD\tests"
           .\build\bin\compat-probe.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\bin\gsr-core-test.exe
