@@ -9,7 +9,7 @@
 
    Phase 5b also adds the ANGLE-on-D3D11 pieces: the EGL_ANGLE_* platform
    constants used by gsr_egl_load_win32() (platform/windows/gsr_egl_win32.c),
-   EGL_D3D_TEXTURE_ANGLE for the zero-copy WGC texture import
+   EGL_D3D11_TEXTURE_ANGLE for the zero-copy WGC texture import
    (EGL_ANGLE_d3d_texture_client_buffer), and the Windows-only gsr_egl fields
    that hold the shared D3D11 device/context and the ANGLE EGLDeviceEXT. */
 #if defined(_WIN32)

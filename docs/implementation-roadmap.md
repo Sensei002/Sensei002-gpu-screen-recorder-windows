@@ -280,8 +280,11 @@ Tasks:
    import requirement).
 3. ✅ Texture import: `gsr_platform_egl_import_texture()` / `_update_texture()`
    / `_texture_id()` / `_destroy_imported_texture()` wrap
-   `eglCreateImage(EGL_D3D_TEXTURE_ANGLE)` + `glEGLImageTargetTexture2DOES`
-   with a stable GL texture id (per-frame rebind, no per-frame GL objects).
+   `eglCreateImage(EGL_D3D11_TEXTURE_ANGLE)` + `glEGLImageTargetTexture2DOES`
+   (target 0x3484 — the 0x33A3 client-buffer type is rejected as an image
+   target; see §3f) with a stable GL texture id (per-frame rebind, no
+   per-frame GL objects), plus explicit GL_LINEAR sampler state so the
+   mip-less image texture is complete and does not sample black.
 4. ✅ WGC integration: `wgc_capture()` imports the latest frame and calls
    `gsr_color_conversion_draw` with `GSR_SOURCE_COLOR_BGR` and
    `external_texture=false` — the ANGLE client-buffer image is a

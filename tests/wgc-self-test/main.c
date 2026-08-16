@@ -41,7 +41,7 @@ static int num_failures = 0;
 
 /* ---- ANGLE interop probe (informational) ---------------------------------
  * Passes the WGC D3D11 texture (not the device) as the EGL client buffer:
- * eglCreateImageKHR(display, EGL_NO_CONTEXT, EGL_D3D_TEXTURE_ANGLE,
+ * eglCreateImageKHR(display, EGL_NO_CONTEXT, EGL_D3D11_TEXTURE_ANGLE,
  * (EGLClientBuffer)texture, ...) is the zero-copy import from
  * EGL_ANGLE_d3d_texture_client_buffer. */
 

@@ -359,6 +359,14 @@ future phases and upstream syncs should assume them:
   `EGL_ANGLE_d3d_texture_client_buffer` and `EGL_ANGLE_image_d3d11_texture`
   are advertised. Same stale-constant trap as `EGL_D3D11_DEVICE_ANGLE`
   above: read the shipped `eglext_angle.h` before writing extension code.
+* **Imported textures sample BLACK until sampler state is set.** A freshly
+  generated GL texture defaults to `GL_TEXTURE_MIN_FILTER =
+  NEAREST_MIPMAP_LINEAR`, and a mip-less EGL-image texture with that
+  filter is INCOMPLETE — every sample returns (0,0,0) with no GL error
+  (the draw "succeeds"). The import helper sets `GL_LINEAR`/`GL_LINEAR`
+  + `GL_CLAMP_TO_EDGE`, matching upstream's kms.c convention for input
+  textures. Symptom on CI: the render-self-test passed the import check
+  but every readback pixel was black.
 * **ANGLE's GL_VENDOR is "Google Inc. (…GPU vendor…)"** — upstream's
   `gl_get_gpu_info` string checks still work on real GPUs, but on a
   software adapter (WARP / Microsoft Basic Render Driver, DXGI vendor

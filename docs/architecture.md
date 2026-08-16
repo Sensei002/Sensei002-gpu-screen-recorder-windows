@@ -126,7 +126,7 @@ CaptureBackend (gsr_capture)
   parity; (b) `mingw-w64-x86_64-angleproject` is a first-class MSYS2
   package, so the dependency is CI-installable; (c) the extension spec
   (chromium.googlesource.com/angle/...) confirms `eglCreateImageKHR` with
-  target `EGL_D3D_TEXTURE_ANGLE` wraps a D3D11 texture as a `GL_TEXTURE_2D`
+  target `EGL_D3D11_TEXTURE_ANGLE` wraps a D3D11 texture as a `GL_TEXTURE_2D`
   sibling with no copy when the display shares the device. Trade-offs
   accepted: ANGLE runtime dependency (bundled with the installer) and the
   D3D11/GL interop layer is ANGLE-specific.
@@ -134,7 +134,7 @@ CaptureBackend (gsr_capture)
 **Validation status (Phase 5b, 2026-08-16):** the ANGLE render backend is
 SHIPPED and CI-green. `gsr_egl_load` on Windows runs ANGLE on a shared
 D3D11 device (hardware → WARP) with a surfaceless ES3 context; the WGC
-backend imports its D3D11 texture with `EGL_D3D_TEXTURE_ANGLE` and draws
+backend imports its D3D11 texture with `EGL_D3D11_TEXTURE_ANGLE` and draws
 through the unchanged upstream `gsr_color_conversion`. `render-self-test`
 validates the full path headless on WARP (synthetic texture → import →
 draw → readback; BGR swizzle, orientation, rotation). End-to-end
