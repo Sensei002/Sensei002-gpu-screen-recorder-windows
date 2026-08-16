@@ -240,11 +240,14 @@ Tasks:
    in tick (hard stop on removal); session recreation on mode change is
    pending.
 6. ✅ CI: full production capture code (WGC/D3D11/C++/WinRT) compiles on the
-   runner; pure logic unit-tested headless; `wgc-self-test` binary runs a
-   real WGC capture of the primary monitor where a display exists and
-   SKIPs (exit 0) where it doesn't; the ANGLE import probe runs
-   informationally in the ctest step. Manual validation instructions for
-   real hardware: see the self-test's output contract.
+   runner; pure logic unit-tested headless; `wgc-self-test` binary SKIPs
+   (exit 0) on CI because the GitHub Actions runner is a **Server SKU** —
+   `IsSupported()` is true but `Windows.Graphics.DirectX.Direct3D11.dll`
+   (the interop runtime) is absent from System32, so the availability
+   probe fails and the self-test reports environment-limited rather than
+   failing. The ANGLE import probe runs informationally in the ctest step.
+   **End-to-end WGC capture is validated MANUALLY on a Win10/11 desktop**
+   (see the self-test's output contract / brief §64).
 
 **CI deliverables:** full production build includes WGC; `test` job green.
 

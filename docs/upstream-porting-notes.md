@@ -284,11 +284,21 @@ future phases and upstream syncs should assume them:
   is held in the backend state.
 * **The `--capture-self-test` contract:** `GraphicsCaptureSession::IsSupported()
   == false` → SKIP/exit 0 (environment-limited, brief §64); a real capture
-  failure → FAIL/exit 1. The runner's virtual display supports WGC capture
-  on CI, so the self-test exercises the full start→frame→texture path when
-  a display is available. The ANGLE interop probe inside is informational
+  failure → FAIL/exit 1. The ANGLE interop probe inside is informational
   (needs `libEGL.dll` from `mingw-w64-x86_64-angleproject`, present in the
   MSYS2 ctest step but not on the plain runner) and never fails the run.
+* **`IsSupported()` is NOT sufficient — the interop runtime must be
+  probed too.** On GitHub Actions runners (Windows Server SKU),
+  `GraphicsCaptureSession::IsSupported()` returns **true** while
+  `Windows.Graphics.DirectX.Direct3D11.dll` is **absent from System32**
+  (`GetLastError 0x2`, file ABSENT) — the client-only interop component
+  isn't shipped on Server. `gsr_platform_capture_backend_available()`
+  therefore ANDs the session check with a probe that actually loads the
+  DLL (plain name, then the full System32 path, logging the failure
+  reason), and the self-test SKIPs cleanly in that case. End-to-end WGC
+  capture (start → frame → texture) is validated MANUALLY on a
+  Win10/11 desktop; CI covers compile, pure logic, and the graceful-SKIP
+  path.
 
 ## 4. Known behavioral differences (kept up to date per phase)
 
