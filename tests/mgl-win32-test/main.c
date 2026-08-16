@@ -164,7 +164,7 @@ int main(void) {
     mgl_text text_copy;
     mgl_text_copy(&text, &text_copy);
     CHECK(mgl_text_get_size(&text_copy).x > 0);
-    mgl_text_set_string(&text, "short");
+    mgl_text_set_string(&text, "short", -1);
     int text_len = 0;
     const char *str = mgl_text_get_string(&text, &text_len);
     CHECK(text_len == 5);
