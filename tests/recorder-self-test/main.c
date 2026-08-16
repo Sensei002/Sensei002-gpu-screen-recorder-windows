@@ -9,7 +9,14 @@
  * The recorder itself (upstream/src/recorder/recorder.c) runs unchanged;
  * this test only wires the pieces the recorder consumes (gsr_egl via the
  * win32 ANGLE loader, gsr_capture_deps/gsr_video_sources via the Phase 7
- * capture_setup_win32 seam, an empty audio track list).
+ * capture_setup_win32 seam, an audio track list).
+ *
+ * Phase 8: when the machine has a default audio output that WASAPI can
+ * capture (loopback), a `-a default_output` track is added so the
+ * recording carries a real AAC audio stream that is validated alongside
+ * the video. Machines with no usable audio endpoint (e.g. some headless
+ * runners) record video-only — the audio half of the pipeline is probed
+ * first so it degrades to a clean skip, never a failure.
  *
  * SKIP semantics: like dxgi-self-test, the capture half needs a real
  * session — on CI the runner's Basic Display Adapter supports Desktop
@@ -149,9 +156,48 @@ int main(void) {
         return 1;
     }
 
-    /* 7. No audio tracks (empty list is valid; the recorder handles it). */
+    /* 7. Audio: enumerate WASAPI endpoints and, when a default output is
+       actually capturable, add a `-a default_output` track (Phase 8). The
+       probe opens the device and reads one chunk so a headless machine
+       with no usable audio falls back to video-only instead of failing
+       the recording. */
+    gsr_audio_devices audio_devices;
+    memset(&audio_devices, 0, sizeof(audio_devices));
+    get_pulseaudio_inputs(&audio_devices);
+    printf("recorder: %zu audio device(s); default output: '%s'; default input: '%s'\n",
+        audio_devices.num_items,
+        audio_devices.default_output[0] ? audio_devices.default_output : "(none)",
+        audio_devices.default_input[0] ? audio_devices.default_input : "(none)");
+    for(size_t i = 0; i < audio_devices.num_items; ++i) {
+        printf("recorder:   audio device %zu: %s (%s)\n", i, audio_devices.items[i].name, audio_devices.items[i].description);
+    }
+
     gsr_audio_input_tracks audio_input_tracks;
     memset(&audio_input_tracks, 0, sizeof(audio_input_tracks));
+    bool have_audio = false;
+    if(audio_devices.default_output[0] != '\0') {
+        SoundDevice probe;
+        memset(&probe, 0, sizeof(probe));
+        if(sound_device_get_by_name(&probe, "probe", "default_output", "probe", 2, 1024, GSR_AUDIO_FORMAT_F32) == 0 && probe.handle) {
+            sound_device_flush(&probe);
+            void *chunk = NULL;
+            double latency = 0.0;
+            const int got = sound_device_read_next_chunk(&probe, &chunk, 1.0, &latency);
+            sound_device_close(&probe);
+            if(got > 0) {
+                const char *audio_args[] = { "default_output" };
+                if(gsr_audio_input_tracks_parse(&audio_input_tracks, audio_args, 1, &audio_devices) == GSR_ERROR_OK) {
+                    have_audio = true;
+                    printf("recorder: audio track added (default_output), probe read %d frame(s)\n", got);
+                }
+            }
+        }
+        if(!have_audio)
+            printf("recorder: default output exists but is not capturable; recording video-only\n");
+    } else {
+        printf("recorder: no default audio output; recording video-only\n");
+    }
+    gsr_audio_devices_deinit(&audio_devices);
 
     /* 8. Create + run the recorder. */
     gsr_recorder_params params;
@@ -196,6 +242,7 @@ int main(void) {
     gsr_recorder_destroy(recorder, false);
     gsr_capture_sources_deinit(&capture_sources);
     gsr_capture_deps_deinit(&capture_deps);
+    gsr_audio_input_tracks_deinit(&audio_input_tracks);
     free(monitors);
 
     if(run_result != GSR_ERROR_OK) {
@@ -246,14 +293,20 @@ int main(void) {
     }
 
     int video_stream_index = -1;
+    int audio_stream_index = -1;
     for(unsigned int i = 0; i < format->nb_streams; ++i) {
-        if(format->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+        if(format->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO && video_stream_index < 0)
             video_stream_index = (int)i;
-            break;
-        }
+        else if(format->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO && audio_stream_index < 0)
+            audio_stream_index = (int)i;
     }
     if(video_stream_index < 0) {
         fprintf(stderr, "FAIL: no video stream in '%s'\n", OUTPUT_FILENAME);
+        avformat_close_input(&format);
+        return 1;
+    }
+    if(have_audio && audio_stream_index < 0) {
+        fprintf(stderr, "FAIL: audio track was recorded but no audio stream in '%s'\n", OUTPUT_FILENAME);
         avformat_close_input(&format);
         return 1;
     }
@@ -265,6 +318,13 @@ int main(void) {
         codecpar->width, codecpar->height,
         (int)format->nb_streams,
         format->duration > 0 ? (double)format->duration / AV_TIME_BASE : 0.0);
+    if(audio_stream_index >= 0) {
+        const AVCodecParameters *audio_codecpar = format->streams[audio_stream_index]->codecpar;
+        printf("recorder: audio stream: %s, %d Hz, %d channel(s)\n",
+            avcodec_get_name(audio_codecpar->codec_id),
+            audio_codecpar->sample_rate,
+            audio_codecpar->ch_layout.nb_channels);
+    }
 
     /* Read a few packets to prove the stream decodes structurally. */
     int video_packets = 0;

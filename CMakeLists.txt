@@ -176,6 +176,10 @@ set(GSR_CORE_SOURCES
     upstream/src/image_writer.c
     platform/windows/gsr_recorder_win32.c
     platform/windows/gsr_capture_setup_win32.c
+    # Phase 8: the upstream sound_device API + -a device listing over
+    # WASAPI (replaces upstream/src/sound.c, PulseAudio/PipeWire, which
+    # is not built on Windows).
+    platform/windows/audio_wasapi.c
 )
 
 add_library(gsr_core STATIC ${GSR_CORE_SOURCES})
