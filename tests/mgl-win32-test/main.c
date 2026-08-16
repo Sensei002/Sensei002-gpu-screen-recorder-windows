@@ -140,6 +140,10 @@ int main(void) {
     mgl_window_set_visible(&window, false);
     CHECK(!IsWindowVisible(hwnd));
 
+    /* Showing the window queued a real WM_SIZE (800x600); drop it so the
+       synthetic resize below is the next RESIZED event. */
+    drain_events(&window);
+
     /* ---- resize event ---------------------------------------------------- */
     SendMessageW(hwnd, WM_SIZE, 0, MAKELPARAM(640, 480));
     mgl_event event;
@@ -238,8 +242,11 @@ int main(void) {
     mgl_window existing_window;
     CHECK(mgl_window_init_from_existing_window(&existing_window, (mgl_window_handle)plain_hwnd) == 0);
     CHECK(mgl_window_get_system_handle(&existing_window) == (mgl_window_handle)plain_hwnd);
-    CHECK(existing_window.size.x == 400);
-    CHECK(existing_window.size.y == 300);
+    /* mgl window size is the client size (frame chrome excluded). */
+    RECT client_rect;
+    GetClientRect(plain_hwnd, &client_rect);
+    CHECK(existing_window.size.x == client_rect.right - client_rect.left);
+    CHECK(existing_window.size.y == client_rect.bottom - client_rect.top);
 
     mgl_window_deinit(&existing_window);
     CHECK(DestroyWindow(plain_hwnd) != 0);
