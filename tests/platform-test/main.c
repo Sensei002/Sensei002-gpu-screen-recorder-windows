@@ -12,7 +12,11 @@
  *   - codec caps: capability table -> available -k options + encoder
  *     fallback decision (no GPU needed, brief §64);
  *   - display/info/audio/capture/time helpers: the `--list-monitors` and
- *     `--info` line formats, backend selection, device line, clocks.
+ *     `--info` line formats, backend selection, device line, clocks;
+ *   - display (Phase 4): DXGI monitor enumeration (headless smoke test on
+ *     the runner's virtual display) + the pure name-mapping / rotation /
+ *     vendor logic that the capture backends (Phases 5/6) will use to
+ *     resolve -w monitor arguments.
  *
  * Windows port addition — see docs/upstream-porting-notes.md.
  */
@@ -476,6 +480,134 @@ static void test_display_and_misc(void) {
     gsr_platform_thread_set_current_name("platform-test");
 }
 
+/* ------------------------------------------------------- display logic (Phase 4) */
+
+/* Device names contain backslashes ("\\.\DISPLAY1"), which are painful to
+   spell in C string literals; the tests build names at runtime from the
+   structs instead (strcpy is fine here — the source arrays are fixed-size). */
+static void test_display_logic(void) {
+    printf("-- display logic\n");
+
+    /* Synthetic monitor list (what the Phase 4 DXGI enumeration fills). */
+    gsr_platform_monitor monitors[3] = {
+        {
+            .name = "\\\\.\\DISPLAY1",
+            .friendly_name = "DELL U2720Q",
+            .width = 1920, .height = 1080, .rotation_degrees = 0,
+        },
+        {
+            .name = "\\\\.\\DISPLAY2",
+            .friendly_name = "Generic PnP Monitor",
+            .width = 3840, .height = 2160, .rotation_degrees = 90,
+        },
+        {
+            .name = "\\\\.\\DISPLAY3",
+            .friendly_name = "",
+            .width = 1920, .height = 1080, .rotation_degrees = 270,
+        },
+    };
+
+    /* find_monitor: canonical device name, case-insensitive */
+    char lower[64];
+    strcpy(lower, monitors[0].name);
+    for(size_t i = 0; lower[i]; ++i)
+        lower[i] = (char)tolower((unsigned char)lower[i]);
+    CHECK(gsr_platform_display_find_monitor(monitors, 3, lower) == 0);
+    CHECK(gsr_platform_display_find_monitor(monitors, 3, monitors[1].name) == 1);
+    /* friendly name, case-insensitive */
+    CHECK(gsr_platform_display_find_monitor(monitors, 3, "dell u2720q") == 0);
+    CHECK(gsr_platform_display_find_monitor(monitors, 3, "GENERIC PNP MONITOR") == 1);
+    /* no match (incl. upstream-style DRM connector names: no Windows
+       equivalent unless a device/friendly name matches) */
+    char bogus[64];
+    strcpy(bogus, monitors[0].name);
+    bogus[strlen(bogus) - 1] = '9'; /* "\\.\DISPLAY9" */
+    CHECK(gsr_platform_display_find_monitor(monitors, 3, bogus) == -1);
+    CHECK(gsr_platform_display_find_monitor(monitors, 3, "DP-1") == -1);
+    /* empty friendly name is skipped, not matched */
+    CHECK(gsr_platform_display_find_monitor(monitors, 3, "") == -1);
+    /* bad inputs */
+    CHECK(gsr_platform_display_find_monitor(NULL, 3, "x") == -1);
+    CHECK(gsr_platform_display_find_monitor(monitors, 0, "x") == -1);
+    CHECK(gsr_platform_display_find_monitor(monitors, 3, NULL) == -1);
+
+    /* effective size: 90/270 swap, 0/180 do not */
+    int w = 0, h = 0;
+    CHECK(gsr_platform_display_effective_size(&monitors[0], &w, &h) && w == 1920 && h == 1080);
+    CHECK(gsr_platform_display_effective_size(&monitors[1], &w, &h) && w == 2160 && h == 3840);
+    CHECK(gsr_platform_display_effective_size(&monitors[2], &w, &h) && w == 1080 && h == 1920);
+    gsr_platform_monitor rot180 = monitors[0];
+    rot180.rotation_degrees = 180;
+    CHECK(gsr_platform_display_effective_size(&rot180, &w, &h) && w == 1920 && h == 1080);
+    CHECK(!gsr_platform_display_effective_size(NULL, &w, &h));
+    CHECK(!gsr_platform_display_effective_size(&monitors[0], NULL, &h));
+
+    /* --list-monitors line uses the EFFECTIVE size (upstream Wayland parity) */
+    char line[256];
+    char expected[128];
+    CHECK(gsr_platform_display_format_monitor_line(&monitors[1], line, sizeof(line)) > 0);
+    snprintf(expected, sizeof(expected), "%s|2160x3840", monitors[1].name);
+    CHECK(strcmp(line, expected) == 0);
+    CHECK(gsr_platform_display_format_monitor_line(&rot180, line, sizeof(line)) > 0);
+    snprintf(expected, sizeof(expected), "%s|1920x1080", monitors[0].name);
+    CHECK(strcmp(line, expected) == 0);
+
+    /* vendor ids */
+    CHECK(strcmp(gsr_platform_display_vendor_name(0x10DE), "NVIDIA") == 0);
+    CHECK(strcmp(gsr_platform_display_vendor_name(0x1002), "AMD") == 0);
+    CHECK(strcmp(gsr_platform_display_vendor_name(0x1022), "AMD") == 0);
+    CHECK(strcmp(gsr_platform_display_vendor_name(0x8086), "Intel") == 0);
+    CHECK(strcmp(gsr_platform_display_vendor_name(0x1414), "Microsoft") == 0);
+    CHECK(strcmp(gsr_platform_display_vendor_name(0x1234), "Unknown") == 0);
+}
+
+/* ---------------------------------------------- display enumeration (Phase 4) */
+
+/* Headless smoke test: the CI runner has a virtual display, so the real
+   DXGI enumeration must return at least one monitor with sane fields.
+   Tolerant of 1+ monitors / unknown resolutions (roadmap Phase 4). */
+static void test_display_enumeration(void) {
+    printf("-- display enumeration\n");
+
+    gsr_platform_monitor *monitors = NULL;
+    int count = 0;
+    CHECK(gsr_platform_display_list_monitors(&monitors, &count));
+    CHECK(count >= 1); /* runner's virtual display */
+
+    if(count >= 1) {
+        int primaries = 0;
+        for(int i = 0; i < count; ++i) {
+            CHECK(monitors[i].name[0] != '\0');
+            CHECK(monitors[i].width > 0 && monitors[i].height > 0);
+            CHECK(monitors[i].refresh_rate > 0.0);
+            CHECK(monitors[i].dpi > 0);
+            CHECK(monitors[i].rotation_degrees == 0 || monitors[i].rotation_degrees == 90 ||
+                  monitors[i].rotation_degrees == 180 || monitors[i].rotation_degrees == 270);
+            CHECK(monitors[i].adapter_name[0] != '\0');
+            CHECK(monitors[i].adapter_vendor[0] != '\0');
+
+            char line[256];
+            CHECK(gsr_platform_display_format_monitor_line(&monitors[i], line, sizeof(line)) > 0);
+            CHECK(strchr(line, '|') != NULL);
+            CHECK(strchr(line, 'x') != NULL);
+
+            /* Device names are unique: round-trip must find the exact index */
+            CHECK(gsr_platform_display_find_monitor(monitors, count, monitors[i].name) == i);
+            /* Friendly names can collide (two "Generic PnP Monitor"), so only
+               require a match, not the exact index */
+            if(monitors[i].friendly_name[0] != '\0')
+                CHECK(gsr_platform_display_find_monitor(monitors, count, monitors[i].friendly_name) >= 0);
+
+            if(monitors[i].is_primary)
+                ++primaries;
+        }
+        CHECK(primaries == 1);
+        CHECK(gsr_platform_display_find_monitor(monitors, count, "No Such Monitor") == -1);
+    }
+
+    free(monitors);
+}
+
 int main(void) {
     /* Unbuffered stdout: section headers survive a crash for diagnosis. */
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -486,6 +618,8 @@ int main(void) {
     test_config();
     test_codec_caps();
     test_display_and_misc();
+    test_display_logic();
+    test_display_enumeration();
 
     printf("\n%d checks, %d failures\n", num_checks, num_failures);
     return num_failures == 0 ? 0 : 1;

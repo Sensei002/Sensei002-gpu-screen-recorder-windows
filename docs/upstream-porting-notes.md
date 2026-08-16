@@ -182,6 +182,47 @@ future phases and upstream syncs should assume them:
   These stubs will be needed again whenever more of the recorder pipeline
   (recorder.c etc.) joins the Windows build.
 
+## 3d. Phase 4 CI validation lessons (DXGI display enumeration)
+
+* **The mode list gives the NATIVE panel size; desktop coordinates are
+  post-rotation.** `DXGI_OUTPUT_DESC.DesktopCoordinates` reflects the
+  rotated layout (a portrait panel reports width < height), while
+  `GetDisplayModeList` returns modes in the panel's native orientation.
+  To match upstream's `--list-monitors` semantics (native size stored in
+  the struct, swapped at print time for 90/270 — exactly the Wayland
+  `output_monitor_info` path), store the native size (largest-area mode)
+  and apply the rotation in the formatter, not in the struct.
+* **HDR detection is a color-space check on `IDXGIOutput6::GetDesc1`**
+  (`ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020`). Requires
+  `_WIN32_WINNT >= 0x0A00`; the compat shim now pins `WINVER`/
+  `_WIN32_WINNT`/`NTDDI_VERSION` to the Win10 level (additive — it only
+  widens what the system headers declare).
+* **Per-monitor DPI needs `shcore` + `shellscalingapi.h`**
+  (`GetDpiForMonitor`, `MDT_EFFECTIVE_DPI`), declared only when
+  `NTDDI_VERSION >= NTDDI_WINBLUE`; fall back to 96 on failure. This is
+  why `dxgi` and `shcore` joined `gsr_core`'s link libraries — neither is
+  in CMake's default MinGW system-lib set (`user32`/`gdi32`/... are).
+* **COM from plain C uses `lpVtbl` calls.** MinGW-w64's `dxgi.h` doesn't
+  provide the C++-style wrappers in C, so every call is
+  `factory->lpVtbl->EnumAdapters1(factory, ...)` with manual
+  `Release()`. Two-pass enumeration (count attached-to-desktop outputs,
+  then fill) keeps the alloc size exact; zero attached monitors is
+  *not* an error (disconnected RDP/headless) — the caller decides.
+* **The friendly name comes from `EnumDisplayDevices`, not DXGI.**
+  First call enumerates adapters (`\\.\DISPLAYn`); a second call with
+  that device name yields the monitor, whose `DeviceString` is the EDID
+  friendly name. DXGI has no friendly name API.
+* **CI runner virtualization.** The `windows-2025` runner's virtual
+  display enumerates via DXGI like any real monitor (Microsoft Basic
+  Display Adapter, vendor id 0x1414), so the headless smoke test asserts
+  `count >= 1`, sane fields, and exactly one primary — never exact
+  resolutions or names (tolerating 1+ virtual monitors).
+* **Backslash literals in tests.** Windows device names (`\\.\DISPLAY1`)
+  are painful to spell in C string literals and easy to get wrong in
+  generated patches; the tests build them at runtime from the structs
+  (lowercase a copy for case-insensitivity, mutate the last digit for a
+  no-match case) instead of hardcoding the escape sequences.
+
 ## 4. Known behavioral differences (kept up to date per phase)
 
 See `docs/windows-port-parity.md` for the full matrix. Summary of *inherent*

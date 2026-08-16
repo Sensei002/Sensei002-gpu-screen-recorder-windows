@@ -152,6 +152,8 @@ target_link_libraries(gsr_core PUBLIC
     advapi32 # SystemFunction036 (RtlGenRandom) for generate_random_characters
     shell32  # SHGetKnownFolderPath (gsr_platform_get_videos_dir)
     ole32    # CoTaskMemFree (gsr_platform_get_videos_dir)
+    dxgi     # Phase 4 monitor enumeration (CreateDXGIFactory1, IDXGIOutput6)
+    shcore   # Phase 4 per-monitor DPI (GetDpiForMonitor)
     # MinGW runtime libs, statically (the executables must run without the
     # MSYS2 runtime DLLs, which the workflow's `test` job relies on):
     #   - winpthreads: MSYS2's gcc 16 dropped the -static-libwinpthread

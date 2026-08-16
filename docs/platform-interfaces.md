@@ -19,7 +19,7 @@ serves), its Windows implementation, and the phase that implements it.
 |---|---|---|---|---|
 | `gsr_time.h` | ns-resolution monotonic clock, wall-clock ms | engine `utils.h` clock (seconds only), UI timers | `gsr_platform_win32.c` (QPC) | 3 ✅ |
 | `filesystem.h` | filename sanitization, path join, UTF-8↔UTF-16, Videos dir, save-filepath naming | `recorder/muxer.c` `gsr_create_new_recording_filepath_from_timestamp` (delegated to, not replaced), UI save-dir settings | `gsr_filesystem_win32.c` | 3 ✅ |
-| `display.h` | monitor model + `--list-monitors`/`--info` output format | `cli/commands.c` (`--list-monitors`, `--info` key\|value lines), UI monitor picker | `gsr_display_win32.c` (format) now; enumeration in `display.c` | 3 ✅ format, 4 enumeration |
+| `display.h` | monitor model + `--list-monitors`/`--info` output format | `cli/commands.c` (`--list-monitors`, `--info` key\|value lines), UI monitor picker | `gsr_display_win32.c` (format + DXGI/GetMonitorInfoW enumeration, Phase 4); `gsr_platform_display_find_monitor` resolves `-w` monitor names for the Phase 5/6 capture backends | 3 ✅ format, 4 ✅ enumeration |
 | `capture.h` | capture backend identity + auto-selection (WGC / DXGI) | engine `gsr_capture` vtable (kept unchanged) — this header is the *selection* layer | `gsr_platform_win32.c` (select/name) now; probes in Phase 5/6 | 3 ✅ logic, 5/6 probes |
 | `audio.h` | WASAPI endpoint model + `--list-audio-devices` line format | engine `sound.h` `sound_device_*` (kept unchanged) — this header is the *enumeration* layer | `gsr_platform_win32.c` (line format) now; enumeration in `audio_wasapi.c` | 3 ✅ format, 8 enumeration |
 | `hotkeys.h` | global hotkey registration | UI `GlobalHotkeys/*` (X11/joystick) | `hotkeys.c` (RegisterHotKey) | 11 |

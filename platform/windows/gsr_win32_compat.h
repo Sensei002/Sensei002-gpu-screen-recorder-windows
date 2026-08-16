@@ -19,6 +19,19 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+/* Target the Windows 10 API level (additive — only widens what the system
+   headers declare). Needed by the Phase 4 DXGI display enumeration:
+   dxgi1_6.h requires _WIN32_WINNT >= 0x0A00 and shellscalingapi.h's
+   GetDpiForMonitor requires NTDDI >= Win8.1. */
+#ifndef WINVER
+#define WINVER 0x0A00
+#endif
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0A00
+#endif
+#ifndef NTDDI_VERSION
+#define NTDDI_VERSION 0x0A000000
+#endif
 #include <windows.h>
 
 #include <stddef.h>

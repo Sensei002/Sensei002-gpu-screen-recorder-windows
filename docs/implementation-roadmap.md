@@ -179,6 +179,33 @@ Tasks:
 **CI deliverables:** `--list-monitors`-style output verified headless
 (runner has a virtual display; CI may need to tolerate 1+ virtual monitors).
 
+**Status: COMPLETE.** DXGI + `GetMonitorInfoW` enumeration landed in
+`platform/windows/gsr_display_win32.c` (the format helpers from Phase 3
+live in the same file):
+
+- Per-monitor: Win32 device name + EDID friendly name, virtual-screen
+  position, **native** panel resolution (largest mode in the mode list),
+  refresh rate, rotation, per-monitor DPI (`GetDpiForMonitor`),
+  primary flag, HDR10 state (`IDXGIOutput6::GetDesc1` color space), and
+  adapter vendor/name (`DXGI_ADAPTER_DESC1`).
+- The `--list-monitors` line prints the **effective** (post-rotation) size,
+  matching upstream's Wayland `output_monitor_info` semantics (native size
+  stored, swapped at print time for 90/270).
+- `gsr_platform_display_find_monitor` maps a `-w` monitor argument
+  (`\\.\DISPLAY1` or a friendly alias, case-insensitive) to a monitor;
+  upstream-style DRM names (`DP-1`) have no Windows equivalent and return
+  -1 unless a device/friendly name matches. The Phase 5/6 capture backends
+  call this to resolve `-w` monitor targets to an `HMONITOR`.
+- Tests: deterministic logic tests (name mapping, rotation/effective size,
+  vendor ids) plus a headless enumeration smoke test that asserts the
+  runner's virtual display yields >= 1 monitor with sane fields and exactly
+  one primary.
+- CI: `platform-test` exercises all of the above; the `compat` header now
+  targets the Windows 10 API level (`WINVER`/`_WIN32_WINNT`/`NTDDI_VERSION`
+  = 0x0A00) for `dxgi1_6.h`/`shellscalingapi.h`; `dxgi` + `shcore` joined
+  the core's link libraries. DXGI lessons are in
+  `docs/upstream-porting-notes.md` §3d.
+
 ---
 
 ## Phase 5 — Capture: Windows Graphics Capture (primary)
