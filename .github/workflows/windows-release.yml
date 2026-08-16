@@ -155,6 +155,14 @@ jobs:
         shell: msys2 {0}
         run: ctest --test-dir build/cmake --output-on-failure
 
+      # Phase 5b: run the render pipeline self-test inside the MSYS2 shell so
+      # ANGLE (libEGL.dll on /mingw64/bin PATH) is found and the full
+      # D3D11->import->color_conversion->readback output is visible in the
+      # logs (ctest only shows output on failure). SKIPs on the plain runner.
+      - name: Run render pipeline self-test (ANGLE)
+        shell: msys2 {0}
+        run: ./build/cmake/render-self-test.exe
+
       # Run the test binaries directly as well: the static-linked executables
       # run on any Windows system, which is what the `test` job relies on.
       - name: Run tests directly (static-linked binaries)
