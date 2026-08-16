@@ -539,9 +539,36 @@ the MSYS2 runs), coverage 52.9%. Lessons in
   (`glBegin`/`glOrtho`) which ANGLE (GLES2-only) cannot provide; `opengl32.dll`
   works on CI (GDI Generic) and real GPUs with zero runtime deps.
 
-Remaining: milestone B (mgl text via pango — the decision was to keep
-pango+fontconfig rather than reimplement shaping), then the UI app itself
-(platform modules, RPC, overlay, startup, CI smoke).
+**Milestone B — mgl text pipeline (pango + fontconfig): ✅ complete (CI-green,
+run `31973326044`).**
+
+- The three pango-backed files (`text.c`, `text_edit.c`, `font_atlas.c`)
+  compile and run unmodified on Windows — glyphs rasterize through freetype
+  via `pango_ft2_font_map_new`, exactly the Linux code path (no shaping or
+  layout divergence). `MGL_NO_TEXT` is gone; `mgl_core` links pangoft2 via
+  pkg-config (MSYS2 pango/fontconfig/freetype/glib2 packages).
+- `mgl_text_get_default_font_name` returns **Segoe UI** on Windows (the
+  GSettings/GNOME path stays for non-Windows); the Win32 backend now sets
+  `context->current_window` like x11.c (the font atlas asserts it).
+- The text pipeline uses only GL 1.1 (client arrays, no VBOs), so it runs
+  on CI's GDI Generic software GL.
+- `tests/fonts.conf` + `FONTCONFIG_PATH` on every test invocation: MSYS2's
+  fontconfig has the builder's `C:\msys64\etc\fonts` baked in, which does
+  not exist on the runner — the repo config points fontconfig straight at
+  `C:/Windows/Fonts`.
+- The pango DLLs are bundled next to the test exe (workflow `ldd` step) so
+  the plain-runner `test` job runs them without MSYS2 — the same DLL set
+  the installer will bundle (Phase 13/17).
+- `mgl-win32-test` grew a text section (83 checks total, 0 failures):
+  default font name, layout size (`182x25` for "Hello mgl text"),
+  wrap/max-rows, caret lookups, copy, string set, two draws with atlas-
+  cache reuse (9 glyphs rasterized), and mixed-script fallback (16 glyphs
+  — CJK resolved via a fallback face on the runner).
+
+Remaining in Phase 10: the UI app itself — the platform modules
+(GlobalHotkeys, CursorTracker, RegionSelector, DesktopEnvironment,
+Clipboard, AudioPlayer), RPC → named pipe + `gsr-ui-cli.exe`, overlay
+behavior, startup/tray decision, and the CI UI build + smoke test.
 
 Tasks:
 
@@ -671,7 +698,7 @@ release notes, installer + zip published. Acceptance checklist from the brief
 | 7 | NVIDIA NVENC | ✅ complete (milestone A recorder end-to-end + milestone B d3d11va encode path + honest probe) |
 | 8 | WASAPI audio | ✅ complete (milestone A backend + milestone B listing/session-enum, A/V-sync harness, device-change auto-switch; per-app capture documented unsupported) |
 | 9 | Replay | ✅ complete (RAM + disk buffers verified end-to-end: 2s + FULL saves, -restart-replay-on-save proven, -df naming; crash-safe disk buffer cleanup via stale-session sweep; tests: trim, keyframe boundaries, simulated-crash cleanup) |
-| 10 | UI | 🔄 in progress — milestone A (mgl Win32 backend: window, input, WGL context) ✅ complete + CI-green; text/atlas + UI app remain |
+| 10 | UI | 🔄 in progress — milestone A (mgl Win32 backend) ✅ + milestone B (mgl text pipeline: pangoft2 + fontconfig, glyph atlas, mixed-script fallback) ✅ both CI-green; the UI app itself remains |
 | 11 | Hotkeys/notifications/IPC | pending |
 | 12 | Startup/integration | pending |
 | 13 | Installer + portable zip | pending |

@@ -813,3 +813,42 @@ loader before any UI code could build. Five CI-only bugs, all now fixed:
   lesson again, re-confirmed when linking the C mgl test — the static
   runtimes are handled by the core's link flags, tests just need
   `-static-libgcc`.
+
+## 3n. Phase 10 (milestone B) CI validation lessons (mgl text, pangoft2)
+
+The mgl text pipeline (text.c/text_edit.c/font_atlas.c) compiled and ran on
+Windows with almost no code change — the milestone was mostly build/runtime
+plumbing. The lessons:
+
+* **pangoft2 needs no platform code.** `pango_ft2_font_map_new()` +
+  freetype glyph rasterization is the Linux path, and it works as-is on
+  MinGW — pango's Win32 font maps (GDI/DirectWrite) are NOT needed, which
+  keeps shaping/layout/fallback behavior identical to upstream. The only
+  text.c change was `mgl_text_get_default_font_name`: GSettings schemas
+  don't exist on Windows (returns false → empty font name), so return
+  "Segoe UI" under `#ifdef _WIN32`.
+* **MSYS2's fontconfig has the builder's sysconfdir baked in.**
+  `C:\msys64\etc\fonts` (from the MSYS2 build environment) does not exist
+  on GitHub runners — without help, FcInit finds no config and no fonts,
+  and pango layouts measure 0. Fix: a repo `tests/fonts.conf` with
+  `<dir>C:/Windows/Fonts</dir>` + `FONTCONFIG_PATH` set on every test
+  invocation (ctest, direct pwsh runs, the coverage ctest, and the
+  plain-runner `test` job). fontconfig's windows-font source would also
+  work but the explicit dir is deterministic.
+* **MSYS2 pango is shared-DLL only (no static archives),** which broke the
+  project's "static-linked exe runs on the plain runner" property. Fix: an
+  `ldd`-based bundling step copies the transitive `/mingw64/bin` DLLs next
+  to the exe before the artifact upload; Windows resolves DLLs from the
+  exe's directory, so the plain-runner test job works unchanged. This is
+  the same DLL set the Phase 13/17 installer must bundle — the eventual
+  UI binary will use the same step.
+* **The font atlas asserts `context->current_window`** (mgl_font_atlas_init
+  calls glGenTextures). The x11 backend sets it; the new Win32 backend
+  didn't, so it now mirrors x11.c (set after setup, clear in deinit when
+  it matches).
+* **`mgl_text_set_string` takes (text, text_len)** — `-1` auto-computes;
+  calling it with 2 args is a compile error caught by CI's first build.
+* **Coverage denominator grows with vendored code** (13,863 lines now) —
+  the pango sources are instrumented but mostly untested headless, so the
+  percentage dips; the milestone's real proof is the runtime checks (font
+  found, layout size > 0, atlas glyphs rasterized, fallback resolved).
