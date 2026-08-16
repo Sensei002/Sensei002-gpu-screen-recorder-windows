@@ -36,6 +36,7 @@
 #include <string.h>
 
 #include "audio.h"
+#include "audio_wasapi_internal.h" /* notification smoke test */
 #include "../../upstream/include/recorder/audio_input.h"
 #include "../../upstream/include/sound.h"
 
