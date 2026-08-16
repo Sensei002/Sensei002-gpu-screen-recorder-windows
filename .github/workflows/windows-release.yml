@@ -182,13 +182,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\cmake\recorder-self-test.exe
 
-      # The recorder self-test produces a real .mkv; validate it with the
-      # ffprobe we just built (video stream present, h264, sane duration).
-      - name: Validate recorded file with ffprobe
+      # Run the recorder self-test in the MSYS2 shell too: this is where the
+      # ANGLE DLLs are on PATH, so the verbose recording logs (backend
+      # chosen, video size, encoded packets, validated container) appear in
+      # the CI logs — ctest only shows output on failure.
+      - name: Run recorder self-test (ANGLE + live capture)
         shell: msys2 {0}
-        run: |
-          cd build/cmake && ../ffmpeg-prefix/bin/ffprobe.exe -v error -show_entries stream=codec_name,width,height,pix_fmt,duration -of default=noprint_wrappers=1 recorder-self-test-output.mkv
-          cd build/cmake && ../ffmpeg-prefix/bin/ffprobe.exe -v error -show_entries format=duration,size -of default=noprint_wrappers=1 recorder-self-test-output.mkv
+        run: ./build/cmake/recorder-self-test.exe
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

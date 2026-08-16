@@ -22,6 +22,9 @@
 #include <string.h>
 #include <pthread.h>
 
+#include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
+
 #include "capture.h"
 #include "display.h"
 #include "../../upstream/include/egl.h"
@@ -217,6 +220,60 @@ int main(void) {
         fprintf(stderr, "FAIL: output file is suspiciously small (%ld bytes)\n", size);
         return 1;
     }
+
+    /* 10. Validate the container with libavformat (the ffmpeg build has no
+       ffprobe binary, so the test is its own validator). */
+    AVFormatContext *format = NULL;
+    if(avformat_open_input(&format, OUTPUT_FILENAME, NULL, NULL) != 0) {
+        fprintf(stderr, "FAIL: could not open '%s' with libavformat\n", OUTPUT_FILENAME);
+        return 1;
+    }
+    if(avformat_find_stream_info(format, NULL) < 0) {
+        fprintf(stderr, "FAIL: could not read stream info from '%s'\n", OUTPUT_FILENAME);
+        avformat_close_input(&format);
+        return 1;
+    }
+
+    int video_stream_index = -1;
+    for(unsigned int i = 0; i < format->nb_streams; ++i) {
+        if(format->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            video_stream_index = (int)i;
+            break;
+        }
+    }
+    if(video_stream_index < 0) {
+        fprintf(stderr, "FAIL: no video stream in '%s'\n", OUTPUT_FILENAME);
+        avformat_close_input(&format);
+        return 1;
+    }
+    const AVCodecParameters *codecpar = format->streams[video_stream_index]->codecpar;
+    const AVRational time_base = format->streams[video_stream_index]->time_base;
+    printf("recorder: validated '%s': %s %dx%d, %d streams, duration %.2fs\n",
+        OUTPUT_FILENAME,
+        avcodec_get_name(codecpar->codec_id),
+        codecpar->width, codecpar->height,
+        (int)format->nb_streams,
+        format->duration > 0 ? (double)format->duration / AV_TIME_BASE : 0.0);
+
+    /* Read a few packets to prove the stream decodes structurally. */
+    int video_packets = 0;
+    AVPacket *packet = av_packet_alloc();
+    while(av_read_frame(format, packet) == 0 && video_packets < 5) {
+        if(packet->stream_index == video_stream_index)
+            ++video_packets;
+        av_packet_unref(packet);
+    }
+    av_packet_free(&packet);
+    if(video_packets == 0) {
+        fprintf(stderr, "FAIL: no video packets in '%s'\n", OUTPUT_FILENAME);
+        avformat_close_input(&format);
+        return 1;
+    }
+    printf("recorder: read %d video packet(s) from '%s' (first pts %ld, time_base %d/%d)\n",
+        video_packets, OUTPUT_FILENAME,
+        (long)format->streams[video_stream_index]->start_time == AV_NOPTS_VALUE ? -1L : (long)format->streams[video_stream_index]->start_time,
+        time_base.num, time_base.den);
+    avformat_close_input(&format);
 
     printf("recorder: end-to-end recording OK\n");
     printf("\nPASS\n");
