@@ -257,6 +257,9 @@ build_lib() {
 ffmpeg_configure_args() {
     local encoders="aac,flac,libx264,libopus,h264_nvenc,hevc_nvenc,av1_nvenc"
     local muxers="mp4,mov,matroska,webm,flv,mpegts,hls,whip"
+    # matroska demuxer: needed by recorder-self-test to validate the
+    # recorded .mkv in-process (the ffmpeg build has no ffprobe binary).
+    local demuxers="matroska"
     local protocols="file,pipe,tcp,udp,http,https,tls,rtmp,rtmps,libsrt"
     local filters="abuffer,abuffersink,amix,aresample,aformat,anull"
 
@@ -287,6 +290,7 @@ ffmpeg_configure_args() {
         $lto_arg \
         --enable-encoder="$encoders" \
         --enable-muxer="$muxers" \
+        --enable-demuxer="$demuxers" \
         --enable-protocol="$protocols" \
         --enable-filter="$filters" \
         --enable-bsf=extract_extradata \

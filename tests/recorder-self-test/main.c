@@ -24,6 +24,7 @@
 
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
+#include <libavutil/error.h>
 
 #include "capture.h"
 #include "display.h"
@@ -219,9 +220,23 @@ int main(void) {
 
     /* 10. Validate the container with libavformat (the ffmpeg build has no
        ffprobe binary, so the test is its own validator). */
+    {
+        /* Matroska/EBML magic is 0x1A 0x45 0xDF 0xA3. */
+        unsigned char magic[8] = {0};
+        f = fopen(OUTPUT_FILENAME, "rb");
+        if(f) {
+            const size_t got = fread(magic, 1, sizeof(magic), f);
+            fclose(f);
+            printf("recorder: file magic (%d bytes): %02x %02x %02x %02x %02x %02x %02x %02x\n",
+                (int)got, magic[0], magic[1], magic[2], magic[3], magic[4], magic[5], magic[6], magic[7]);
+        }
+    }
     AVFormatContext *format = NULL;
-    if(avformat_open_input(&format, OUTPUT_FILENAME, NULL, NULL) != 0) {
-        fprintf(stderr, "FAIL: could not open '%s' with libavformat\n", OUTPUT_FILENAME);
+    const int open_result = avformat_open_input(&format, OUTPUT_FILENAME, NULL, NULL);
+    if(open_result != 0) {
+        char errbuf[128] = {0};
+        av_strerror(open_result, errbuf, sizeof(errbuf));
+        fprintf(stderr, "FAIL: could not open '%s' with libavformat: %s\n", OUTPUT_FILENAME, errbuf);
         return 1;
     }
     if(avformat_find_stream_info(format, NULL) < 0) {
