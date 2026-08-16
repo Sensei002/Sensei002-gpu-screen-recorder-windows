@@ -53,10 +53,17 @@ bool mgl_graphics_make_context_current(mgl_graphics *self, mgl_window_handle win
     const bool result = self->make_context_current(self, window);
     if(result) {
         mgl_context *context = mgl_get_context();
+#ifdef _WIN32
+        /* opengl32.dll only exports the GL 1.1 core; resolve the 1.2+ entry
+           points (VBOs, shaders, glBlendFuncSeparate, ...) now that a
+           context is current. NULL on GDI Generic (GL 1.1 only). */
+        mgl_gl_load_windows_extensions(&context->gl);
+#endif
         context->gl.glEnable(GL_TEXTURE_2D);
         context->gl.glEnable(GL_BLEND);
         context->gl.glEnable(GL_SCISSOR_TEST);
-        context->gl.glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+        if(context->gl.glBlendFuncSeparate)
+            context->gl.glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
         context->gl.glEnableClientState(GL_VERTEX_ARRAY);
         context->gl.glEnableClientState(GL_TEXTURE_COORD_ARRAY);
         context->gl.glEnableClientState(GL_COLOR_ARRAY);
