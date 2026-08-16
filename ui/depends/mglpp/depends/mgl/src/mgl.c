@@ -6,12 +6,16 @@
 #include <assert.h>
 #include <errno.h>
 
+#ifndef _WIN32
 #include <X11/Xutil.h>
 #include <X11/XKBlib.h>
 #include <X11/extensions/Xrender.h>
 #include <X11/extensions/Xrandr.h>
 #ifdef MGL_WAYLAND
 #include <wayland-client.h>
+#endif
+#else
+#include <windows.h>
 #endif
 
 static mgl_context context;
@@ -124,8 +128,37 @@ static int mgl_init_wayland(void) {
 }
 #endif
 
+#ifdef _WIN32
+static int mgl_init_win32(void) {
+    connected_to_display_server = true;
+    context.display_server_is_wayland = false;
+
+    /* Per-monitor DPI awareness so GetClientRect/GetWindowRect report physical
+       pixels and the overlay lines up with windows on mixed-DPI setups.
+       Win10 1703+; gracefully ignored on older systems. */
+    if(!IsProcessDPIAware()) {
+        HMODULE user32 = GetModuleHandleA("user32.dll");
+        if(user32) {
+            typedef BOOL (WINAPI *SetProcessDpiAwarenessContext_t)(void *);
+            SetProcessDpiAwarenessContext_t set_dpi = (SetProcessDpiAwarenessContext_t)GetProcAddress(user32, "SetProcessDpiAwarenessContext");
+            if(set_dpi) {
+                /* DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 */
+                set_dpi((void*)-4);
+            } else {
+                SetProcessDPIAware();
+            }
+        }
+    }
+    return 0;
+}
+#endif /* _WIN32 */
+
 static int mgl_init_native(void) {
-#ifdef MGL_WAYLAND
+#ifdef _WIN32
+    context.window_system = MGL_WINDOW_SYSTEM_WIN32;
+    if(mgl_init_win32() != 0)
+        return -1;
+#elif defined(MGL_WAYLAND)
     context.connection = XOpenDisplay(NULL);
     if(context.connection) {
         context.display_server_is_wayland = is_xwayland(context.connection);
@@ -194,7 +227,9 @@ int mgl_init_with_wayland_display(struct wl_display *dpy) {
 int mgl_init(mgl_window_system window_system) {
     ++init_count;
     if(init_count == 1) {
+#ifndef _WIN32
         setenv("__GL_MaxFramesAllowed", "1", true);
+#endif
         memset(&context, 0, sizeof(context));
         context.window_system = window_system;
         connection_is_borrowed = false;
@@ -206,8 +241,13 @@ int mgl_init(mgl_window_system window_system) {
                 break;
             }
             case MGL_WINDOW_SYSTEM_X11: {
+#ifndef _WIN32
                 if(mgl_init_x11() != 0)
                     return -1;
+#else
+                fprintf(stderr, "mgl error: mgl_init: init called with MGL_WINDOW_SYSTEM_X11, but mgl was built without X11 support\n");
+                return -1;
+#endif
                 break;
             }
             case MGL_WINDOW_SYSTEM_WAYLAND: {
@@ -216,6 +256,16 @@ int mgl_init(mgl_window_system window_system) {
                     return -1;
 #else
                 fprintf(stderr, "mgl error: mgl_init: init called with MGL_WINDOW_SYSTEM_WAYLAND, but mgl was built without Wayland support\n");
+                return -1;
+#endif
+                break;
+            }
+            case MGL_WINDOW_SYSTEM_WIN32: {
+#ifdef _WIN32
+                if(mgl_init_win32() != 0)
+                    return -1;
+#else
+                fprintf(stderr, "mgl error: mgl_init: init called with MGL_WINDOW_SYSTEM_WIN32, but mgl was built without Windows support\n");
                 return -1;
 #endif
                 break;
@@ -270,12 +320,20 @@ void mgl_deinit(void) {
                 assert(false);
                 break;
             case MGL_WINDOW_SYSTEM_X11: {
+#ifndef _WIN32
                 mgl_deinit_x11();
+#endif
                 break;
             }
             case MGL_WINDOW_SYSTEM_WAYLAND: {
 #ifdef MGL_WAYLAND
                 mgl_deinit_wayland();
+#endif
+                break;
+            }
+            case MGL_WINDOW_SYSTEM_WIN32: {
+#ifdef _WIN32
+                /* Win32 has no display server connection to tear down. */
 #endif
                 break;
             }
@@ -304,6 +362,10 @@ bool mgl_is_connected_to_display_server(void) {
 }
 
 void mgl_ping_display_server(void) {
+#ifdef _WIN32
+    /* Win32 has no display server to ping; the connection is always alive. */
+    return;
+#endif
     if(!context.connection)
         return;
 

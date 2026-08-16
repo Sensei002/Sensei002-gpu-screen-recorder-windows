@@ -321,13 +321,57 @@ target_link_libraries(audio-sync-test PRIVATE gsr_core)
 add_executable(replay-save-test tests/replay-save-test/main.c)
 target_link_libraries(replay-save-test PRIVATE gsr_core)
 
+# ---------------------------------------------------------------------------
+# mgl_core — the vendored upstream UI rendering library (ui/depends/mglpp/
+# depends/mgl), compiled for Win32 with the new Win32 window backend and the
+# WGL graphics backend (Phase 10 milestone A). The pango text pipeline
+# (font_atlas.c/text.c/text_edit.c) is excluded for now behind the MGL_NO_TEXT
+# seam and lands with the milestone that needs it (see
+# docs/upstream-porting-notes.md §3m). WGL + opengl32.dll needs no extra
+# packages, and CI's GDI Generic software GL covers the headless smoke test.
+# ---------------------------------------------------------------------------
+set(MGL_CORE_SOURCES
+    ui/depends/mglpp/depends/mgl/src/graphics/backend/graphics.c
+    ui/depends/mglpp/depends/mgl/src/graphics/backend/wgl.c
+    ui/depends/mglpp/depends/mgl/src/graphics/glyph_map.c
+    ui/depends/mglpp/depends/mgl/src/graphics/image.c
+    ui/depends/mglpp/depends/mgl/src/graphics/primitive_type.c
+    ui/depends/mglpp/depends/mgl/src/graphics/quad_batch.c
+    ui/depends/mglpp/depends/mgl/src/graphics/rectangle.c
+    ui/depends/mglpp/depends/mgl/src/graphics/shader.c
+    ui/depends/mglpp/depends/mgl/src/graphics/sprite.c
+    ui/depends/mglpp/depends/mgl/src/graphics/texture.c
+    ui/depends/mglpp/depends/mgl/src/graphics/vertex.c
+    ui/depends/mglpp/depends/mgl/src/graphics/vertex_buffer.c
+    ui/depends/mglpp/depends/mgl/src/system/clock.c
+    ui/depends/mglpp/depends/mgl/src/system/fileutils.c
+    ui/depends/mglpp/depends/mgl/src/system/utf8.c
+    ui/depends/mglpp/depends/mgl/src/mgl.c
+    ui/depends/mglpp/depends/mgl/src/window/key.c
+    ui/depends/mglpp/depends/mgl/src/window/win32.c
+    ui/depends/mglpp/depends/mgl/src/window/window.c
+    ui/depends/mglpp/depends/mgl/src/gl.c
+)
+add_library(mgl_core STATIC ${MGL_CORE_SOURCES})
+target_include_directories(mgl_core PUBLIC ${CMAKE_SOURCE_DIR}/ui/depends/mglpp/depends/mgl/include)
+target_compile_definitions(mgl_core PUBLIC MGL_NO_TEXT)
+target_link_libraries(mgl_core PUBLIC opengl32 user32 gdi32)
+
+# Phase 10 (milestone A) mgl Win32 backend smoke test: window creation
+# (hidden), WGL context + GL sanity, input events (key/char/mouse/wheel via
+# synthetic messages), clipboard round-trip, monitor enumeration, fullscreen
+# and size limits, and init_from_existing_window (subclassing). All headless
+# on CI's GDI Generic software GL.
+add_executable(mgl-win32-test tests/mgl-win32-test/main.c)
+target_link_libraries(mgl-win32-test PRIVATE mgl_core)
+
 # Link the test executables against the static MinGW runtime so they can be
 # re-run by the workflow's `test` job without the MSYS2 environment.
 # -static-libgcc works with the C driver; the C++ runtime (libstdc++.a),
 # winpthread and atomic are already linked statically via the gsr_core
 # PUBLIC link flags above (-static-libstdc++/-static-libwinpthread are
 # driver options that do nothing when linking with cc).
-foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test dxgi-self-test recorder-self-test audio-conv-test nvenc-self-test audio-list-test audio-sync-test replay-save-test)
+foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test dxgi-self-test recorder-self-test audio-conv-test nvenc-self-test audio-list-test audio-sync-test replay-save-test mgl-win32-test)
     set_target_properties(${target} PROPERTIES
         LINK_FLAGS "-static-libgcc")
 endforeach()
@@ -345,3 +389,4 @@ add_test(NAME nvenc-self-test COMMAND nvenc-self-test)
 add_test(NAME audio-list-test COMMAND audio-list-test)
 add_test(NAME audio-sync-test COMMAND audio-sync-test)
 add_test(NAME replay-save-test COMMAND replay-save-test)
+add_test(NAME mgl-win32-test COMMAND mgl-win32-test)

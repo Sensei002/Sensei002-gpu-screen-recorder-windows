@@ -1,20 +1,45 @@
 #include "../../../include/mgl/graphics/backend/graphics.h"
 #include "../../../include/mgl/graphics/backend/glx.h"
 #include "../../../include/mgl/graphics/backend/egl.h"
+#ifdef _WIN32
+#include "../../../include/mgl/graphics/backend/wgl.h"
+#endif
 #include "../../../include/mgl/mgl.h"
 
 #include <string.h>
+#include <stdio.h>
 
 bool mgl_graphics_init(mgl_graphics *self, const mgl_graphics_create_params *params) {
     memset(self, 0, sizeof(*self));
+#ifdef _WIN32
+    self->graphics_api = params ? params->graphics_api : MGL_GRAPHICS_API_WGL;
+#else
     self->graphics_api = params ? params->graphics_api : MGL_GRAPHICS_API_EGL;
+#endif
     self->alpha = params && params->alpha;
 
     switch(self->graphics_api) {
         case MGL_GRAPHICS_API_GLX:
+#ifndef _WIN32
             return mgl_graphics_glx_init(self, params);
+#else
+            fprintf(stderr, "mgl error: mgl_graphics_init: GLX is not supported on Windows, use MGL_GRAPHICS_API_WGL\n");
+            return false;
+#endif
         case MGL_GRAPHICS_API_EGL:
+#ifndef _WIN32
             return mgl_graphics_egl_init(self, params);
+#else
+            fprintf(stderr, "mgl error: mgl_graphics_init: EGL is not supported on Windows yet, use MGL_GRAPHICS_API_WGL\n");
+            return false;
+#endif
+        case MGL_GRAPHICS_API_WGL:
+#ifdef _WIN32
+            return mgl_graphics_wgl_init(self, params);
+#else
+            fprintf(stderr, "mgl error: mgl_graphics_init: WGL is only supported on Windows\n");
+            return false;
+#endif
     }
     return false;
 }

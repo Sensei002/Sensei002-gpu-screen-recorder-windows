@@ -1,16 +1,23 @@
 #include "../../include/mgl/window/window.h"
 #include "../../include/mgl/window/x11.h"
+#ifndef MGL_NO_TEXT
 #include "../../include/mgl/graphics/text.h"
+#endif
 #ifdef MGL_WAYLAND
 #include "../../include/mgl/window/wayland.h"
+#endif
+#ifdef _WIN32
+#include "../../include/mgl/window/win32.h"
 #endif
 #include "../../include/mgl/mgl.h"
 
 #include <stdlib.h>
-#include <unistd.h>
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 int mgl_window_init(mgl_window *self, const char *title, const mgl_window_create_params *params, mgl_window_handle existing_window) {
     memset(self, 0, sizeof(*self));
@@ -24,12 +31,26 @@ int mgl_window_init(mgl_window *self, const char *title, const mgl_window_create
             assert(false);
             break;
         case MGL_WINDOW_SYSTEM_X11:
+#ifndef _WIN32
             return mgl_window_x11_init(self, title, params, existing_window) ? 0 : -1;
+#else
+            fprintf(stderr, "mgl error: mgl_window_init: init called with MGL_WINDOW_SYSTEM_X11, but mgl was built without X11 support\n");
+            return -1;
+#endif
         case MGL_WINDOW_SYSTEM_WAYLAND: {
 #ifdef MGL_WAYLAND
             return mgl_window_wayland_init(self, title, params, existing_window) ? 0 : -1;
 #else
             fprintf(stderr, "mgl error: mgl_window_init: init called with MGL_WINDOW_SYSTEM_WAYLAND, but mgl was built without Wayland support\n");
+            return -1;
+#endif
+            break;
+        }
+        case MGL_WINDOW_SYSTEM_WIN32: {
+#ifdef _WIN32
+            return mgl_window_win32_init(self, title, params, existing_window) ? 0 : -1;
+#else
+            fprintf(stderr, "mgl error: mgl_window_init: init called with MGL_WINDOW_SYSTEM_WIN32, but mgl was built without Windows support\n");
             return -1;
 #endif
             break;
@@ -48,7 +69,9 @@ int mgl_window_init_from_existing_window(mgl_window *self, mgl_window_handle exi
 
 void mgl_window_deinit(mgl_window *self) {
     if(self->deinit) {
+#ifndef MGL_NO_TEXT
         mgl_text_renderer_deinit();
+#endif
         self->deinit(self);
     }
 }
@@ -81,13 +104,23 @@ void mgl_window_display(mgl_window *self) {
 
     if(self->frame_time_limit > 0.000001) {
         double time_left_to_sleep = self->frame_time_limit - mgl_clock_get_elapsed_time_seconds(&self->frame_timer);
-        if(time_left_to_sleep > 0.000001)
+        if(time_left_to_sleep > 0.000001) {
+#ifdef _WIN32
+            Sleep((DWORD)(time_left_to_sleep * 1000.0));
+#else
             usleep(time_left_to_sleep * 1000000.0);
+#endif
+        }
         mgl_clock_restart(&self->frame_timer);
     } else if(self->vsync_enabled && self->frame_time_limit_monitor > 0.000001) {
         double time_left_to_sleep = self->frame_time_limit_monitor - mgl_clock_get_elapsed_time_seconds(&self->frame_timer);
-        if(time_left_to_sleep > 0.000001)
+        if(time_left_to_sleep > 0.000001) {
+#ifdef _WIN32
+            Sleep((DWORD)(time_left_to_sleep * 1000.0));
+#else
             usleep(time_left_to_sleep * 1000000.0);
+#endif
+        }
         mgl_clock_restart(&self->frame_timer);
     }
 }

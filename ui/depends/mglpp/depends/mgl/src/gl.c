@@ -1,7 +1,11 @@
 #include "../include/mgl/gl.h"
-#include <dlfcn.h>
 #include <stdio.h>
 #include <string.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 
 typedef struct {
     void **func;
@@ -9,6 +13,12 @@ typedef struct {
 } dlsym_assign;
 
 static void* dlsym_print_fail(void *handle, const char *name, int required) {
+#ifdef _WIN32
+    FARPROC sym = GetProcAddress((HMODULE)handle, name);
+    if(!sym)
+        fprintf(stderr, "mgl %s: GetProcAddress(handle, \"%s\") failed\n", required ? "error" : "warning", name);
+    return (void*)sym;
+#else
     dlerror();
     void *sym = dlsym(handle, name);
     char *err_str = dlerror();
@@ -17,6 +27,7 @@ static void* dlsym_print_fail(void *handle, const char *name, int required) {
         fprintf(stderr, "mgl %s: dlsym(handle, \"%s\") failed, error: %s\n", required ? "error" : "warning", name, err_str ? err_str : "(null)");
 
     return sym;
+#endif
 }
 
 static int mgl_gl_load_gl(mgl_gl *self) {
@@ -170,6 +181,23 @@ static int mgl_gl_load_egl(mgl_gl *self) {
 int mgl_gl_load(mgl_gl *self) {
     memset(self, 0, sizeof(*self));
 
+#ifdef _WIN32
+    /* On Windows all GL entry points are exported by opengl32.dll (the system
+       software implementation, or the vendor ICD installed on top of it).
+       GLX and EGL are not used: the WGL graphics backend is used instead,
+       which loads its own wgl* entry points from opengl32.dll. */
+    self->gl_library = LoadLibraryA("opengl32.dll");
+    if(!self->gl_library) {
+        fprintf(stderr, "mgl error: LoadLibraryA(\"opengl32.dll\") failed\n");
+        mgl_gl_unload(self);
+        return -1;
+    }
+
+    if(mgl_gl_load_gl(self) != 0) {
+        mgl_gl_unload(self);
+        return -1;
+    }
+#else
     self->gl_library = dlopen("libGL.so.1", RTLD_LAZY);
     if(!self->gl_library) {
         fprintf(stderr, "mgl error:dlopen(\"%s\", RTLD_LAZY) failed\n", "libGL.so.1");
@@ -200,11 +228,18 @@ int mgl_gl_load(mgl_gl *self) {
         mgl_gl_unload(self);
         return -1;
     }
+#endif
 
     return 0;
 }
 
 void mgl_gl_unload(mgl_gl *self) {
+#ifdef _WIN32
+    if(self->gl_library) {
+        FreeLibrary((HMODULE)self->gl_library);
+        self->gl_library = NULL;
+    }
+#else
     if(self->egl_library) {
         dlclose(self->egl_library);
         self->egl_library = NULL;
@@ -219,4 +254,5 @@ void mgl_gl_unload(mgl_gl *self) {
         dlclose(self->gl_library);
         self->gl_library = NULL;
     }
+#endif
 }

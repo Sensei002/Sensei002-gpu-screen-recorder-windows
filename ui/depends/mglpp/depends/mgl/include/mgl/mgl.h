@@ -12,9 +12,10 @@ typedef struct mgl_window mgl_window;
 struct wl_display;
 
 typedef enum {
-    MGL_WINDOW_SYSTEM_NATIVE,  /* Use X11 on X11 and Wayland on Wayland */
+    MGL_WINDOW_SYSTEM_NATIVE,  /* Use X11 on X11 and Wayland on Wayland (Win32 on Windows) */
     MGL_WINDOW_SYSTEM_X11,     /* Use X11 on X11 and XWayland on Wayland */
     MGL_WINDOW_SYSTEM_WAYLAND, /* Use Wayland. If user runs on X11 then it fails to connect */
+    MGL_WINDOW_SYSTEM_WIN32,   /* Win32 (Windows). Only available when built on Windows */
 } mgl_window_system;
 
 struct mgl_context {

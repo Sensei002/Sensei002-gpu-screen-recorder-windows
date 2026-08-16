@@ -10,7 +10,8 @@ typedef void* mgl_window_handle;
 
 typedef enum {
     MGL_GRAPHICS_API_EGL,
-    MGL_GRAPHICS_API_GLX /* Only available when using X11 (or XWayland) */
+    MGL_GRAPHICS_API_GLX, /* Only available when using X11 (or XWayland) */
+    MGL_GRAPHICS_API_WGL, /* Only available on Windows */
 } mgl_graphics_api;
 
 struct mgl_graphics {

@@ -1,6 +1,8 @@
 #include "../../include/mgl/window/key.h"
+#ifndef _WIN32
 #include <X11/keysym.h>
 #include <X11/XF86keysym.h>
+#endif
 
 const char* mgl_key_to_string(mgl_key key) {
     switch(key) {
@@ -159,6 +161,12 @@ bool mgl_key_is_modifier(mgl_key key) {
 }
 
 uint64_t mgl_key_to_x11_keysym(mgl_key key) {
+#ifdef _WIN32
+    /* X11 keysyms are meaningless on Win32; the function is only used by the
+       X11 window backend. */
+    (void)key;
+    return 0;
+#else
     if(key >= MGL_KEY_A && key <= MGL_KEY_Z)
         return XK_A + (key - MGL_KEY_A);
     if(key >= MGL_KEY_NUM0 && key <= MGL_KEY_NUM9)
@@ -258,4 +266,5 @@ uint64_t mgl_key_to_x11_keysym(mgl_key key) {
         default:                         return XK_VoidSymbol;
     }
     return XK_VoidSymbol;
+#endif /* _WIN32 */
 }
