@@ -168,6 +168,7 @@ static int wgc_start(gsr_capture *cap, gsr_capture_metadata *capture_metadata) {
            copy (or fails) — share it. Standalone (self-test without egl):
            hardware first, WARP fallback. */
         self->egl = self->options.egl;
+        HRESULT hr = S_OK;
         if(self->egl && self->egl->d3d11_device) {
             self->device.copy_from((ID3D11Device*)self->egl->d3d11_device);
             gsr_log(GSR_LOG_LEVEL_INFO, "gsr_capture_wgc_start: using the shared ANGLE D3D11 device");
@@ -179,7 +180,7 @@ static int wgc_start(gsr_capture *cap, gsr_capture_metadata *capture_metadata) {
             const UINT create_flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT; /* ANGLE interop */
             D3D_FEATURE_LEVEL got_level = D3D_FEATURE_LEVEL_10_0;
             winrt::com_ptr<ID3D11Device> device;
-            HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, create_flags,
+            hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, create_flags,
                 levels, (UINT)(sizeof(levels) / sizeof(levels[0])), D3D11_SDK_VERSION, device.put(), &got_level, nullptr);
             if(FAILED(hr)) {
                 gsr_log(GSR_LOG_LEVEL_INFO, "gsr_capture_wgc_start: hardware device unavailable (0x%08lx), using WARP", (unsigned long)hr);

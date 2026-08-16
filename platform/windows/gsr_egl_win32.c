@@ -360,9 +360,11 @@ bool gsr_egl_load_win32(gsr_egl *self, gsr_window *window, bool enable_debug) {
         goto fail;
     }
 
+    /* NOTE: the gsr_egl struct's fn ptrs take int32_t attrib lists (upstream
+       egl.h), not EGLint — keep these arrays int32_t. */
     EGLConfig ecfg = NULL;
-    EGLint num_config = 0;
-    const EGLint config_attrs[] = {
+    int32_t num_config = 0;
+    const int32_t config_attrs[] = {
         EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
         EGL_NONE
     };
@@ -371,7 +373,7 @@ bool gsr_egl_load_win32(gsr_egl *self, gsr_window *window, bool enable_debug) {
         goto fail;
     }
 
-    EGLint context_attrs[] = {
+    int32_t context_attrs[] = {
         EGL_CONTEXT_CLIENT_VERSION, 3,
         EGL_NONE, EGL_NONE, EGL_NONE
     };
