@@ -29,6 +29,13 @@
 #define GLX_RGBA_TYPE                      0x8014
 
 // TODO: Create egl context without surface (in other words, x11/wayland agnostic, doesn't require x11/wayland dependency)
+#ifndef _WIN32
+/* Windows port modification (docs/upstream-porting-notes.md §3f): the
+   helpers between here and gsr_egl_load() are the Linux loader internals
+   (X11 window surface, GLX, Mesa DMABUF exports). The Windows build
+   replaces gsr_egl_load with gsr_egl_load_win32(), so none of them are
+   compiled — they reference X11 macros (True/None/DefaultScreen) and GLX
+   entry points that do not exist on Windows. */
 static bool gsr_egl_create_window(gsr_egl *self, bool enable_debug) {
     EGLConfig  ecfg;
     int32_t    num_config = 0;
@@ -398,6 +405,7 @@ static void gsr_egl_disable_vsync(gsr_egl *self) {
         }
     }
 }
+#endif /* !_WIN32 */
 
 bool gsr_egl_load(gsr_egl *self, gsr_window *window, bool is_monitor_capture, bool enable_debug) {
 #ifdef _WIN32
