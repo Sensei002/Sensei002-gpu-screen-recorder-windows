@@ -20,13 +20,16 @@
 
 static mgl_context context;
 static int init_count = 0;
+#ifndef _WIN32
 static XErrorHandler prev_xerror = NULL;
 static XIOErrorHandler prev_xioerror = NULL;
+#endif
 static bool connected_to_display_server = false;
 /* True when context.connection was provided by the caller (via
    mgl_init_with_wayland_display). Skip wl_display_disconnect on deinit. */
 static bool connection_is_borrowed = false;
 
+#ifndef _WIN32
 static int mgl_x_error_handler(Display *display, XErrorEvent *ee) {
     (void)display;
     (void)ee;
@@ -39,7 +42,9 @@ static int mgl_x_io_error_handler(Display *display) {
     connected_to_display_server = false;
     return 0;
 }
+#endif /* _WIN32 */
 
+#ifndef _WIN32
 static bool xrender_is_supported(Display *display, int *event_base, int *error_base) {
     *event_base = 0;
     *error_base = 0;
@@ -113,6 +118,7 @@ static int mgl_init_x11(void) {
     context.net_wm_pid_atom = XInternAtom(context.connection, "_NET_WM_PID", False);
     return 0;
 }
+#endif /* _WIN32 */
 
 #ifdef MGL_WAYLAND
 static int mgl_init_wayland(void) {
@@ -280,6 +286,7 @@ int mgl_init(mgl_window_system window_system) {
     return 0;
 }
 
+#ifndef _WIN32
 static void mgl_deinit_x11(void) {
     if(context.connection) {
         XCloseDisplay(context.connection);
@@ -297,6 +304,7 @@ static void mgl_deinit_x11(void) {
         prev_xerror = NULL;
     }
 }
+#endif /* _WIN32 */
 
 #ifdef MGL_WAYLAND
 static void mgl_deinit_wayland(void) {
@@ -364,8 +372,8 @@ bool mgl_is_connected_to_display_server(void) {
 void mgl_ping_display_server(void) {
 #ifdef _WIN32
     /* Win32 has no display server to ping; the connection is always alive. */
-    return;
-#endif
+    (void)0;
+#else
     if(!context.connection)
         return;
 
@@ -389,4 +397,5 @@ void mgl_ping_display_server(void) {
             connected_to_display_server = false;
     }
 #endif
+#endif /* _WIN32 */
 }
