@@ -264,16 +264,3 @@ gsr_display_server gsr_window_get_display_server(const gsr_window *self) {
     (void)self;
     return GSR_DISPLAY_SERVER_X11;
 }
-
-/* ---- capture HDR metadata placeholder -----------------------------------
- * recorder/muxer.c calls gsr_capture_set_hdr_metadata() (a gsr_capture
- * vtable method, declared in capture/capture.h). The capture backends are
- * not built until Phase 5, so this stub keeps muxer.c linkable for the
- * naming/timestamp tests; the real implementation returns HDR metadata
- * from the capture pipeline in Phase 5. Returns false = no metadata. */
-bool gsr_capture_set_hdr_metadata(gsr_capture *cap, AVMasteringDisplayMetadata *mastering_display_metadata, AVContentLightMetadata *light_metadata) {
-    (void)cap;
-    (void)mastering_display_metadata;
-    (void)light_metadata;
-    return false;
-}
