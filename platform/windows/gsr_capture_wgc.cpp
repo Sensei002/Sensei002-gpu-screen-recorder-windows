@@ -45,7 +45,13 @@
 #include "../../platform/include/capture.h"
 #include "../../upstream/include/capture/capture.h"
 #include "../../upstream/include/vec2.h"
+
+/* upstream's log.h has no extern "C" guard; gsr_log is defined as C in
+   log.c, so the include must be wrapped or the C++ TU links a mangled
+   gsr_log. Nothing else in this TU's include chain pulls log.h. */
+extern "C" {
 #include "../../upstream/include/log.h"
+}
 
 /* ---- desktop-interop interfaces (not in the C++/WinRT projection) -------- */
 
