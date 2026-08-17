@@ -114,6 +114,17 @@ function Invoke-Validation([string]$Dir, [string]$Label) {
             throw "${Label}: missing $required"
         }
     }
+    # The UI renders from <exe dir>/images/ + /translations/; without them
+    # it exits with 'failed to load theme' and shows nothing. Assert the
+    # resources the theme loader needs are present.
+    foreach ($img in @("combobox_arrow.png", "gpu_screen_recorder_logo.png", "settings.png", "record.png")) {
+        if (-not (Test-Path (Join-Path $Dir ("images\" + $img)))) {
+            throw "${Label}: missing images/$img - the UI theme cannot load without it"
+        }
+    }
+    $translations = Get-ChildItem (Join-Path $Dir "translations") -Filter *.txt -File -ErrorAction SilentlyContinue
+    if ($translations.Count -eq 0) { throw "${Label}: missing translations/*.txt" }
+    Write-Host "   [ok] $Label UI resources: images/ + translations/ present"
     Write-Host "   [ok] $Label validation passed"
     Write-Host ""
 }
@@ -146,6 +157,34 @@ foreach ($doc in @("LICENSE", "README.md", "NOTICE-WINDOWS-PORT.md")) {
 foreach ($asset in @("gsr.ico", "installer_banner.bmp", "installer_banner_small.bmp")) {
     Copy-Item (Join-Path $PackagingDir $asset) (Join-Path $StageDir $asset)
 }
+# The UI loads its theme/cursor/icon images from <exe dir>/images/ and
+# translations from <exe dir>/translations/ (main.cpp resources_path), so the
+# package MUST ship them or the UI fails with 'failed to load theme' and
+# renders nothing. Vendor them straight from the repo (ui/images,
+# ui/translations).
+foreach ($resDir in @("images", "translations")) {
+    $srcRes = Join-Path $RepoRoot ("ui\" + $resDir)
+    if (-not (Test-Path $srcRes)) { throw "missing UI resource dir: $srcRes - the UI cannot render without it" }
+    Copy-Item -Recurse $srcRes (Join-Path $StageDir $resDir)
+}
+if ((Get-ChildItem (Join-Path $StageDir "images") -File).Count -eq 0) {
+    throw "images dir staged empty - the UI theme cannot load"
+}
+# fontconfig has MSYS2's builder sysconfdir (C:\msys64\etc\fonts) baked in,
+# which does not exist on user machines - without a config it finds no fonts
+# and the UI text renders blank. Ship a minimal fonts.conf that scans the
+# Windows font directory; gsr-ui sets FONTCONFIG_PATH to its own dir at
+# startup so this is picked up automatically (same trick as the CI tests).
+@"
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<!-- Shipped with the Windows port: MSYS2's fontconfig has the builder's
+     sysconfdir baked in, so the app sets FONTCONFIG_PATH to this dir and
+     fontconfig scans the Windows font directory (Segoe UI etc.). -->
+<fontconfig>
+  <dir>C:/Windows/Fonts</dir>
+</fontconfig>
+"@ | Set-Content -Encoding ASCII (Join-Path $StageDir "fonts.conf")
 # Build manifest so users can identify the build.
 @"
 GPU Screen Recorder - Windows port

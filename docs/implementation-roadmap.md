@@ -858,7 +858,7 @@ release notes, installer + zip published. Acceptance checklist from the brief
 | 10 | UI | 🔄 in progress — milestone A (mgl Win32 backend) ✅ + milestone B (mgl text pipeline: pangoft2 + fontconfig, glyph atlas, mixed-script fallback) ✅ both CI-green; the UI app itself remains |
 | 11 | Engine binary + IPC | ✅ complete (engine exe + named-pipe IPC + gsr-cli + commands + windowing + HAGS hardening; engine-ipc-test + live engine test CI-green) |
 | 12 | Startup/integration | ✅ complete (HKCU Run autostart portable-safe + tested; clean shutdown on logoff for engine and UI; file associations documented as not needed) |
-| 13 | Installer + portable zip | ✅ complete (Inno Setup 6, portable ZIP, original logo/branding via gsr.ico + gsr.rc, CI validation of resources + --help/--version/--info + ZIP round-trip) |
+| 13 | Installer + portable zip | ✅ complete (Inno Setup 6, portable ZIP, original logo/branding via gsr.ico + gsr.rc, CI validation of resources + --help/--version/--info + ZIP round-trip; UI resource dirs images/ + translations/ + fonts.conf now bundled after a real-desktop test caught the missing-theme failure) |
 | 14 | GitHub Actions full pipeline | ✅ complete (build→test→coverage→package→release in one workflow; version flows from build output; release job conditional on v* tag / dispatch-with-version; auto-generated honest release notes) |
 | 15 | Performance | pending |
 | 16 | Parity testing | pending |

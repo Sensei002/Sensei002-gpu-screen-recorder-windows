@@ -1189,3 +1189,38 @@ the order CI found them:
   already taken — even by the same process. `ui-module-test` binds the
   same Ctrl+Alt+Shift+F12 twice and asserts the second `bind_key_press`
   returns false, exercising the exact code path a hotkey-conflict takes.
+
+## 3v. Phase 14 UI-packaging lessons (missing resources = invisible UI)
+
+* **The UI is NOT self-contained in one exe — it needs its resources dir.**
+  `gsr-ui.exe` loads its theme, icons, cursors and translations relative to
+  the executable's directory: `<exe_dir>/images/*.png` (Theme.cpp loads
+  combobox_arrow.png, settings.png, record.png,
+  gpu_screen_recorder_logo.png, ...), `<exe_dir>/images/default.cur`
+  (cursor), and `<exe_dir>/translations/*.txt` (Translation::init).
+  The Phase 13 package staged only exes + DLLs + docs, so the UI ran but
+  logged `mgl error: failed to load image .../images/combobox_arrow.png`
+  then `Error: failed to load theme` and rendered NOTHING — the overlay
+  window was never created. The user symptom: "gsr-ui.exe is running but
+  Alt+Z opens nothing", with zero visual feedback. The packaging validation
+  must assert the resource dirs, not just the exes.
+* **`strings` may be useless on the packaged exe.** MinGW binaries can be
+  built such that `strings -a` returns zero lines, so grepping the binary
+  for a fix's diagnostic strings is not a reliable "is this the new build"
+  check. Comparing `md5sum` of the installed exe against the CI artifact
+  is the robust way to confirm what's installed.
+* **MSYS2's fontconfig has the builder's sysconfdir baked in — the shipped
+  app must fix FONTCONFIG_PATH itself.** On the build machine that's
+  `C:\msys64\etc\fonts`; on a user machine that path doesn't exist, so
+  fontconfig finds no config and no fonts and the UI text renders blank
+  (layout width 0). CI hid this by setting `FONTCONFIG_PATH` in every test
+  step; the installed app had no such help. Fix: ship a minimal
+  `fonts.conf` (`<dir>C:/Windows/Fonts</dir>`) next to gsr-ui.exe and have
+  main.cpp set `FONTCONFIG_PATH` to its own directory before mgl_init
+  (fontconfig initializes on first font use) when the user hasn't set it.
+* **Test the packaged UI on a real desktop, not just ctest.** The golden
+  test proves rendering on the CI runner's virtual display with a pinned
+  fontconfig; it cannot catch "the package forgot the images dir". The
+  package job now validates `images/` + `translations/` presence in both
+  the staged layout and the extracted zip, which is what would have caught
+  this at Phase 13 time.

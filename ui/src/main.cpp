@@ -212,6 +212,14 @@ int main(int argc, char **argv) {
         if(resources_path.empty())
             resources_path = "./";
     }
+    /* MSYS2's fontconfig has the builder's sysconfdir (C:\msys64\etc\fonts)
+       baked in, which doesn't exist on user machines — without a config it
+       finds no fonts and the UI text renders blank. Point FONTCONFIG_PATH at
+       the packaged fonts.conf (which scans C:/Windows/Fonts) unless the user
+       already set it. Must happen before mgl_init (fontconfig is initialized
+       on first font use). Same trick the CI tests use. */
+    if(!GetEnvironmentVariableA("FONTCONFIG_PATH", NULL, 0))
+        SetEnvironmentVariableA("FONTCONFIG_PATH", resources_path.c_str());
 #else
     if(access("sibs-build/linux_x86_64/debug/gsr-ui", F_OK) == 0) {
         resources_path = "./";
