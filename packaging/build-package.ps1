@@ -56,21 +56,25 @@ function Get-IconCount([string]$Path) {
     return [GsrPe]::ExtractIconEx($Path, -1, $large, $small, 0)
 }
 
-function Assert-ExeResources([string]$Path, [string]$Label) {
+function Assert-ExeResources([string]$Path, [string]$Label, [string]$ExpectedFileVersion = $Version) {
     if (-not (Test-Path $Path)) { throw "${Label}: missing $Path" }
     $icons = Get-IconCount $Path
     if ($icons -lt 1) { throw "$Label ($Path): no icon resource (ExtractIconEx = $icons)" }
     Write-Host "   [ok] $Label icon: $icons icon resource(s) embedded"
     $vi = (Get-Item $Path).VersionInfo
-    if ($vi.ProductName -ne "GPU Screen Recorder") {
-        throw "$Label ($Path): ProductName is '$($vi.ProductName)', expected 'GPU Screen Recorder'"
+    # Trim: Inno Setup pads version-info strings to fixed width (trailing
+    # spaces); windres-built exes are unpadded. Trim makes both compare equal.
+    $productName = $vi.ProductName.Trim()
+    $fileVersion = $vi.FileVersion.Trim()
+    if ($productName -ne "GPU Screen Recorder") {
+        throw "$Label ($Path): ProductName is '$productName', expected 'GPU Screen Recorder'"
     }
-    # The exe embeds the full version string (e.g. 6.0.0-w1) as FileVersion;
-    # the numeric X.Y.Z.W form is only for the installer/Inno AppVersion.
-    if ($vi.FileVersion -notmatch "^$([regex]::Escape($Version))$") {
-        throw "$Label ($Path): FileVersion is '$($vi.FileVersion)', expected '$Version'"
+    # Our exes embed the full version string (e.g. 6.0.0-w1) as FileVersion;
+    # the installer embeds the numeric X.Y.Z.W form (Inno VersionInfoVersion).
+    if ($fileVersion -ne $ExpectedFileVersion) {
+        throw "$Label ($Path): FileVersion is '$fileVersion', expected '$ExpectedFileVersion'"
     }
-    Write-Host "   [ok] $Label version: $($vi.ProductName) $($vi.FileVersion)"
+    Write-Host "   [ok] $Label version: $productName $fileVersion"
 }
 
 function Assert-Runs([string]$Path, [string[]]$ArgsList, [string]$Label, [int]$ExpectedExit = 0) {
@@ -244,7 +248,7 @@ if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
 # ---------------------------------------------------------------------------
 # 5. Validate the installer itself (icon + version resources).
 # ---------------------------------------------------------------------------
-Assert-ExeResources $SetupPath "installer"
+Assert-ExeResources $SetupPath "installer" $VersionNum
 Write-Host ""
 Write-Host "== package complete =="
 Get-ChildItem $OutDir -Filter "GPU-Screen-Recorder-*" | ForEach-Object { Write-Host "   $($_.Name) ($([math]::Round($_.Length / 1MB, 1)) MB)" }
