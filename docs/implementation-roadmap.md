@@ -565,24 +565,59 @@ run `31973326044`).**
   cache reuse (9 glyphs rasterized), and mixed-script fallback (16 glyphs
   — CJK resolved via a fallback face on the runner).
 
-Remaining in Phase 10: the UI app itself — the platform modules
-(GlobalHotkeys, CursorTracker, RegionSelector, DesktopEnvironment,
-Clipboard, AudioPlayer), RPC → named pipe + `gsr-ui-cli.exe`, overlay
-behavior, startup/tray decision, and the CI UI build + smoke test.
+**Milestone C — the full gsr-ui app port: ✅ complete (CI-green, run
+`31997095116`).**
+
+- **RPC → Windows named pipes** (`ui/src/Rpc.cpp` Windows branch):
+  single-instance semantics via a fixed `\\.\pipe\gsr-ui` name, one listen
+  instance with a persistent OVERLAPPED async `ConnectNamedPipe` promoted to
+  a client pipe per connection, `PeekNamedPipe`-polled reads (no blocking
+  poll), `gsr-ui-cli.exe` client. `ui-rpc-test` covers a server+2-client
+  round-trip, the real CLI subprocess, unknown-command rejection, and
+  open-against-nonexistent-server.
+- **Win32 platform modules** (architecture §4.2): GlobalHotkeys
+  (`RegisterHotKey` on a message-only window + X11 keysym→VK translation),
+  CursorTracker (`GetCursorPos`+`MonitorFromPoint`), DesktopEnvironment
+  (`GetForegroundWindow`+`GetWindowTextW`+process name),
+  ClipboardWin32, AudioPlayer (waveOut), RegionSelector (transparent
+  topmost GDI overlay with drag-select). LedIndicator is a Windows no-op
+  (sysfs is Linux-only).
+- **Portable-core ports**: `Process.cpp` (CreateProcess-based,
+  `exec_program` family incl. daemonized), `Utils.cpp` (config dir via
+  `SHGetFolderPathW`, HKCU Run registry autostart), `WindowUtilsWin32`
+  (full WindowUtils.hpp surface: monitors via `EnumDisplayMonitors`,
+  titles, focused window, cursor, fullscreen, click-through, taskbar
+  hiding).
+- **Overlay.cpp / main.cpp**: X11/Wayland code paths guarded with
+  `#ifndef _WIN32`; `x11_dpy` kept as a member (NULL on Windows) so the
+  notification/monitor helpers compile unchanged; `gsr-ui` builds as
+  `gsr-ui.exe` with the Win32 modules + WGL (mgl Win32 backend from
+  milestone A).
+- **CI**: the full 163-target build is green; 15/15 ctest pass, including
+  the new `ui-rpc-test` (0.32s) and `ui-module-test` (headless Win32
+  module smoke test); direct-run jobs re-run the static-linked binaries
+  without MSYS2. `gsr-ui.exe` itself is built and uploaded but not yet
+  exercised end-to-end — it execs `gpu-screen-recorder --info` at startup,
+  which needs the engine binary (Phase 11+).
+
+Remaining in Phase 10 (smaller items): real-window overlay behavior
+verification (fullscreen/topmost/per-monitor once the engine runs),
+startup integration + tray-icon decision, translations/assets verification,
+and screenshot golden tests of the settings pages.
 
 Tasks:
 
-1. mgl Win32 backend (window, input, WGL/EGL context) — the big item.
-2. Replace UI platform modules (architecture §4.2): GlobalHotkeys
-   (RegisterHotKey), CursorTracker, RegionSelector, DesktopEnvironment,
-   Clipboard, AudioPlayer; drop WaylandHostBridge/Hotplug/LedIndicator.
-3. `Rpc.cpp` → named pipe; `gsr-ui-cli.exe`; single-instance semantics.
-4. Overlay behavior on Windows (fullscreen/topmost/focus/per-monitor).
-5. Startup option (HKCU Run / Startup folder); tray-icon decision.
+1. ~~mgl Win32 backend (window, input, WGL/EGL context)~~ — milestone A.
+2. ~~Replace UI platform modules (architecture §4.2)~~ — milestone C.
+3. ~~`Rpc.cpp` → named pipe; `gsr-ui-cli.exe`; single-instance~~ — milestone C.
+4. Overlay behavior on Windows (fullscreen/topmost/focus/per-monitor) —
+   guards are in; runtime verification needs the engine binary.
+5. Startup option (HKCU Run registry impl is in Utils.cpp); tray-icon
+   decision (not done).
 6. Translations + assets verification; config_ui path mapping.
-7. CI: full UI build + headless smoke test (window creation offscreen where
-   possible); screenshot golden tests of the settings pages (render to
-   texture, no real display needed).
+7. CI: end-to-end gsr-ui smoke test once the engine binary exists
+   (milestone C validated via ui-rpc-test/ui-module-test instead);
+   screenshot golden tests of the settings pages (render to texture).
 
 ---
 

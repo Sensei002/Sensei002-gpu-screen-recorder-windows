@@ -852,3 +852,60 @@ plumbing. The lessons:
   the pango sources are instrumented but mostly untested headless, so the
   percentage dips; the milestone's real proof is the runtime checks (font
   found, layout size > 0, atlas glyphs rasterized, fallback resolved).
+
+## 3o. Phase 10 (milestone C) CI validation lessons (full gsr-ui port)
+
+The remaining Phase 10 work — the whole UI app — landed in one milestone:
+RPC→named pipes + gsr-ui-cli, the six Win32 platform modules, the
+Process/Utils/WindowUtils ports, the Overlay.cpp/main.cpp X11 guards, and
+the full 163-target build with ui-rpc-test/ui-module-test. The lessons, in
+the order CI found them:
+
+* **windows.h's bare `ERROR` macro collides with `NotificationLevel::ERROR`**
+  (and would with any `ERROR` enumerator). `#undef ERROR` at the top of the
+  header (like Rpc.hpp) is the fix. Do NOT use
+  `#pragma push_macro("ERROR")`/`pop_macro` around the enum: pop_macro
+  restores the macro for the rest of the TU, so every later
+  `NotificationLevel::ERROR` use expands to `NotificationLevel::0`.
+* **`stat.st_mtim` is Linux-only.** Windows `struct stat` has `st_mtime`
+  (already `time_t`) — guard or use the portable field.
+* **`strcasecmp` needs `<strings.h>` on MinGW** (declared there, not in
+  string.h).
+* **The X11 guard pattern has two traps.** (1) A function whose body is
+  `#ifdef _WIN32 return; #else ...body... #endif` must NOT put its closing
+  brace inside the `#else` — on Windows the enclosing namespace never
+  closes ("expected '}' at end of input"). Keep one closing brace after
+  `#endif`. (2) A `#ifndef _WIN32` that swallows the function's final
+  `return; }` leaves the function unclosed on Windows and cascades into
+  the next function ("qualified-id in declaration before '(' token").
+  Always add an explicit `#else (void)x; return false; #endif`.
+* **Keep `Display *x11_dpy` as a member on Windows (NULL).** Many
+  notification/monitor helpers take it as an opaque handle and check
+  `if(x11_dpy)` internally; with the member present they compile and
+  behave correctly (skip X11 paths) with zero per-call-site guards.
+* **X11-only files that are excluded from the Windows build still leave
+  link holes.** `window_texture.c` (XGetImage/XRender) isn't built, so
+  `window_texture_deinit` was undefined — guard the two call sites in
+  Overlay.cpp (the member is never initialized on Windows).
+* **Named-pipe server: `FILE_FLAG_FIRST_PIPE_INSTANCE` is for the FIRST
+  instance only.** CreateNamedPipe fails with ERROR_ACCESS_DENIED for the
+  second instance created with it — the re-armed listen pipe after the
+  first accepted client silently failed, and the next client spun on
+  `ERROR_PIPE_BUSY` forever. Drop the flag (or pass it once).
+* **Named-pipe server: close the pipe BEFORE freeing its OVERLAPPED.**
+  Closing the pipe handle cancels the pending ConnectNamedPipe, and the
+  cancellation writes the final status into the OVERLAPPED. `~Rpc` freed
+  `ov` first, so the cancel wrote into freed memory — 0xc0000374 heap
+  corruption detected at process exit, silent otherwise.
+* **Named-pipe clients must bound their `ERROR_PIPE_BUSY` retry loop.**
+  `WaitNamedPipeA`-and-`continue` spins forever if the server never
+  accepts; bound to ~5s then fail (Rpc::open and gsr-ui-cli both).
+* **ctest's default per-test timeout is 1500s** — a hung test silently ate
+  the whole runner. `ctest --timeout 120` turns a hang into a 2-minute
+  failure naming the test.
+* **MinGW has no libasan** (`-fsanitize=address` fails to link: cannot
+  find -lasan) — heap bugs have to be found by reasoning about Windows
+  semantics, not ASan, unless a custom toolchain is installed.
+* **The `-static-libgcc` link flag on the C++ UI tests is fine**, but any
+  future static/dynamic CRT mixing will resurface as exit-code-only
+  crashes (0xc0000374 family) — check heap-adjacent ordering bugs first.
