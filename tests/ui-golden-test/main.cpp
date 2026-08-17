@@ -30,7 +30,11 @@
 #include <windows.h>
 #include <GL/gl.h>
 
+/* The mgl C headers have no extern "C" guards; the C++ wrapper (mglpp)
+   wraps them itself, so C++ TUs must do the same. */
+extern "C" {
 #include <mgl/mgl.h>
+}
 #include <mglpp/window/Window.hpp>
 
 #include "Config.hpp"

@@ -24,8 +24,12 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
+/* The mgl C headers have no extern "C" guards; the C++ wrapper (mglpp)
+   wraps them itself, so C++ TUs must do the same. */
+extern "C" {
 #include <mgl/mgl.h>
 #include <mgl/window/window.h>
+}
 
 #include "WindowUtils.hpp"
 #include "CursorTracker/CursorTrackerWin32.hpp"
