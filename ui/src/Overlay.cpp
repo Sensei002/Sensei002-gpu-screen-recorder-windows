@@ -1808,11 +1808,16 @@ namespace gsr {
         };
 
         settings_page->on_joystick_hotkey_changed = [this](std::string_view hotkey_option) {
+#ifndef _WIN32
             global_hotkeys_js.reset();
             if(hotkey_option == "enable_hotkeys")
                 global_hotkeys_js = register_joystick_hotkeys(this);
             else if(hotkey_option == "disable_hotkeys")
                 global_hotkeys_js.reset();
+#else
+            /* Joystick hotkeys are Linux-only (GlobalHotkeysJoystick). */
+            (void)hotkey_option;
+#endif
         };
 
         settings_page->on_page_closed = [this]() {
@@ -1852,6 +1857,7 @@ namespace gsr {
         }
         remove_widgets_to_be_removed();
 
+#ifndef _WIN32
         if(default_cursor) {
             XFreeCursor(display, default_cursor);
             default_cursor = 0;
@@ -1865,6 +1871,7 @@ namespace gsr {
             cursor_texture.clear();
             cursor_sprite.set_texture(nullptr);
         }
+#endif /* !_WIN32 */
 
         window_texture_deinit(&window_texture);
         window_texture_sprite.set_texture(nullptr);
@@ -1886,6 +1893,7 @@ namespace gsr {
             xi_output_xev = nullptr;
         }
 
+#ifndef _WIN32
         if(xi_display) {
             if(window) {
                 Display *display = x11_dpy;
@@ -1902,6 +1910,7 @@ namespace gsr {
             XCloseDisplay(xi_display);
             xi_display = nullptr;
         }
+#endif /* !_WIN32 */
 
         if(window) {
             if(show_overlay_timeout_seconds > 0.0001) {
@@ -2236,9 +2245,15 @@ namespace gsr {
 
     void Overlay::rebind_all_keyboard_hotkeys() {
         unbind_all_keyboard_hotkeys();
-        // TODO: Check if type is GlobalHotkeysLinux
-        if(global_hotkeys)
+        if(global_hotkeys) {
+#ifndef _WIN32
+            // TODO: Check if type is GlobalHotkeysLinux
             bind_linux_hotkeys(static_cast<GlobalHotkeysLinux*>(global_hotkeys.get()), this, on_region_selected != nullptr);
+#else
+            /* bind_linux_hotkeys only uses the base GlobalHotkeys API. */
+            bind_linux_hotkeys(global_hotkeys.get(), this, on_region_selected != nullptr);
+#endif
+        }
     }
 
     void Overlay::set_notification_speed(NotificationSpeed notification_speed) {
@@ -3058,11 +3073,16 @@ namespace gsr {
         if(gpu_screen_recorder_process_output_fd <= 0)
             return;
 
+#ifndef _WIN32
         const int fdl = fcntl(gpu_screen_recorder_process_output_fd, F_GETFL);
         fcntl(gpu_screen_recorder_process_output_fd, F_SETFL, fdl | O_NONBLOCK);
         gpu_screen_recorder_process_output_file = fdopen(gpu_screen_recorder_process_output_fd, "r");
         if(gpu_screen_recorder_process_output_file)
             gpu_screen_recorder_process_output_fd = -1;
+#else
+        /* No POSIX output pipes on Windows; the fd is never > 0. */
+        (void)0;
+#endif
     }
 
     void Overlay::on_press_save_replay() {
@@ -3965,9 +3985,11 @@ namespace gsr {
         }
 
         return true;
+#else
+        (void)monitor;
+        return false;
+#endif
     }
-
-#endif /* !_WIN32 */
 
     void Overlay::force_window_on_top() {
 #ifdef _WIN32

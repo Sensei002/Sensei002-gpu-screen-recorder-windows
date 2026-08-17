@@ -16,6 +16,7 @@
 #include "../../include/gui/CheckBox.hpp"
 #include "../../include/gui/LineSeparator.hpp"
 #include "../../include/gui/CustomRendererWidget.hpp"
+#include "../../include/GlobalHotkeys/GlobalHotkeys.hpp"
 
 #include <assert.h>
 #include <X11/Xlib.h>

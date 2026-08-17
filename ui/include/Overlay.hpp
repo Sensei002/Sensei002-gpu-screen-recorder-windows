@@ -48,19 +48,17 @@ namespace gsr {
         NOTICE
     };
 
-    // windows.h defines a bare `ERROR` macro that would collide with the
-    // enumerator below; save and restore it around the enum.
-#ifdef _WIN32
-#pragma push_macro("ERROR")
+    // windows.h (force-included via gsr_win32_compat.h) defines a bare
+    // `ERROR` macro that would collide with the enumerator below. Keep it
+    // undefined for the rest of the translation unit (same approach as
+    // Rpc.hpp); nothing in the UI uses windows.h's bare ERROR constant.
+#ifdef ERROR
 #undef ERROR
 #endif
     enum class NotificationLevel {
         INFO,
         ERROR,
     };
-#ifdef _WIN32
-#pragma pop_macro("ERROR")
-#endif
 
     enum class RecordForceType {
         NONE,
@@ -277,9 +275,10 @@ namespace gsr {
         double show_overlay_timeout_seconds = 0.0;
 
         std::unique_ptr<GlobalHotkeys> global_hotkeys = nullptr;
+        // Always present; NULL on Windows (the Win32 WindowUtils accept it).
+        Display *x11_dpy = nullptr;
 #ifndef _WIN32
         std::unique_ptr<GlobalHotkeysJoystick> global_hotkeys_js = nullptr;
-        Display *x11_dpy = nullptr;
         XEvent x11_xev;
 #endif
         // True when the overlay window is a native Wayland surface (wlr-layer-shell)
