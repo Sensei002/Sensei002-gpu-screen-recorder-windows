@@ -136,6 +136,76 @@ int gsr_platform_replay_cleanup_stale_directories(const char *replay_directory, 
 }
 #endif
 
+/* ---- POSIX process shims (UI only) --------------------------------------
+ * The UI (ui/src/Overlay.cpp, ui/src/Process.cpp) uses a small POSIX process
+ * surface that MinGW-w64 does not provide: usleep, kill, waitpid, WIFEXITED/
+ * WEXITSTATUS, WNOHANG and the signal constants. None of the engine files
+ * compiled on Windows use these, so defining them here (the header is
+ * force-included into every TU) is safe. The UI's Process.cpp maps child
+ * process HANDLEs to pid_t, so kill/waitpid operate on HANDLEs. */
+#ifndef GSR_POSIX_PROCESS_SHIMS
+#define GSR_POSIX_PROCESS_SHIMS
+
+#ifndef SIGINT
+#define SIGINT 2
+#endif
+#ifndef SIGTERM
+#define SIGTERM 15
+#endif
+#ifndef SIGKILL
+#define SIGKILL 9
+#endif
+#ifndef SIGUSR1
+#define SIGUSR1 10
+#endif
+#ifndef SIGUSR2
+#define SIGUSR2 12
+#endif
+#ifndef WNOHANG
+#define WNOHANG 1
+#endif
+#ifndef WIFEXITED
+#define WIFEXITED(status) 1
+#endif
+#ifndef WIFSIGNALED
+#define WIFSIGNALED(status) 0
+#endif
+#ifndef WEXITSTATUS
+#define WEXITSTATUS(status) ((int)(status))
+#endif
+
+static inline void usleep(unsigned long usec) {
+    Sleep((DWORD)((usec + 999) / 1000));
+}
+
+/* pid_t is a child process HANDLE (from ui Process.cpp's CreateProcess). */
+static inline int kill(int pid, int sig) {
+    (void)sig;
+    if(pid <= 0)
+        return -1;
+    HANDLE process = (HANDLE)(intptr_t)pid;
+    if(!TerminateProcess(process, 1))
+        return -1;
+    return 0;
+}
+
+static inline int waitpid(int pid, int *status, int options) {
+    (void)options;
+    if(pid <= 0)
+        return -1;
+    HANDLE process = (HANDLE)(intptr_t)pid;
+    DWORD exit_code = 0;
+    if(WaitForSingleObject(process, options & WNOHANG ? 0 : INFINITE) == WAIT_OBJECT_0) {
+        GetExitCodeProcess(process, &exit_code);
+        if(status)
+            *status = (int)exit_code;
+        CloseHandle(process);
+        return pid;
+    }
+    return 0; /* still running (WNOHANG) */
+}
+#endif /* GSR_POSIX_PROCESS_SHIMS */
+
 /* ---- dlopen/dlsym/dlclose/dlerror --------------------------------------
  * MinGW-w64 may provide <dlfcn.h> + libdl.a; regardless of that, this port
  * ships its own implementation (gsr_win32_compat.c) built on LoadLibrary/
