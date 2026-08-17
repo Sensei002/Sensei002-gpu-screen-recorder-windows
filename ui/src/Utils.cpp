@@ -170,7 +170,18 @@ namespace gsr {
 
         LONG result = ERROR_SUCCESS;
         if(enable) {
-            const char *value = "\"gsr-ui\" launch-daemon";
+            /* Full path to the running UI binary, so autostart works from any
+               install location (portable ZIP, per-user install) without
+               relying on gsr-ui being on PATH. */
+            char exe_path[MAX_PATH];
+            const DWORD exe_path_size = GetModuleFileNameA(NULL, exe_path, sizeof(exe_path));
+            if(exe_path_size == 0 || exe_path_size >= sizeof(exe_path)) {
+                RegCloseKey(key);
+                return 1;
+            }
+
+            char value[MAX_PATH + 32];
+            snprintf(value, sizeof(value), "\"%s\" launch-daemon", exe_path);
             result = RegSetValueExA(key, kStartupRunValueName, 0, REG_SZ, (const BYTE*)value, (DWORD)strlen(value) + 1);
         } else {
             result = RegDeleteValueA(key, kStartupRunValueName);

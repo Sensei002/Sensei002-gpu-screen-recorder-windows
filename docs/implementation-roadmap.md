@@ -694,10 +694,17 @@ Tasks:
       (no VAAPI on Windows).
 - [x] HAGS detection (`HwSchMode` under GraphicsDrivers) surfaced as
       `hags|yes|no` in `--info` + the backend/encoder choices logged.
-- [ ] Startup option implementation (HKCU Run autostart — Utils.cpp
-      already has set_xdg_autostart over the registry); clean shutdown on
-      session end/logoff (SetConsoleCtrlHandler CTRL_LOGOFF is wired in
-      the engine); file associations (optional, documented).
+- [x] Startup option implementation (HKCU Run autostart — Utils.cpp
+      set_xdg_autostart writes the full path to the running exe +
+      `launch-daemon`, so portable installs autostart without PATH
+      dependency; `ui-module-test` round-trips the registry value through
+      the real UI code path); clean shutdown on session end/logoff
+      (engine: SetConsoleCtrlHandler CTRL_LOGOFF stops the recorder and
+      saves; UI: console-subsystem app hides its console window at startup
+      and exits the main loop on CTRL_LOGOFF/CTRL_SHUTDOWN/close so the
+      overlay tears down cleanly); file associations (optional, documented
+      — not implemented: recordings are standard mp4/mkv and the UI opens
+      the save folder rather than registering extensions).
 
 ---
 
@@ -791,8 +798,8 @@ release notes, installer + zip published. Acceptance checklist from the brief
 | 8 | WASAPI audio | ✅ complete (milestone A backend + milestone B listing/session-enum, A/V-sync harness, device-change auto-switch; per-app capture documented unsupported) |
 | 9 | Replay | ✅ complete (RAM + disk buffers verified end-to-end: 2s + FULL saves, -restart-replay-on-save proven, -df naming; crash-safe disk buffer cleanup via stale-session sweep; tests: trim, keyframe boundaries, simulated-crash cleanup) |
 | 10 | UI | 🔄 in progress — milestone A (mgl Win32 backend) ✅ + milestone B (mgl text pipeline: pangoft2 + fontconfig, glyph atlas, mixed-script fallback) ✅ both CI-green; the UI app itself remains |
-| 11 | Hotkeys/notifications/IPC | pending |
-| 12 | Startup/integration | pending |
+| 11 | Engine binary + IPC | ✅ complete (engine exe + named-pipe IPC + gsr-cli + commands + windowing + HAGS hardening; engine-ipc-test + live engine test CI-green) |
+| 12 | Startup/integration | ✅ complete (HKCU Run autostart portable-safe + tested; clean shutdown on logoff for engine and UI; file associations documented as not needed) |
 | 13 | Installer + portable zip | pending |
 | 14 | GitHub Actions full pipeline | pending (built incrementally: build/test/coverage/package/release already in one workflow) |
 | 15 | Performance | pending |

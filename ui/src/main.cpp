@@ -11,6 +11,8 @@
 
 #ifndef _WIN32
 #include <wayland-client.h>
+#else
+#include <windows.h>
 #endif
 #include <signal.h>
 #include <string.h>
@@ -42,6 +44,30 @@ static void sigint_handler(int signal) {
 static void signal_ignore(int) {
 
 }
+
+#ifdef _WIN32
+/* Session end/logoff: the UI is a console-subsystem app (int main, no
+   -mwindows), so Windows delivers CTRL_LOGOFF/CTRL_SHUTDOWN (and close)
+   here instead of WM_ENDSESSION. Exit the main loop so the overlay tears
+   down cleanly — same as SIGINT/SIGTERM. The engine process gets its own
+   CTRL_LOGOFF via its SetConsoleCtrlHandler and saves the recording. */
+static BOOL WINAPI console_ctrl_handler(DWORD ctrl_type) {
+    switch(ctrl_type) {
+        case CTRL_C_EVENT:
+        case CTRL_BREAK_EVENT:
+        case CTRL_CLOSE_EVENT:
+        case CTRL_LOGOFF_EVENT:
+        case CTRL_SHUTDOWN_EVENT:
+            /* Same as sigint_handler: killed makes main() return exit code 0
+               (on Windows the display server is always "connected", so the
+               fall-through exit path would otherwise report a crash). */
+            killed = 1;
+            running = 0;
+            return TRUE;
+    }
+    return FALSE;
+}
+#endif
 
 static void disable_prime_run() {
 #ifndef _WIN32
@@ -323,6 +349,16 @@ int main(int argc, char **argv) {
     signal(SIGRTMIN+4, signal_ignore);
     signal(SIGRTMIN+5, signal_ignore);
     signal(SIGRTMIN+6, signal_ignore);
+
+#ifdef _WIN32
+    /* The UI is a GUI app with a console attached (console subsystem): hide
+       the console window so autostart at logon doesn't flash a black box,
+       but keep the console attached so CTRL_LOGOFF/CTRL_SHUTDOWN still get
+       delivered to console_ctrl_handler above. */
+    if(GetConsoleWindow())
+        ShowWindow(GetConsoleWindow(), SW_HIDE);
+    SetConsoleCtrlHandler(console_ctrl_handler, TRUE);
+#endif
 
     gsr::GsrInfo gsr_info;
     // TODO: Show the error in ui

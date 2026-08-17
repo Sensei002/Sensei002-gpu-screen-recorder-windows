@@ -27,7 +27,7 @@ serves), its Windows implementation, and the phase that implements it.
 | `ipc.h` | IPC protocol codec + named-pipe transport | engine `cli/ipc.c` (Unix socket), `cli/commands.c` request handling, `tools/gsr-cli` | `gsr_ipc_protocol.c` (codec, byte-identical wire format) now; pipe transport in `ipc.c` | 3 ✅ codec, 11 transport |
 | `process.h` | child-process spawn with stdout capture | UI engine spawn (parses stdout), `-sc` scripts, `exec_program`-style helpers | `process.c` (CreateProcess) | 12 |
 | `notifications.h` | notification display | UI notifications, `gsr-notify` binary | `gsr-notification.exe` | 11 |
-| `startup.h` | autostart at logon | UI XDG autostart | `startup.c` (HKCU Run key) | 12 |
+| `startup.h` | autostart at logon | UI XDG autostart | HKCU Run key (implemented in the UI's `Utils.cpp` `set_xdg_autostart` — full exe path + `launch-daemon`; `startup.h` is the declared interface) | 12 ✅ |
 | `thread.h` | thread naming (threading itself = winpthreads, no shim needed) | engine pthreads / UI std::thread (unchanged) | `gsr_platform_win32.c` (SetThreadDescription) | 3 ✅ |
 | `config.h` | schema-driven config in upstream's config_ui key=value format | UI `config_ui` file (custom key=value-line format, upstream-analysis §4.2) | `gsr_config_win32.c` (machinery + provisional schema) | 3 ✅ machinery, 10 full schema |
 | `codec_caps.h` | codec capability decision logic (`-k` options, HDR gating, `-encoder` fallback) | engine `codec_query/` probe data (`gsr_supported_video_codecs` struct — kept unchanged), `--info` codec line | `gsr_codec_caps_win32.c` | 3 ✅ logic, 7 probe |
@@ -45,7 +45,7 @@ serves), its Windows implementation, and the phase that implements it.
 | UI `GlobalHotkeys/CursorTracker/RegionSelector/DesktopEnvironment/Clipboard/AudioPlayer` | `hotkeys.h` + Win32 equivalents (Phases 10–11) |
 | UI `config_ui` | `config.h` (same key=value format) |
 | UI engine spawn / `-sc` scripts | `process.h` (Phase 12) |
-| XDG autostart | `startup.h` (Phase 12) |
+| XDG autostart | `startup.h` — HKCU Run key in UI `Utils.cpp` (Phase 12 ✅) |
 | `gsr-notify` | `gsr-notification.exe` (Phase 11) |
 
 ## Implementation notes

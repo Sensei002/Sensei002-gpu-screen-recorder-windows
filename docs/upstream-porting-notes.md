@@ -1001,3 +1001,33 @@ the order CI found them:
   real monitor names (`\\.\DISPLAY1`) or the primary alias `screen`; the
   test resolves the primary monitor via gsr_platform_display_list_monitors
   before spawning the engine.
+
+## 3r. Phase 12 startup/logoff lessons (HKCU Run autostart + clean shutdown)
+
+* **HKCU Run must store the full exe path, not a bare command.** The first
+  Windows `set_xdg_autostart` wrote `"gsr-ui" launch-daemon`, which only
+  launches if `gsr-ui` is on PATH — true for an installer but not a portable
+  ZIP. The value is now `"<full path to gsr-ui.exe>" launch-daemon` via
+  `GetModuleFileNameA`, so autostart works from any install location. The
+  UI's value name is `gpu-screen-recorder-ui` under
+  `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
+* **The UI is a console-subsystem app, which is a feature here.** gsr-ui is
+  built with `int main` (no `-mwindows`), so it has a console attached and
+  Windows delivers `CTRL_LOGOFF`/`CTRL_SHUTDOWN`/`CTRL_CLOSE` to a
+  `SetConsoleCtrlHandler`. That's the clean-shutdown path on session end:
+  the UI exits its main loop (overlay tears down) and the separately-spawned
+  engine gets its own `CTRL_LOGOFF` via gsr_main_win32.c and saves the
+  recording. Two consequences: (1) hide the console window at startup
+  (`ShowWindow(GetConsoleWindow(), SW_HIDE)`) so autostart at logon doesn't
+  flash a black box — but keep the console attached so the handler still
+  fires; (2) a GUI-subsystem build (`-mwindows`) would lose console events
+  and need WM_QUERYENDSESSION/WM_ENDSESSION handling instead.
+* **Registry round-trip is testable through the real UI code path.**
+  `ui-module-test` calls `gsr::set_xdg_autostart`/`is_xdg_autostart_enabled`
+  (Utils.cpp) — set → verify the value contains the exe path +
+  `launch-daemon` → unset → verify gone — saving and restoring the prior
+  state so a developer machine with autostart enabled isn't clobbered.
+* **File associations are out of scope (documented).** Recordings are
+  standard mp4/mkv; the UI opens the save folder rather than registering
+  extensions, matching upstream's behavior (no proprietary format needs an
+  association).

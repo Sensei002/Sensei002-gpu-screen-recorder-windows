@@ -31,6 +31,7 @@ extern "C" {
 #include <mgl/window/window.h>
 }
 
+#include "Utils.hpp"
 #include "WindowUtils.hpp"
 #include "CursorTracker/CursorTrackerWin32.hpp"
 #include "DesktopEnvironment/DesktopEnvironmentWin32.hpp"
@@ -115,6 +116,51 @@ static void test_global_hotkeys(void) {
 
     hotkeys.unbind_key_press("test_hotkey");
     hotkeys.unbind_all_keys();
+}
+
+/* Autostart (HKCU Run) round-trip through the real UI code path
+   (Utils.cpp set_xdg_autostart / is_xdg_autostart_enabled). Writes to the
+   user's actual Run key, so save the prior state and restore it afterwards
+   — on CI there is no prior value and the key ends clean. */
+static void test_startup_autostart(void) {
+    printf("-- startup (HKCU Run autostart)\n");
+    const bool was_enabled = gsr::is_xdg_autostart_enabled();
+
+    CHECK(gsr::set_xdg_autostart(true) == 0);
+    CHECK(gsr::is_xdg_autostart_enabled());
+
+    /* The value must be the full path to the running exe + launch-daemon,
+       not a bare "gsr-ui" that depends on PATH (portable installs). */
+    char exe_path[MAX_PATH];
+    const DWORD exe_path_size = GetModuleFileNameA(NULL, exe_path, sizeof(exe_path));
+    CHECK(exe_path_size > 0 && exe_path_size < sizeof(exe_path));
+
+    HKEY key = NULL;
+    if(RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_READ, &key) == ERROR_SUCCESS) {
+        char buffer[1024];
+        DWORD buffer_size = sizeof(buffer);
+        DWORD type = 0;
+        const LONG result = RegQueryValueExA(key, "gpu-screen-recorder-ui", NULL, &type, (LPBYTE)buffer, &buffer_size);
+        RegCloseKey(key);
+        if(result == ERROR_SUCCESS && type == REG_SZ) {
+            buffer[buffer_size - 1] = '\0';
+            CHECK(strstr(buffer, exe_path) != NULL);
+            CHECK(strstr(buffer, "launch-daemon") != NULL);
+        } else {
+            ++num_failures;
+            fprintf(stderr, "FAIL %s:%d: Run value not present after set_xdg_autostart(true)\n", __FILE__, __LINE__);
+        }
+    } else {
+        ++num_failures;
+        fprintf(stderr, "FAIL %s:%d: could not open the Run key\n", __FILE__, __LINE__);
+    }
+
+    CHECK(gsr::set_xdg_autostart(false) == 0);
+    CHECK(!gsr::is_xdg_autostart_enabled());
+
+    /* Restore the prior state (no-op on CI). */
+    if(was_enabled)
+        gsr::set_xdg_autostart(true);
 }
 
 static void test_misc_modules(void) {
@@ -281,6 +327,7 @@ int main(void) {
     test_cursor_tracker();
     test_desktop_environment();
     test_global_hotkeys();
+    test_startup_autostart();
     test_misc_modules();
     test_overlay_window_behavior();
 
