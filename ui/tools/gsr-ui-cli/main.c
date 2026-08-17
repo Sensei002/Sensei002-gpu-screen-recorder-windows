@@ -4,11 +4,45 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <io.h>
+#define write _write
+#else
 #include <unistd.h>
 #include <errno.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#endif
 
+#ifdef _WIN32
+static const char *pipe_full_name(void) {
+    static char full_name[64];
+    snprintf(full_name, sizeof(full_name), "\\\\.\\pipe\\gsr-ui");
+    return full_name;
+}
+
+/* Assumes |str| size is less than 256 */
+static bool file_write_all(HANDLE file, const char *str) {
+    char command[256];
+    const int command_size = snprintf(command, sizeof(command), "%s\n", str);
+    if(command_size >= (int)sizeof(command)) {
+        fprintf(stderr, "Error: command too long: %s\n", str);
+        return false;
+    }
+
+    DWORD offset = 0;
+    while(offset < (DWORD)command_size) {
+        DWORD bytes_written = 0;
+        if(!WriteFile(file, command + offset, (DWORD)(command_size - offset), &bytes_written, NULL))
+            return false;
+        if(bytes_written > 0)
+            offset += bytes_written;
+    }
+    return true;
+}
+#else
 static bool build_abstract_address(const char *name, struct sockaddr_un *addr, socklen_t *addrlen_out) {
     char dir[PATH_MAX];
     const char *runtime_dir = getenv("XDG_RUNTIME_DIR");
@@ -55,6 +89,7 @@ static void file_write_all(int file_fd, const char *str) {
             offset += bytes_written;
     }
 }
+#endif
 
 static void usage(void) {
     printf("usage: gsr-ui-cli <command>\n");
@@ -135,6 +170,28 @@ int main(int argc, char **argv) {
         usage();
     }
 
+#ifdef _WIN32
+    const char *full_name = pipe_full_name();
+    HANDLE file = NULL;
+    for(;;) {
+        file = CreateFileA(full_name, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+        if(file != INVALID_HANDLE_VALUE)
+            break;
+        const DWORD err = GetLastError();
+        if(err == ERROR_PIPE_BUSY) {
+            if(!WaitNamedPipeA(full_name, 100))
+                continue;
+        } else {
+            fprintf(stderr, "Error: failed to connect, error: %lu. Maybe gsr-ui is not running?\n", (unsigned long)err);
+            exit(2);
+        }
+    }
+
+    if(!file_write_all(file, command))
+        fprintf(stderr, "Error: failed to write command\n");
+    CloseHandle(file);
+    return 0;
+#else
     struct sockaddr_un addr;
     socklen_t addrlen = 0;
     if(!build_abstract_address("gsr-ui", &addr, &addrlen)) {
@@ -165,4 +222,5 @@ int main(int argc, char **argv) {
     file_write_all(socket_fd, command);
     close(socket_fd);
     return 0;
+#endif
 }

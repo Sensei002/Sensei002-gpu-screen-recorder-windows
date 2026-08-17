@@ -397,13 +397,24 @@ target_link_libraries(mgl_core PUBLIC opengl32 user32 gdi32 ${MGL_PANGO_LIBS_FLA
 add_executable(mgl-win32-test tests/mgl-win32-test/main.c)
 target_link_libraries(mgl-win32-test PRIVATE mgl_core)
 
+# Phase 10 (remaining) RPC layer: the gsr-ui<->gsr-ui-cli transport. On
+# Windows this is a named pipe (\\.\pipe\gsr-ui), on POSIX an abstract unix
+# domain socket — the public API (create/open/write/poll/add_handler) is
+# identical. The test is headless and self-contained.
+add_library(ui_rpc STATIC ui/src/Rpc.cpp)
+target_include_directories(ui_rpc PUBLIC ${CMAKE_SOURCE_DIR}/ui/include)
+add_executable(gsr-ui-cli ui/tools/gsr-ui-cli/main.c)
+target_include_directories(gsr-ui-cli PRIVATE ${CMAKE_SOURCE_DIR}/ui/include)
+add_executable(ui-rpc-test tests/ui-rpc-test/main.cpp)
+target_link_libraries(ui-rpc-test PRIVATE ui_rpc)
+
 # Link the test executables against the static MinGW runtime so they can be
 # re-run by the workflow's `test` job without the MSYS2 environment.
 # -static-libgcc works with the C driver; the C++ runtime (libstdc++.a),
 # winpthread and atomic are already linked statically via the gsr_core
 # PUBLIC link flags above (-static-libstdc++/-static-libwinpthread are
 # driver options that do nothing when linking with cc).
-foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test dxgi-self-test recorder-self-test audio-conv-test nvenc-self-test audio-list-test audio-sync-test replay-save-test mgl-win32-test)
+foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test dxgi-self-test recorder-self-test audio-conv-test nvenc-self-test audio-list-test audio-sync-test replay-save-test mgl-win32-test ui-rpc-test)
     set_target_properties(${target} PROPERTIES
         LINK_FLAGS "-static-libgcc")
 endforeach()
@@ -422,3 +433,4 @@ add_test(NAME audio-list-test COMMAND audio-list-test)
 add_test(NAME audio-sync-test COMMAND audio-sync-test)
 add_test(NAME replay-save-test COMMAND replay-save-test)
 add_test(NAME mgl-win32-test COMMAND mgl-win32-test)
+add_test(NAME ui-rpc-test COMMAND ui-rpc-test)

@@ -1,13 +1,12 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdint.h>
 #include <functional>
 #include <unordered_map>
 #include <string>
-#include <poll.h>
 
 #define GSR_RPC_MAX_CONNECTIONS 8
-#define GSR_RPC_MAX_POLLS (1 + GSR_RPC_MAX_CONNECTIONS) /* +1 to include the socket_fd itself for accept */
 #define GSR_RPC_MAX_MESSAGE_SIZE 128
 
 namespace gsr {
@@ -38,12 +37,21 @@ namespace gsr {
 
         bool add_handler(const std::string &name, RpcCallback callback);
     private:
-        void handle_client_data(int client_fd, PollData &poll_data);
+        void handle_client_data(int client_index, PollData &poll_data);
+        void accept_listen_client();
     private:
-        int socket_fd = 0;
-        struct pollfd polls[GSR_RPC_MAX_POLLS];
-        PollData polls_data[GSR_RPC_MAX_POLLS];
-        int num_polls = 0;
+        /* Platform-neutral: on POSIX this is the listen socket fd, on Windows
+           the listen pipe handle (cast to intptr_t). */
+        intptr_t listen_fd = 0;
+        /* Windows: persistent OVERLAPPED for the listen pipe's async connect
+           (opaque pointer, allocated in Rpc.cpp). NULL on POSIX. */
+        void *listen_overlapped = nullptr;
+        /* Windows: a client connected before ConnectNamedPipe was armed
+           (ERROR_PIPE_CONNECTED) — accept it on the next poll. */
+        bool listen_immediate_connect = false;
+        int num_clients = 0;
+        intptr_t client_fds[GSR_RPC_MAX_CONNECTIONS];
+        PollData polls_data[GSR_RPC_MAX_CONNECTIONS];
         std::unordered_map<std::string, RpcCallback> handlers_by_name;
     };
 }
