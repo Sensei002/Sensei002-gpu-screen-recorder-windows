@@ -6,6 +6,12 @@
 #include <unordered_map>
 #include <string>
 
+/* windows.h (force-included by the build) defines ERROR as a macro, which
+   collides with the RpcOpenResult::ERROR enumerator. */
+#ifdef ERROR
+#undef ERROR
+#endif
+
 #define GSR_RPC_MAX_CONNECTIONS 8
 #define GSR_RPC_MAX_MESSAGE_SIZE 128
 
