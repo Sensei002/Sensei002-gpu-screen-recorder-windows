@@ -73,7 +73,7 @@ function Assert-ExeResources([string]$Path, [string]$Label) {
     Write-Host "   [ok] $Label version: $($vi.ProductName) $($vi.FileVersion)"
 }
 
-function Assert-Runs([string]$Path, [string[]]$ArgsList, [string]$Label) {
+function Assert-Runs([string]$Path, [string[]]$ArgsList, [string]$Label, [int]$ExpectedExit = 0) {
     # 2>&1 on a native command turns stderr into ErrorRecords, which under
     # EAP=Stop would throw on any stderr write - suspend it for the call.
     $prev = $ErrorActionPreference
@@ -84,10 +84,10 @@ function Assert-Runs([string]$Path, [string[]]$ArgsList, [string]$Label) {
     } finally {
         $ErrorActionPreference = $prev
     }
-    if ($code -ne 0) {
-        throw "${Label}: '$Path $ArgsList' exited $code`n$out"
+    if ($code -ne $ExpectedExit) {
+        throw "${Label}: '$Path $ArgsList' exited $code (expected $ExpectedExit)`n$out"
     }
-    Write-Host "   [ok] ${Label}: '$Path $ArgsList' (exit 0)"
+    Write-Host "   [ok] ${Label}: '$Path $ArgsList' (exit $ExpectedExit)"
 }
 
 function Invoke-Validation([string]$Dir, [string]$Label) {
@@ -98,7 +98,9 @@ function Invoke-Validation([string]$Dir, [string]$Label) {
     $engine = Join-Path $Dir "gpu-screen-recorder.exe"
     $cli    = Join-Path $Dir "gsr-cli.exe"
     Assert-Runs $engine @("--version") "engine --version"
-    Assert-Runs $engine @("--help")    "engine --help"
+    # --help is an error path in the upstream args parser (usage printed,
+    # ARGS_PARSE_RESULT_ERROR = exit 1); the exe's help must behave the same.
+    Assert-Runs $engine @("--help")    "engine --help" 1
     Assert-Runs $cli    @("-h")        "gsr-cli -h"
     # --info needs the ANGLE DLLs next to the exe (dlopen'd) - they are in the
     # staged layout, which is exactly the portable/installer layout.
