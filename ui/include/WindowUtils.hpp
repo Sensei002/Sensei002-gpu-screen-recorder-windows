@@ -4,7 +4,17 @@
 #include <string>
 #include <vector>
 #include <optional>
+
+#ifdef _WIN32
+/* X11 types the UI uses as opaque handles. On Windows, Display is never
+   dereferenced (x11_dpy is NULL) and Window is an HWND-sized handle. */
+typedef struct _XDisplay Display;
+typedef uint64_t Window;
+typedef uint64_t Drawable;
+typedef unsigned long Atom;
+#else
 #include <X11/Xlib.h>
+#endif
 
 struct wl_display;
 
@@ -49,7 +59,7 @@ namespace gsr {
     bool window_is_fullscreen(Display *display, Window window);
     bool get_drawable_geometry(Display *display, Drawable drawable, DrawableGeometry *geometry);
     std::optional<Monitor> get_monitor_by_window_center(Display *display, Window window);
-    bool set_window_wm_state(Display *dpy, Window window, Atom atom);
+    bool set_window_wm_state(Display *dpy, Window window, unsigned long atom);
     void make_window_click_through(Display *display, Window window);
     bool make_window_sticky(Display *dpy, Window window);
     bool hide_window_from_taskbar(Display *dpy, Window window);
