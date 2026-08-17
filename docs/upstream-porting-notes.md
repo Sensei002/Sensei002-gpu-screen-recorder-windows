@@ -1140,24 +1140,35 @@ the order CI found them:
   physical GPU on runners; hardware validation required) per brief §64.
   Nothing in the notes claims hardware testing that did not happen.
 
-## 3u. Phase 14 hotkey-conflict lessons (silent RegisterHotKey failure)
+## 3u. Phase 14 hotkey lessons (silent RegisterHotKey failure, keysym conversion)
 
-* **A failed `RegisterHotKey` is SILENT — surface it.** The Win32 global
-  hotkey path (`GlobalHotkeysWin32::bind_key_press`) returned `false` on
-  failure but no caller checked it. The most common real-world failure is
-  another application already owning the same combination — notably the
-  NVIDIA App / GeForce Experience overlay grabs **Alt+Z by default**, which
-  is exactly GPU Screen Recorder's default show/hide hotkey. The user
-  reported exactly this: the installed app ran (gsr-ui.exe hidden, waiting
-  for Alt+Z) but Alt+Z did nothing. Root cause was invisible without the
-  fix.
+* **THE root cause: `mgl_key_to_x11_keysym` returned 0 for every key on
+  Win32, so ALL hotkeys silently failed — always, on every machine.** The
+  UI stores hotkeys as mgl key codes, converts them to X11 keysyms for the
+  shared hotkey code, and `GlobalHotkeysWin32` translates those to VK codes
+  for `RegisterHotKey`. But `mgl_key_to_x11_keysym` had
+  `#ifdef _WIN32 ... return 0;` ("keysyms are meaningless on Win32" — true
+  for the X11 window backend, NOT for the hotkey path). Every hotkey then
+  arrived at `bind_key_press` as key 0, hit its `if(hotkey.key == 0)
+  return false;` guard, and never reached `RegisterHotKey`. No conflict
+  needed — Alt+Z could never work. CI was green because ui-module-test
+  bound the keysym `0xFFC9` directly, bypassing the broken conversion.
+  Fix: implement the Win32 branch with the platform-independent X11
+  keysym values (XK_a..XK_z = 0x61..0x7a, XK_F1 = 0xffbe, ...) matching
+  what `GlobalHotkeysWin32::keysym_to_vk` expects, and make the test go
+  through `mgl_key_to_x11_keysym` so the regression is caught.
+* **A failed `RegisterHotKey` is SILENT — surface it.** `bind_key_press`
+  returned `false` on failure but no caller checked it. With the keysym
+  conversion fixed, the remaining real-world failure is another
+  application owning the same combination (the NVIDIA App / GeForce
+  Experience overlay grabs Alt+Z by default). The failure is now logged
+  with GetLastError, and the UI force-shows itself (see below).
 * **Hotkeys live ONLY in the UI process, never the engine.** The engine
   (`gpu-screen-recorder.exe`) has no hotkey code at all — hotkeys are a
   gsr-ui feature (upstream's gsr-global-hotkeys helper replaced by
   in-process `RegisterHotKey`). If only the engine is running, Alt+Z does
-  nothing *by design*. The installer's [Run] step and Start Menu shortcut
-  point at gsr-ui.exe; running the engine exe directly gives a headless
-  CLI, not the overlay.
+  nothing *by design* — and the engine is only spawned while recording.
+  One `gsr-ui.exe` sitting idle in Task Manager is normal and correct.
 * **The hidden UI is a lockout trap when its only opener fails.** The
   default launch actions (`launch-hide`, `launch-daemon`) start gsr-ui
   hidden until the show/hide hotkey is pressed. If that hotkey can't
@@ -1175,6 +1186,6 @@ the order CI found them:
   force-show is the reliable channel.
 * **A duplicate-combination bind is unit-testable.** `RegisterHotKey`
   fails with ERROR_HOTKEY_ALREADY_REGISTERED when the combination is
-  already taken — even by the same process. `ui-module-test` now binds the
+  already taken — even by the same process. `ui-module-test` binds the
   same Ctrl+Alt+Shift+F12 twice and asserts the second `bind_key_press`
   returns false, exercising the exact code path a hotkey-conflict takes.

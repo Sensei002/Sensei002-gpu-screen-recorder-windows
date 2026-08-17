@@ -162,10 +162,99 @@ bool mgl_key_is_modifier(mgl_key key) {
 
 uint64_t mgl_key_to_x11_keysym(mgl_key key) {
 #ifdef _WIN32
-    /* X11 keysyms are meaningless on Win32; the function is only used by the
-       X11 window backend. */
-    (void)key;
-    return 0;
+    /* X11 keysyms are meaningless on Win32 for the X11 window backend, but
+       the UI's GlobalHotkeysWin32 translates them to Windows VK codes for
+       RegisterHotKey. The keysym values are platform-independent numbers
+       (X11 keysymdef.h), so return the same values the X11 branch does —
+       otherwise every hotkey binds as key 0 and silently fails. */
+    if(key >= MGL_KEY_A && key <= MGL_KEY_Z)
+        return 0x61 + (key - MGL_KEY_A);       /* XK_A + ... */
+    if(key >= MGL_KEY_NUM0 && key <= MGL_KEY_NUM9)
+        return 0x30 + (key - MGL_KEY_NUM0);    /* XK_0 + ... */
+    if(key >= MGL_KEY_NUMPAD0 && key <= MGL_KEY_NUMPAD9)
+        return 0xffb0 + (key - MGL_KEY_NUMPAD0); /* XK_KP_0 + ... */
+
+    switch(key) {
+        case MGL_KEY_SPACE:              return 0x20;    /* XK_space */
+        case MGL_KEY_BACKSPACE:          return 0xff08;  /* XK_BackSpace */
+        case MGL_KEY_TAB:                return 0xff09;  /* XK_Tab */
+        case MGL_KEY_ENTER:              return 0xff0d;  /* XK_Return */
+        case MGL_KEY_ESCAPE:             return 0xff1b;  /* XK_Escape */
+        case MGL_KEY_LCONTROL:           return 0xffe3;  /* XK_Control_L */
+        case MGL_KEY_LSHIFT:             return 0xffe1;  /* XK_Shift_L */
+        case MGL_KEY_LALT:               return 0xffe9;  /* XK_Alt_L */
+        case MGL_KEY_LSYSTEM:            return 0xffeb;  /* XK_Super_L */
+        case MGL_KEY_RCONTROL:           return 0xffe4;  /* XK_Control_R */
+        case MGL_KEY_RSHIFT:             return 0xffe2;  /* XK_Shift_R */
+        case MGL_KEY_RALT:               return 0xffea;  /* XK_Alt_R */
+        case MGL_KEY_RSYSTEM:            return 0xffec;  /* XK_Super_R */
+        case MGL_KEY_DELETE:             return 0xffff;  /* XK_Delete */
+        case MGL_KEY_HOME:               return 0xff50;  /* XK_Home */
+        case MGL_KEY_LEFT:               return 0xff51;  /* XK_Left */
+        case MGL_KEY_UP:                 return 0xff52;  /* XK_Up */
+        case MGL_KEY_RIGHT:              return 0xff53;  /* XK_Right */
+        case MGL_KEY_DOWN:               return 0xff54;  /* XK_Down */
+        case MGL_KEY_PAGEUP:             return 0xff55;  /* XK_Page_Up */
+        case MGL_KEY_PAGEDOWN:           return 0xff56;  /* XK_Page_Down */
+        case MGL_KEY_END:                return 0xff57;  /* XK_End */
+        case MGL_KEY_F1:                 return 0xffbe;  /* XK_F1 */
+        case MGL_KEY_F2:                 return 0xffbf;  /* XK_F2 */
+        case MGL_KEY_F3:                 return 0xffc0;  /* XK_F3 */
+        case MGL_KEY_F4:                 return 0xffc1;  /* XK_F4 */
+        case MGL_KEY_F5:                 return 0xffc2;  /* XK_F5 */
+        case MGL_KEY_F6:                 return 0xffc3;  /* XK_F6 */
+        case MGL_KEY_F7:                 return 0xffc4;  /* XK_F7 */
+        case MGL_KEY_F8:                 return 0xffc5;  /* XK_F8 */
+        case MGL_KEY_F9:                 return 0xffc6;  /* XK_F9 */
+        case MGL_KEY_F10:                return 0xffc7;  /* XK_F10 */
+        case MGL_KEY_F11:                return 0xffc8;  /* XK_F11 */
+        case MGL_KEY_F12:                return 0xffc9;  /* XK_F12 */
+        case MGL_KEY_F13:                return 0xffca;  /* XK_F13 */
+        case MGL_KEY_F14:                return 0xffcb;  /* XK_F14 */
+        case MGL_KEY_F15:                return 0xffcc;  /* XK_F15 */
+        case MGL_KEY_F16:                return 0xffcd;  /* XK_F16 */
+        case MGL_KEY_F17:                return 0xffce;  /* XK_F17 */
+        case MGL_KEY_F18:                return 0xffcf;  /* XK_F18 */
+        case MGL_KEY_F19:                return 0xffd0;  /* XK_F19 */
+        case MGL_KEY_F20:                return 0xffd1;  /* XK_F20 */
+        case MGL_KEY_F21:                return 0xffd2;  /* XK_F21 */
+        case MGL_KEY_F22:                return 0xffd3;  /* XK_F22 */
+        case MGL_KEY_F23:                return 0xffd4;  /* XK_F23 */
+        case MGL_KEY_F24:                return 0xffd5;  /* XK_F24 */
+        case MGL_KEY_INSERT:             return 0xff63;  /* XK_Insert */
+        case MGL_KEY_PAUSE:              return 0xff13;  /* XK_Pause */
+        case MGL_KEY_PRINTSCREEN:        return 0xff61;  /* XK_Print */
+        case MGL_KEY_NUMPAD_ENTER:       return 0xff8d;  /* XK_KP_Enter */
+        case MGL_KEY_DEAD_ACUTE:         return 0xfe51;  /* XK_dead_acute */
+        case MGL_KEY_APOSTROPHE:         return 0x27;    /* XK_apostrophe */
+        case MGL_KEY_EXCLAM:             return 0x21;    /* XK_exclam */
+        case MGL_KEY_QUOTEDBL:           return 0x22;    /* XK_quotedbl */
+        case MGL_KEY_NUMBERSIGN:         return 0x23;    /* XK_numbersign */
+        case MGL_KEY_DOLLAR:             return 0x24;    /* XK_dollar */
+        case MGL_KEY_PERCENT:            return 0x25;    /* XK_percent */
+        case MGL_KEY_AMPERSAND:          return 0x26;    /* XK_ampersand */
+        case MGL_KEY_PARENLEFT:          return 0x28;    /* XK_parenleft */
+        case MGL_KEY_PARENRIGHT:         return 0x29;    /* XK_parenright */
+        case MGL_KEY_ASTERISK:           return 0x2a;    /* XK_asterisk */
+        case MGL_KEY_PLUS:               return 0x2b;    /* XK_plus */
+        case MGL_KEY_COMMA:              return 0x2c;    /* XK_comma */
+        case MGL_KEY_MINUS:              return 0x2d;    /* XK_minus */
+        case MGL_KEY_PERIOD:             return 0x2e;    /* XK_period */
+        case MGL_KEY_SLASH:              return 0x2f;    /* XK_slash */
+        case MGL_KEY_COLON:              return 0x3a;    /* XK_colon */
+        case MGL_KEY_SEMICOLON:          return 0x3b;    /* XK_semicolon */
+        case MGL_KEY_LESS:               return 0x3c;    /* XK_less */
+        case MGL_KEY_EQUAL:              return 0x3d;    /* XK_equal */
+        case MGL_KEY_GREATER:            return 0x3e;    /* XK_greater */
+        case MGL_KEY_QUESTION:           return 0x3f;    /* XK_question */
+        case MGL_KEY_BRACKETLEFT:        return 0x5b;    /* XK_bracketleft */
+        case MGL_KEY_BACKSLASH:          return 0x5c;    /* XK_backslash */
+        case MGL_KEY_BRACKETRIGHT:       return 0x5d;    /* XK_bracketright */
+        case MGL_KEY_ASCIICIRCUM:        return 0x5e;    /* XK_asciicircum */
+        case MGL_KEY_UNDERSCORE:         return 0x5f;    /* XK_underscore */
+        case MGL_KEY_GRAVE:              return 0x60;    /* XK_grave */
+        default:                         return 0xffffff; /* XK_VoidSymbol */
+    }
 #else
     if(key >= MGL_KEY_A && key <= MGL_KEY_Z)
         return XK_A + (key - MGL_KEY_A);

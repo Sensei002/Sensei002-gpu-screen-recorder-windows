@@ -100,9 +100,15 @@ static void test_desktop_environment(void) {
 static void test_global_hotkeys(void) {
     gsr::GlobalHotkeysWin32 hotkeys;
     gsr::Hotkey hotkey;
-    /* X11 keysym for F12 (0xFFC9); modifiers Ctrl+Alt+Shift. */
-    hotkey.key = 0xFFC9;
+    /* Go through the REAL conversion path the UI uses: the UI stores the
+       hotkey as an mgl key code, converts it to an X11 keysym via
+       mgl_key_to_x11_keysym, and GlobalHotkeysWin32 translates that to a VK
+       for RegisterHotKey. On Win32 mgl_key_to_x11_keysym previously returned
+       0 for every key, so every hotkey silently failed to register. F12's
+       X11 keysym is 0xFFC9; modifiers Ctrl+Alt+Shift. */
+    hotkey.key = (uint32_t)mgl_key_to_x11_keysym(MGL_KEY_F12);
     hotkey.modifiers = gsr::HOTKEY_MOD_LCTRL | gsr::HOTKEY_MOD_LALT | gsr::HOTKEY_MOD_LSHIFT;
+    CHECK(hotkey.key == 0xFFC9);
     bool callback_called = false;
     const bool bound = hotkeys.bind_key_press(hotkey, "test_hotkey", [&callback_called](const std::string &id) {
         (void)id;
@@ -125,6 +131,14 @@ static void test_global_hotkeys(void) {
 
     hotkeys.unbind_key_press("test_hotkey");
     hotkeys.unbind_all_keys();
+
+    /* The default show/hide hotkey is Alt+Z: mgl Z must convert to the X11
+       keysym for lowercase z (0x7a), which keysym_to_vk maps to VK 'Z'.
+       This is the exact path the UI uses at startup. */
+    CHECK(mgl_key_to_x11_keysym(MGL_KEY_Z) == 0x7a);
+    CHECK(mgl_key_to_x11_keysym(MGL_KEY_A) == 0x61);
+    CHECK(mgl_key_to_x11_keysym(MGL_KEY_F1) == 0xffbe);
+    CHECK(mgl_key_to_x11_keysym(MGL_KEY_ESCAPE) == 0xff1b);
 }
 
 /* Autostart (HKCU Run) round-trip through the real UI code path
