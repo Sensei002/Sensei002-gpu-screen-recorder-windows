@@ -699,9 +699,14 @@ static void* ipc_thread(void *userdata) {
                 self->listen_pipe = ipc_listen_pipe_create(self);
                 if(self->listen_pipe) {
                     if(!ipc_listen_arm_connect(self)) {
+                        gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_ipc: failed to re-arm the listen pipe, error: %lu", (unsigned long)GetLastError());
                         ipc_close(self);
                         break;
                     }
+                } else {
+                    gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_ipc: failed to create the next listen pipe, error: %lu", (unsigned long)GetLastError());
+                    ipc_close(self);
+                    break;
                 }
             }
         }

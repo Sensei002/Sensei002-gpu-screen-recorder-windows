@@ -176,6 +176,8 @@ static void test_transport(void) {
     CHECK(n > 0);
     {
         const HANDLE pipe = gsr_platform_ipc_client_connect(pipe_name, 5);
+        if(pipe == INVALID_HANDLE_VALUE)
+            fprintf(stderr, "   [transport] connect 3 failed, GetLastError: %lu\n", (unsigned long)GetLastError());
         CHECK(pipe != INVALID_HANDLE_VALUE);
         CHECK(gsr_platform_ipc_client_send_all(pipe, request, (size_t)n));
         CHECK(gsr_platform_ipc_client_receive_reply(pipe, reply, sizeof(reply), &reply_size));
@@ -183,10 +185,13 @@ static void test_transport(void) {
         CHECK(strncmp(reply, "{\"id\":3,\"result\":\"error\",\"data\":\"unknown request name 'bogus'\"}", reply_size) == 0);
         gsr_platform_ipc_client_disconnect(pipe);
     }
+    printf("   [transport] after request 3\n");
 
     /* 4. malformed request (not json): parse error reply. */
     {
         const HANDLE pipe = gsr_platform_ipc_client_connect(pipe_name, 5);
+        if(pipe == INVALID_HANDLE_VALUE)
+            fprintf(stderr, "   [transport] connect 4 failed, GetLastError: %lu\n", (unsigned long)GetLastError());
         CHECK(pipe != INVALID_HANDLE_VALUE);
         const char *garbage = "this is not json\n";
         CHECK(gsr_platform_ipc_client_send_all(pipe, garbage, strlen(garbage)));
@@ -195,6 +200,7 @@ static void test_transport(void) {
         CHECK(strstr(reply, "expected the request to be a json object") != NULL);
         gsr_platform_ipc_client_disconnect(pipe);
     }
+    printf("   [transport] after request 4\n");
 
     /* 5. deferred: save-replay gets no immediate reply; the completion
        thread (another thread, like the recorder save callback) delivers it
@@ -203,6 +209,8 @@ static void test_transport(void) {
     CHECK(n > 0);
     {
         const HANDLE pipe = gsr_platform_ipc_client_connect(pipe_name, 15);
+        if(pipe == INVALID_HANDLE_VALUE)
+            fprintf(stderr, "   [transport] connect 5 failed, GetLastError: %lu\n", (unsigned long)GetLastError());
         CHECK(pipe != INVALID_HANDLE_VALUE);
         CHECK(gsr_platform_ipc_client_send_all(pipe, request, (size_t)n));
 
@@ -221,6 +229,7 @@ static void test_transport(void) {
         pthread_join(thread, NULL);
         gsr_platform_ipc_client_disconnect(pipe);
     }
+    printf("   [transport] after request 5\n");
 
     /* 6. already-pending: a second save-replay while the first is pending
        gets the exact upstream error (no immediate completion this time). */
@@ -228,6 +237,8 @@ static void test_transport(void) {
     CHECK(n > 0);
     {
         const HANDLE pipe1 = gsr_platform_ipc_client_connect(pipe_name, 15);
+        if(pipe1 == INVALID_HANDLE_VALUE)
+            fprintf(stderr, "   [transport] connect 6a failed, GetLastError: %lu\n", (unsigned long)GetLastError());
         CHECK(pipe1 != INVALID_HANDLE_VALUE);
         CHECK(gsr_platform_ipc_client_send_all(pipe1, request, (size_t)n));
 
@@ -235,6 +246,8 @@ static void test_transport(void) {
         Sleep(100);
 
         const HANDLE pipe2 = gsr_platform_ipc_client_connect(pipe_name, 5);
+        if(pipe2 == INVALID_HANDLE_VALUE)
+            fprintf(stderr, "   [transport] connect 6b failed, GetLastError: %lu\n", (unsigned long)GetLastError());
         CHECK(pipe2 != INVALID_HANDLE_VALUE);
         CHECK(gsr_platform_ipc_client_send_all(pipe2, request, (size_t)n));
         CHECK(gsr_platform_ipc_client_receive_reply(pipe2, reply, sizeof(reply), &reply_size));
@@ -247,12 +260,15 @@ static void test_transport(void) {
         CHECK(strstr(reply, "\"result\":\"ok\"") != NULL);
         gsr_platform_ipc_client_disconnect(pipe1);
     }
+    printf("   [transport] after request 6\n");
 
     /* 7. stop: deferred, completed with success. */
     n = gsr_platform_ipc_build_request(request, sizeof(request), 7, "stop", NULL);
     CHECK(n > 0);
     {
         const HANDLE pipe = gsr_platform_ipc_client_connect(pipe_name, 15);
+        if(pipe == INVALID_HANDLE_VALUE)
+            fprintf(stderr, "   [transport] connect 7 failed, GetLastError: %lu\n", (unsigned long)GetLastError());
         CHECK(pipe != INVALID_HANDLE_VALUE);
         CHECK(gsr_platform_ipc_client_send_all(pipe, request, (size_t)n));
 
@@ -270,6 +286,7 @@ static void test_transport(void) {
         pthread_join(thread, NULL);
         gsr_platform_ipc_client_disconnect(pipe);
     }
+    printf("   [transport] after request 7\n");
 
     /* 8. a second init on the same pipe name fails (already in use). */
     {
@@ -277,9 +294,11 @@ static void test_transport(void) {
         memset(&ipc2, 0, sizeof(ipc2));
         CHECK(gsr_ipc_init(&ipc2, pipe_name) != GSR_ERROR_OK);
     }
+    printf("   [transport] after request 8\n");
 
     gsr_ipc_stop(&ipc);
     gsr_ipc_deinit(&ipc);
+    printf("   [transport] transport test complete\n");
 }
 
 /* ------------------------------------------------------------------ */
