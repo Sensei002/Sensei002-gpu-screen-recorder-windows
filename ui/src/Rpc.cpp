@@ -54,16 +54,21 @@ namespace gsr {
     }
 
     Rpc::~Rpc() {
+        /* Order matters: close the listen pipe FIRST. The pending
+           ConnectNamedPipe is cancelled by the handle close, and the
+           cancellation writes the final status into the OVERLAPPED — so ov
+           must still be alive. Freeing ov before closing the pipe writes
+           into freed memory and corrupts the heap (0xc0000374). */
+        if(listen_fd) {
+            CloseHandle((HANDLE)listen_fd);
+            listen_fd = 0;
+        }
         if(listen_overlapped) {
             OVERLAPPED *ov = (OVERLAPPED*)listen_overlapped;
             if(ov->hEvent)
                 CloseHandle(ov->hEvent);
             free(ov);
             listen_overlapped = nullptr;
-        }
-        if(listen_fd) {
-            CloseHandle((HANDLE)listen_fd);
-            listen_fd = 0;
         }
         for(int i = 0; i < num_clients; ++i) {
             if(client_fds[i])
