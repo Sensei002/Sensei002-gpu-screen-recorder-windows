@@ -329,7 +329,7 @@ upstream (with Windows-specific sections documented).
 3. Render/encode pipeline: Option A (D3D11-native) vs Option B (GL-on-Windows)
    (Phase 5).
 4. Per-app audio feasibility on WASAPI (Phase 8).
-5. Installer tech: NSIS vs Inno Setup vs WiX (Phase 13).
+5. Installer tech: Inno Setup 6 via chocolatey (decided in Phase 13; produces a per-user install with Start Menu/desktop shortcuts, optional HKCU autostart, and uninstaller).
 6. Tray icon scope (Phase 10).
 7. Webcam capture scope (Media Foundation) — parity or documented limitation
    (Phase 5/11).

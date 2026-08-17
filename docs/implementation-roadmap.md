@@ -710,40 +710,57 @@ Tasks:
 
 ## Phase 13 — Installer + portable ZIP
 
-Tasks:
+**Decision: Inno Setup 6** (via chocolatey on the package runner). Chosen
+because: (a) ISCC is installable via choco without MSYS2, (b) Inno handles
+per-user installs natively (`PrivilegesRequired=lowest`, installs to
+`%LOCALAPPDATA%\Programs\`), (c) the Start Menu/desktop/autostart tasks are
+native Inno features, (d) the uninstaller leaves `%APPDATA%` config untouched
+by default. The build job already bundles pango DLLs; the new ANGLE bundle
+step ships `libEGL.dll`/`libGLESv2.dll` in the artifact.
 
-1. Installer tech decision (NSIS vs Inno Setup vs WiX) via CI spike; produce
-   `GPU-Screen-Recorder-Windows-x64-Setup.exe`: per-user install, Start Menu
-   shortcut, optional desktop shortcut, optional startup, uninstaller,
-   config preservation, bundled DLLs.
-2. Portable build `GPU-Screen-Recorder-Windows-x64-Portable.zip` from the
-   same binaries.
-3. Validation in CI: extract zip, check expected executables + DLLs + license,
-   run `--help`/`--version`/`--info`.
-4. **Original logo/branding in the installer and on the executables** (so
-   Windows users see exactly what they're getting — the same GPU Screen
-   Recorder branding as the original):
-   - Generate a multi-resolution `.ico` (16/24/32/48/64/128/256) from the
-     vendored upstream logo `ui/images/gpu_screen_recorder_logo.png` — the
-     exact file upstream ships, so the icon is the original logo, not a
-     re-draw. Commit the `.ico` (and the generation script, e.g. ImageMagick
-     `convert` or a small Python/PIL script pinned in CI) under
-     `packaging/`.
-   - Embed the icon in all three executables (`gpu-screen-recorder.exe`,
-     `gsr-ui.exe`, `gsr-cli.exe`) via a `.rc` resource (`IDI_ICON1 ICON
-     "gsr.ico"`) compiled with windres — Explorer/taskbar/Task Manager then
-     show the logo instead of the default blank exe icon.
-   - Version-info resource on the executables (CompanyName/ProductName
-     "GPU Screen Recorder"/FileDescription/ProductVersion) so Explorer's
-     Details tab and the installer's installed-programs entry look right.
-   - Installer branding: installer icon + banner image from the same logo,
-     product name "GPU Screen Recorder", matching the original's look; the
-     Start Menu / desktop shortcuts inherit the embedded exe icon.
-   - Verification in CI: assert the `.exe` resources contain the icon and
-     version info (e.g. `windres`-produced resource check, or a small probe
-     that loads the icon via `LoadImage`/`ExtractIconEx` and checks the
-     version resource), and that the installer's shortcut points at the
-     branded exe.
+Completed tasks:
+
+1. **Inno Setup 6 chosen and integrated.** `choco install innosetup` in the
+   package job (retry on choco flake). ISCC builds a per-user installer:
+   `GPU-Screen-Recorder-Windows-x64-Setup.exe` with Start Menu shortcut,
+   optional desktop shortcut, optional HKCU Run autostart, uninstaller,
+   config preservation (never touches `%APPDATA%`), and all bundled DLLs
+   (pango + ANGLE).
+2. **Portable ZIP.** `GPU-Screen-Recorder-Windows-x64-Portable.zip` from the
+   same staged binaries + DLLs + LICENSE + README + NOTICE. The ZIP is
+   validated by extracting it and re-running the full check suite.
+3. **CI validation.** `packaging/build-package.ps1` runs the complete check
+   on both the staged layout and the extracted ZIP:
+   - Executables present: `gpu-screen-recorder.exe`, `gsr-cli.exe`, `gsr-ui.exe`
+   - DLLs present: `libEGL.dll`, `libGLESv2.dll` (ANGLE) + pango/fontconfig
+   - License present: `LICENSE`, `README.md`, `NOTICE-WINDOWS-PORT.md`
+   - Resource probes: `ExtractIconEx` icon count ≥ 1 per exe;
+     `VersionInfo.ProductName == "GPU Screen Recorder"`, FileVersion matches
+   - Functional: `--version`, `--help` (engine), `-h` (gsr-cli),
+     `--info` (engine with ANGLE) all exit 0
+4. **Original logo/branding on executables and installer** (the same original
+   logo Windows users recognize):
+   - `packaging/make_icon.ps1` (PowerShell + System.Drawing, zero deps)
+     generates `packaging/gsr.ico` (multi-resolution: 16/24/32/48/64/128/256,
+     PNG-compressed entries, Windows Vista+) from the vendored upstream logo
+     `ui/images/gpu_screen_recorder_logo.png`.
+   - `packaging/installer_banner.bmp` (164×314, 24-bit, dark bg matching the
+     app's theme `rgb(38,43,47)` with the green accent `rgb(118,185,0)`) and
+     `packaging/installer_banner_small.bmp` (55×58) for the Inno wizard.
+   - `packaging/gsr.rc` compiled with windres into the three executables
+     (`CMakeLists.txt`: `enable_language(RC)`, .rc attached to all three,
+     RC_FLAGS = `-Ipackaging/`). Embeds `IDI_ICON1 ICON` + `VS_VERSION_INFO`
+     (CompanyName/ProductName "GPU Screen Recorder", FileVersion/ProductVersion).
+     Explorer/taskbar/Task Manager now show the logo instead of a blank icon.
+   - The installer itself carries the same icon via `SetupIconFile` and the
+     banner images via `WizardImageFile`/`WizardSmallImageFile`.
+   - Verification: `ExtractIconEx` count ≥ 1 (icon present) + VersionInfo
+     ProductName/FileVersion assertions in `build-package.ps1`.
+
+**Leftover cleanup.** The `GSR_GOLDEN_UPDATE=1` TEMP re-bootstrap env var
+in the workflow was removed — the golden was re-bootstrapped with pinned
+fonts and committed (tests/golden/ui-settings-golden.ppm matches the pinned
+render), so the flag was pure cruft.
 
 ---
 
@@ -824,7 +841,7 @@ release notes, installer + zip published. Acceptance checklist from the brief
 | 10 | UI | 🔄 in progress — milestone A (mgl Win32 backend) ✅ + milestone B (mgl text pipeline: pangoft2 + fontconfig, glyph atlas, mixed-script fallback) ✅ both CI-green; the UI app itself remains |
 | 11 | Engine binary + IPC | ✅ complete (engine exe + named-pipe IPC + gsr-cli + commands + windowing + HAGS hardening; engine-ipc-test + live engine test CI-green) |
 | 12 | Startup/integration | ✅ complete (HKCU Run autostart portable-safe + tested; clean shutdown on logoff for engine and UI; file associations documented as not needed) |
-| 13 | Installer + portable zip | pending |
+| 13 | Installer + portable zip | ✅ complete (Inno Setup 6, portable ZIP, original logo/branding via gsr.ico + gsr.rc, CI validation of resources + --help/--version/--info + ZIP round-trip) |
 | 14 | GitHub Actions full pipeline | pending (built incrementally: build/test/coverage/package/release already in one workflow) |
 | 15 | Performance | pending |
 | 16 | Parity testing | pending |

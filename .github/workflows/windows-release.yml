@@ -188,6 +188,27 @@ jobs:
           done
           ls build/cmake/*.dll 2>/dev/null || echo "no dlls to bundle"
 
+      # Phase 13: the engine loads ANGLE at runtime (dlopen libEGL.dll /
+      # libGLESv2.dll in gsr_egl_win32.c), so the portable zip and installer
+      # must ship those DLLs next to the exe. d3dcompiler_47.dll ships with
+      # Windows 10+ in System32 and with MSYS2's ANGLE too; copy it when
+      # present. These land in the artifact via build/cmake/*.dll.
+      - name: Bundle ANGLE DLLs next to the engine
+        shell: msys2 {0}
+        run: |
+          for dll in libEGL.dll libGLESv2.dll d3dcompiler_47.dll; do
+            if [ -f "/mingw64/bin/$dll" ]; then
+              cp -n "/mingw64/bin/$dll" build/cmake/ 2>/dev/null || true
+            else
+              echo "note: /mingw64/bin/$dll not present (system DLL on Windows 10+)"
+            fi
+          done
+          if [ ! -f build/cmake/libEGL.dll ] || [ ! -f build/cmake/libGLESv2.dll ]; then
+            echo "ANGLE DLLs missing from /mingw64/bin — the engine cannot capture without them"
+            exit 1
+          fi
+          ls -la build/cmake/libEGL.dll build/cmake/libGLESv2.dll
+
       # FONTCONFIG_PATH: MSYS2's fontconfig has the package-builder's
       # sysconfdir (C:\msys64\etc\fonts) baked in, which doesn't exist on
       # the runner; tests/fonts.conf points fontconfig at C:/Windows/Fonts
@@ -196,11 +217,6 @@ jobs:
         shell: msys2 {0}
         run: |
           export FONTCONFIG_PATH="$(cygpath -m "$PWD/tests")"
-          # TEMP (golden re-bootstrap): fonts are now pinned in-repo
-          # (tests/fonts), so this run re-baselines ui-settings-golden.ppm;
-          # the artifact ui-golden-render.ppm is then committed as the new
-          # golden and this env line is removed.
-          export GSR_GOLDEN_UPDATE=1
           # 120s per test: a hang fails fast instead of burning ctest's 1500s
           # default timeout (which is how a stuck test ate the whole runner).
           ctest --test-dir build/cmake --output-on-failure --timeout 120
@@ -440,18 +456,33 @@ jobs:
           .\build\bin\ci-smoke.exe
 
   # -------------------------------------------------------------------------
-  # PACKAGE
+  # PACKAGE (Phase 13): assembles the portable ZIP and the Inno Setup
+  # installer from the build artifact, and validates both (executables,
+  # DLLs, license, embedded icon + version resources, --help/--version/
+  # --info, archive round-trip). Runs on every push — packaging is part of
+  # the validation pipeline, not just release time.
   # -------------------------------------------------------------------------
   package:
     name: Package (installer + portable zip)
     needs: test
-    # TODO(phase 16): enable when the installer/zip tooling is ready.
-    if: false
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      # ISCC (Inno Setup 6 compiler) via chocolatey, which is preinstalled
+      # on the windows-latest runner. choco installs can be flaky; retry.
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          for ($i = 1; $i -le 3; $i++) {
+            choco install innosetup -y --no-progress
+            if ($LASTEXITCODE -eq 0 -and (Test-Path $iscc)) { break }
+            Start-Sleep -Seconds 15
+          }
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found after 3 choco attempts" }
+          & $iscc /? | Select-Object -First 1
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
@@ -460,18 +491,20 @@ jobs:
       - name: Build installer + portable zip
         shell: pwsh
         run: |
-          # TODO(phase 13): produce
-          #   GPU-Screen-Recorder-Windows-x64-Setup.exe
-          #   GPU-Screen-Recorder-Windows-x64-Portable.zip
-          # and validate: executables present, DLLs present, LICENSE present,
-          # --help/--version works, archive extracts.
-          Write-Host "Package stage not yet implemented (Phase 13)."
-          exit 1
+          $version = "${{ inputs.version }}"
+          if ([string]::IsNullOrWhiteSpace($version)) { $version = "6.0.0-w1" }
+          & .\packaging\build-package.ps1 `
+            -BinDir (Resolve-Path .\build\Release) `
+            -OutDir (Join-Path $PWD "dist") `
+            -Version $version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-release-artifacts
-          path: dist/
+          path: |
+            dist/GPU-Screen-Recorder-Windows-x64-Setup.exe
+            dist/GPU-Screen-Recorder-Windows-x64-Portable.zip
           if-no-files-found: error
 
   # -------------------------------------------------------------------------

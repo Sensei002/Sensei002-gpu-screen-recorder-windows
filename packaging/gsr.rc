@@ -1,0 +1,45 @@
+/*
+ * gsr.rc — shared Windows resource script for the GPU Screen Recorder
+ * executables (gpu-screen-recorder.exe, gsr-cli.exe, gsr-ui.exe).
+ *
+ * Embeds the original logo as the exe icon (Explorer/taskbar/Task Manager)
+ * plus version info (Explorer Details tab, installed-programs entry).
+ *
+ * The .ico is referenced relative to this file's directory; windres is
+ * invoked with -I <packaging dir> by CMake (RC_FLAGS).
+ *
+ * The version values are hardcoded here (keep in sync with GSR_VERSION_STR
+ * in CMakeLists.txt) — windres -D quoting for string values is fragile, so
+ * the single place to bump the version stays explicit.
+ */
+
+#define GSR_VERSION_STR "6.0.0-w1"
+#define GSR_VERSION_NUM 6,0,0,1
+
+IDI_ICON1 ICON "gsr.ico"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION    GSR_VERSION_NUM
+ PRODUCTVERSION GSR_VERSION_NUM
+ FILEFLAGSMASK  0x3fL
+ FILEFLAGS      0x0L
+ FILEOS         0x40004L
+ FILETYPE       0x1L
+ FILESUBTYPE    0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName",      "GPU Screen Recorder"
+            VALUE "FileDescription",  "GPU Screen Recorder (Windows port)"
+            VALUE "FileVersion",      GSR_VERSION_STR
+            VALUE "ProductName",      "GPU Screen Recorder"
+            VALUE "ProductVersion",   GSR_VERSION_STR
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

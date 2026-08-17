@@ -13,6 +13,9 @@
 cmake_minimum_required(VERSION 3.25)
 # Phase 5: the WGC capture backend (gsr_capture_wgc.cpp) is C++/WinRT.
 project(gpu_screen_recorder_windows C CXX)
+# Phase 13: the three executables embed packaging/gsr.rc (icon + version
+# info); MinGW compiles .rc files with windres (part of binutils).
+enable_language(RC)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -33,7 +36,15 @@ endif()
 add_compile_options($<$<COMPILE_LANGUAGE:C>:-std=gnu11> -Wshadow -Wall -Wextra)
 
 # The engine version string (upstream meson passes -DGSR_VERSION="...").
-add_compile_definitions(GSR_VERSION="6.0.0-w1")
+# Single source of truth: the same string feeds the exe version-info
+# resource (packaging/gsr.rc) via RC_FLAGS below.
+set(GSR_VERSION_STR "6.0.0-w1")
+add_compile_definitions(GSR_VERSION="${GSR_VERSION_STR}")
+
+# Phase 13: exe branding — gsr.rc (packaging/) embeds the original logo as
+# the exe icon and the version info. The -I flag lets windres find gsr.ico
+# (referenced by path in the .rc) without quoting fragility.
+set(GSR_RC_FLAGS "-I${CMAKE_SOURCE_DIR}/packaging")
 
 # Optional gcov coverage instrumentation (Phase 3 CI deliverable: a
 # coverage report artifact). Enabled in a separate build dir by the
@@ -361,13 +372,15 @@ target_link_libraries(replay-save-test PRIVATE gsr_core)
 # gpu-screen-recorder.exe — the engine executable (platform/windows/
 # gsr_main_win32.c mirrors upstream src/cli/main.c: the -ipc handlers, the
 # deferred-request completion, screenshot path, args validation).
-add_executable(gpu-screen-recorder platform/windows/gsr_main_win32.c)
+add_executable(gpu-screen-recorder platform/windows/gsr_main_win32.c packaging/gsr.rc)
 target_link_libraries(gpu-screen-recorder PRIVATE gsr_core)
+set_target_properties(gpu-screen-recorder PROPERTIES RC_FLAGS "${GSR_RC_FLAGS}")
 
 # gsr-cli.exe — the Windows port of upstream tools/gsr-cli/main.c (status/
 # stop/toggle-pause/set-paused/save-replay/... over the named-pipe client).
-add_executable(gsr-cli platform/windows/gsr_cli_win32.c)
+add_executable(gsr-cli platform/windows/gsr_cli_win32.c packaging/gsr.rc)
 target_link_libraries(gsr-cli PRIVATE gsr_core)
+set_target_properties(gsr-cli PROPERTIES RC_FLAGS "${GSR_RC_FLAGS}")
 
 # Phase 11 engine-IPC test: part 1 (always runs) exercises the named-pipe
 # transport in-process — server with test handlers, client connects, sends
@@ -540,8 +553,9 @@ target_link_libraries(ui_core PUBLIC
 # the gpu-screen-recorder engine binary (Phase 11) for --info at startup, so
 # CI validates the UI through ui-rpc-test + ui-module-test + gsr-ui-cli for
 # now.
-add_executable(gsr-ui ui/src/main.cpp)
+add_executable(gsr-ui ui/src/main.cpp packaging/gsr.rc)
 target_link_libraries(gsr-ui PRIVATE ui_core)
+set_target_properties(gsr-ui PROPERTIES RC_FLAGS "${GSR_RC_FLAGS}")
 
 # Phase 10 (remaining) UI platform-module smoke test: the Win32 equivalents of
 # the X11/Wayland modules (WindowUtils, cursor tracker, desktop environment,

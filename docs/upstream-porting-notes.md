@@ -1031,3 +1031,51 @@ the order CI found them:
   standard mp4/mkv; the UI opens the save folder rather than registering
   extensions, matching upstream's behavior (no proprietary format needs an
   association).
+
+## 3s. Phase 13 installer/branding lessons (Inno Setup + logo embedding)
+
+* **Inno Setup 6 via chocolatey beats NSIS for this project.** The package
+  job runs on a plain `windows-latest` runner (no MSYS2), and `choco install
+  innosetup -y` is a single command that ISCC.exe is available immediately.
+  NSIS would require adding `mingw-w64-x86_64-nsis` to the MSYS2 install
+  list and running the package job under MSYS2, adding ~2 minutes of
+  provisioning. Inno's `PrivilegesRequired=lowest` handles per-user installs
+  natively (installs to `%LOCALAPPDATA%\Programs\`, no admin); NSIS needs
+  manual registry work for the same result. The installer script is generated
+  at CI time by `build-package.ps1` (absolute paths embedded) to avoid ISPP
+  path-quoting pitfalls.
+* **windres `-D` quoting is fragile — hardcode version in the .rc instead.**
+  The first attempt passed `-DGSR_VERSION_STR=\"6.0.0-w1\"` via
+  `RC_FLAGS`; windres receives literal backslashes in the define value,
+  producing a mangled version string. The fix: hardcode `GSR_VERSION_STR`
+  and `GSR_VERSION_NUM` directly in `packaging/gsr.rc` with a "keep in sync
+  with CMakeLists.txt" comment. RC_FLAGS now only carries `-Ipackaging/`.
+  (GCC's driver unescapes `\"` correctly; windres does not guarantee the
+  same behavior.)
+* **PNG-compressed ICO entries are fine for Windows 10/11.** The icon
+  generator (`make_icon.ps1`) writes 7 sizes (16–256) all as embedded PNGs
+  rather than the traditional mixed BMP+PNG format. Windows 10 and 11
+  (the port's only supported targets) render PNG entries at every size
+  correctly. This avoids the complex BMP DIB construction (BITMAPINFOHEADER
+  + bottom-up XOR data + AND mask) in pure PowerShell.
+* **ANGLE DLLs must ship next to the engine in both ZIP and installer.**
+  The engine dlopens `libEGL.dll`/`libGLESv2.dll` at capture time
+  (`gsr_egl_win32.c`); without them it fails at runtime. The build job's
+  ANGLE bundle step copies them from `/mingw64/bin/` (MSYS2 package
+  `angleproject`) next to `gpu-screen-recorder.exe`; the artifact glob
+  `build/cmake/*.dll` includes them. The package job hard-fails if either
+  DLL is missing from the staged layout.
+* **`ExtractIconEx` is the right icon-existence probe.** Calling
+  `ExtractIconEx(path, -1, null, null, 0)` returns the count of icon
+  resources in the PE — 0 means the exe has no `.ico` embedded. This is
+  cheaper and more reliable than parsing the PE resource tree in PowerShell,
+  and avoids the weakness of `ExtractAssociatedIcon` (which returns a
+  generic application icon for exes with no icon resource, making a positive
+  assertion meaningless).
+* **`$ErrorActionPreference = "Stop"` breaks `2>&1` on native commands.**
+  In PowerShell 5.1, capturing stderr via `2>&1` with EAP Stop turns each
+  stderr line into a terminating `ErrorRecord`. The `Assert-Runs` validation
+  function suspends EAP for the native invocation scope (`try/finally`),
+  checks `$LASTEXITCODE` immediately, and only throws on a non-zero exit.
+  Without this guard, any engine output to stderr (log messages, warnings)
+  would abort the entire package build.
