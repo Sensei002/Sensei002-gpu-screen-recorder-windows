@@ -65,8 +65,10 @@ function Assert-ExeResources([string]$Path, [string]$Label) {
     if ($vi.ProductName -ne "GPU Screen Recorder") {
         throw "$Label ($Path): ProductName is '$($vi.ProductName)', expected 'GPU Screen Recorder'"
     }
-    if ($vi.FileVersion -notmatch "^$([regex]::Escape($VersionNum))") {
-        throw "$Label ($Path): FileVersion is '$($vi.FileVersion)', expected '$VersionNum'"
+    # The exe embeds the full version string (e.g. 6.0.0-w1) as FileVersion;
+    # the numeric X.Y.Z.W form is only for the installer/Inno AppVersion.
+    if ($vi.FileVersion -notmatch "^$([regex]::Escape($Version))$") {
+        throw "$Label ($Path): FileVersion is '$($vi.FileVersion)', expected '$Version'"
     }
     Write-Host "   [ok] $Label version: $($vi.ProductName) $($vi.FileVersion)"
 }
