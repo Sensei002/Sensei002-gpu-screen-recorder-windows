@@ -6,7 +6,9 @@
 #include "Config.hpp"
 #include "window_texture.h"
 #include "WindowUtils.hpp"
+#ifndef _WIN32
 #include "GlobalHotkeys/GlobalHotkeysJoystick.hpp"
+#endif
 #include "AudioPlayer.hpp"
 #include "Clipboard/Clipboard.hpp"
 #include "LedIndicator.hpp"
@@ -266,9 +268,11 @@ namespace gsr {
         double show_overlay_timeout_seconds = 0.0;
 
         std::unique_ptr<GlobalHotkeys> global_hotkeys = nullptr;
+#ifndef _WIN32
         std::unique_ptr<GlobalHotkeysJoystick> global_hotkeys_js = nullptr;
         Display *x11_dpy = nullptr;
         XEvent x11_xev;
+#endif
         // True when the overlay window is a native Wayland surface (wlr-layer-shell)
         // rather than an X11 window. Many X11-only operations (XGrabPointer,
         // XChangeProperty on the overlay window, click-through atoms, …) are

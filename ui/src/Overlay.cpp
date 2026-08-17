@@ -11,13 +11,21 @@
 #include "../include/gui/GlobalSettingsPage.hpp"
 #include "../include/gui/Utils.hpp"
 #include "../include/Translation.hpp"
+#include "../include/gui/PageStack.hpp"
+#include "../include/WindowUtils.hpp"
+#include "../include/GlobalHotkeys/GlobalHotkeys.hpp"
+
+#ifdef _WIN32
+#include "../include/GlobalHotkeys/GlobalHotkeysWin32.hpp"
+#include "../include/CursorTracker/CursorTrackerWin32.hpp"
+#include "../include/DesktopEnvironment/DesktopEnvironmentWin32.hpp"
+#include "../include/Clipboard/ClipboardWin32.hpp"
+#include "../include/RegionSelector/RegionSelectorWin32.hpp"
+#else
 #include "../include/DesktopEnvironment/DesktopEnvironmentX11.hpp"
 #include "../include/DesktopEnvironment/DesktopEnvironmentWlroots.hpp"
 #include "../include/DesktopEnvironment/DesktopEnvironmentKde.hpp"
 #include "../include/DesktopEnvironment/DesktopEnvironmentGnome.hpp"
-#include "../include/gui/PageStack.hpp"
-#include "../include/WindowUtils.hpp"
-#include "../include/GlobalHotkeys/GlobalHotkeys.hpp"
 #include "../include/GlobalHotkeys/GlobalHotkeysLinux.hpp"
 #include "../include/CursorTracker/CursorTrackerX11.hpp"
 #include "../include/CursorTracker/CursorTrackerDrm.hpp"
@@ -28,19 +36,22 @@
 #include "../include/Clipboard/ClipboardWayland.hpp"
 #include "../include/RegionSelector/RegionSelectorX11.hpp"
 #include "../include/RegionSelector/RegionSelectorWayland.hpp"
+#endif
 
 #include <iomanip>
 #include <string.h>
 #include <assert.h>
-#include <sys/wait.h>
 #include <limits.h>
 #include <fcntl.h>
-#include <poll.h>
 #include <malloc.h>
 #include <stdexcept>
 #include <algorithm>
 #include <inttypes.h>
 #include <math.h>
+
+#ifndef _WIN32
+#include <sys/wait.h>
+#include <poll.h>
 #include <unistd.h>
 
 #include <X11/Xlib.h>
@@ -54,6 +65,7 @@
 #include <X11/Xcursor/Xcursor.h>
 
 #include <wayland-client.h>
+#endif
 
 #include <mglpp/system/Rect.hpp>
 #include <mglpp/window/Event.hpp>
@@ -73,6 +85,7 @@ namespace gsr {
     static const double notification_error_timeout_seconds = 5.0;
     static const double cursor_tracker_update_timeout_sec = 0.1;
 
+#ifndef _WIN32
     static mgl::Texture texture_from_ximage(XImage *img) {
         uint8_t *texture_data = (uint8_t*)malloc(img->width * img->height * 3);
         // TODO:
@@ -144,6 +157,7 @@ namespace gsr {
         free(cursor_data);
         return true;
     }
+#endif /* !_WIN32 */
 
     static char hex_value_to_str(uint8_t v) {
         if(v <= 9)
@@ -175,6 +189,12 @@ namespace gsr {
         return std::abs(a - b) <= difference;
     }
 
+#ifdef _WIN32
+    static bool is_window_fullscreen_on_monitor(Display *display, Window window, const Monitor &monitor) {
+        (void)monitor;
+        return window_is_fullscreen(display, window);
+    }
+#else
     static bool is_window_fullscreen_on_monitor(Display *display, Window window, const Monitor &monitor) {
         if(!window)
             return false;
@@ -187,6 +207,7 @@ namespace gsr {
         return diff_int(geometry.x, monitor.position.x, margin) && diff_int(geometry.y, monitor.position.y, margin)
             && diff_int(geometry.width, monitor.size.x, margin) && diff_int(geometry.height, monitor.size.y, margin);
     }
+#endif
 
     /*static bool is_window_fullscreen_on_monitor(Display *display, Window window, const mgl_monitor *monitors, int num_monitors) {
         if(!window)
@@ -209,6 +230,7 @@ namespace gsr {
         return false;
     }*/
 
+#ifndef _WIN32
     static void wait_until_window_viewable(Display *display, Window window, double timeout_seconds) {
         mgl::Clock clock;
         while(clock.get_elapsed_time_seconds() < timeout_seconds) {
@@ -220,6 +242,7 @@ namespace gsr {
             usleep(1000);
         }
     }
+#endif /* !_WIN32 */
 
     static const Monitor* find_monitor_at_position(const std::vector<Monitor> &monitors, mgl::vec2i pos) {
         for(const Monitor &monitor : monitors) {
@@ -238,6 +261,11 @@ namespace gsr {
     }
 
     static std::string get_power_supply_online_filepath() {
+#ifdef _WIN32
+        /* Windows has no sysfs; power state is queried in
+           power_supply_is_connected via GetSystemPowerStatus. */
+        return "windows-battery";
+#else
         std::string result;
         const char *paths[] = {
             "/sys/class/power_supply/ADP0/online",
@@ -252,9 +280,18 @@ namespace gsr {
             }
         }
         return result;
+#endif
     }
 
     static bool power_supply_is_connected(const char *power_supply_online_filepath) {
+#ifdef _WIN32
+        (void)power_supply_online_filepath;
+        SYSTEM_POWER_STATUS status;
+        if(!GetSystemPowerStatus(&status))
+            return false;
+        /* ACLineStatus: 0 = offline (battery), 1 = online (AC), 255 = unknown. */
+        return status.ACLineStatus == 1;
+#else
         int fd = open(power_supply_online_filepath, O_RDONLY);
         if(fd == -1)
             return false;
@@ -263,8 +300,10 @@ namespace gsr {
         const bool is_connected = read(fd, buf, 1) == 1 && buf[0] == '1';
         close(fd);
         return is_connected;
+#endif
     }
 
+#ifndef _WIN32
     static bool xinput_is_supported(Display *dpy, int *xi_opcode) {
         *xi_opcode = 0;
         int query_event = 0;
@@ -284,6 +323,7 @@ namespace gsr {
 
         return true;
     }
+#endif /* !_WIN32 */
 
     static bool are_all_audio_tracks_available_to_capture(const std::vector<AudioTrack> &audio_tracks) {
         const auto audio_devices = get_audio_devices();
@@ -328,7 +368,7 @@ namespace gsr {
         };
     }
 
-    static void bind_linux_hotkeys(GlobalHotkeysLinux *global_hotkeys, Overlay *overlay, bool enable_region_exit) {
+    static void bind_linux_hotkeys(GlobalHotkeys *global_hotkeys, Overlay *overlay, bool enable_region_exit) {
         global_hotkeys->bind_key_press(
             config_hotkey_to_hotkey(overlay->get_config().main_config.show_hide_hotkey),
             "toggle_show", [overlay](const std::string &id) {
@@ -437,7 +477,8 @@ namespace gsr {
         }
     }
 
-    static std::unique_ptr<GlobalHotkeysLinux> register_linux_hotkeys(Overlay *overlay, Display *x11_dpy, GlobalHotkeysLinux::GrabType grab_type, bool enable_region_exit) {
+#ifndef _WIN32
+    static std::unique_ptr<GlobalHotkeys> register_linux_hotkeys(Overlay *overlay, Display *x11_dpy, GlobalHotkeysLinux::GrabType grab_type, bool enable_region_exit) {
         auto global_hotkeys = std::make_unique<GlobalHotkeysLinux>(x11_dpy, grab_type);
         if(!global_hotkeys->start())
             fprintf(stderr, "error: failed to start global hotkeys\n");
@@ -448,7 +489,17 @@ namespace gsr {
         };
         return global_hotkeys;
     }
+#endif /* !_WIN32 */
 
+#ifdef _WIN32
+    static std::unique_ptr<GlobalHotkeys> register_win32_hotkeys(Overlay *overlay, bool enable_region_exit) {
+        auto global_hotkeys = std::make_unique<GlobalHotkeysWin32>();
+        bind_linux_hotkeys(global_hotkeys.get(), overlay, enable_region_exit);
+        return global_hotkeys;
+    }
+#endif /* _WIN32 */
+
+#ifndef _WIN32
     static std::unique_ptr<GlobalHotkeysJoystick> register_joystick_hotkeys(Overlay *overlay) {
         auto global_hotkeys_js = std::make_unique<GlobalHotkeysJoystick>();
         if(!global_hotkeys_js->start())
@@ -491,6 +542,7 @@ namespace gsr {
 
         return global_hotkeys_js;
     }
+#endif /* !_WIN32 */
 
     static NotificationSpeed to_notification_speed(const std::string &notification_speed_str) {
         if(notification_speed_str == "normal")
@@ -504,6 +556,12 @@ namespace gsr {
     }
 
     static pid_t launch_gsr_game_tracker(int *stdout_fd) {
+#ifdef _WIN32
+        /* gsr-game-tracker is a Linux-only companion binary; not available on
+           Windows yet, so the game-start replay feature stays disabled. */
+        (void)stdout_fd;
+        return -1;
+#else
         const bool is_flatpak = getenv("FLATPAK_ID") != nullptr;
         if(is_flatpak) {
             const char *args[] = { "flatpak-spawn", "--host", "--", "/var/lib/flatpak/app/com.dec05eba.gpu_screen_recorder/current/active/files/bin/gsr-game-tracker", NULL };
@@ -512,8 +570,10 @@ namespace gsr {
             const char *args[] = { "gsr-game-tracker", NULL };
             return exec_program(args, stdout_fd, false);
         }
+#endif
     }
 
+#ifndef _WIN32
     static int mgl_x_error_handler(Display *display, XErrorEvent *ee) {
         (void)display;
         (void)ee;
@@ -524,6 +584,7 @@ namespace gsr {
         (void)display;
         return 0;
     }
+#endif /* !_WIN32 */
 
     Overlay::Overlay(std::string resources_path, GsrInfo gsr_info, SupportedCaptureOptions capture_options, egl_functions egl_funcs, struct wl_display *wayland_dpy) :
         resources_path(std::move(resources_path)),
@@ -561,6 +622,7 @@ namespace gsr {
         replay_startup_mode = replay_startup_string_to_type(config.replay_config.turn_on_replay_automatically_mode.c_str());
         set_notification_speed(to_notification_speed(config.main_config.notification_speed));
 
+#ifndef _WIN32
         x11_dpy = XOpenDisplay(nullptr);
         if(x11_dpy) {
             XKeysymToKeycode(x11_dpy, XK_F1); // If we dont call we will never get a MappingNotify
@@ -637,10 +699,25 @@ namespace gsr {
         } else {
             clipboard = std::make_unique<ClipboardX11>();
         }
+#else
+        /* No X11/Wayland on Windows: null display, native Win32 modules. */
+        x11_dpy = nullptr;
+
+        if(config.main_config.hotkeys_enable_option != "disable_hotkeys")
+            global_hotkeys = register_win32_hotkeys(this, on_region_selected != nullptr);
+
+        cursor_tracker = std::make_unique<CursorTrackerWin32>();
+        desktop_environment = std::make_unique<DesktopEnvironmentWin32>();
+        supports_window_title = true;
+
+        region_selector = std::make_unique<RegionSelectorWin32>();
+        clipboard = std::make_unique<ClipboardWin32>();
+#endif
 
         desktop_environment->start();
         update_led_indicator_after_settings_change();
 
+#ifndef _WIN32
         gsr_game_tracker_process_id = launch_gsr_game_tracker(&gsr_game_tracker_process_output_fd);
         if(gsr_game_tracker_process_id > 0) {
             const int fdl = fcntl(gsr_game_tracker_process_output_fd, F_GETFL);
@@ -651,6 +728,9 @@ namespace gsr {
         } else {
             fprintf(stderr, "Warning: failed to launch gsr-game-tracker. The feature to start replay when a game starts will not work\n");
         }
+#else
+        gsr_game_tracker_process_id = -1;
+#endif
     }
 
     Overlay::~Overlay() {
@@ -704,12 +784,17 @@ namespace gsr {
         close_gpu_screen_recorder_output();
         deinit_color_theme();
 
+#ifndef _WIN32
         if(x11_dpy)
             XCloseDisplay(x11_dpy);
+#endif
 
         // wayland_dpy is borrowed from main() — do not disconnect.
     }
 
+#ifdef _WIN32
+    void Overlay::xi_setup() {}
+#else
     void Overlay::xi_setup() {
         xi_display = XOpenDisplay(nullptr);
         if(!xi_display) {
@@ -760,6 +845,8 @@ namespace gsr {
         }
     }
 
+#endif /* !_WIN32 */
+
     void Overlay::close_gsr_game_tracker_output() {
         if(gsr_game_tracker_process_output_file) {
             fclose(gsr_game_tracker_process_output_file);
@@ -784,6 +871,9 @@ namespace gsr {
         }
     }
 
+#ifdef _WIN32
+    void Overlay::handle_xi_events() {}
+#else
     void Overlay::handle_xi_events() {
         if(!xi_display)
             return;
@@ -850,6 +940,8 @@ namespace gsr {
         }
     }
 
+#endif /* !_WIN32 */
+
     static uint32_t key_event_to_bitmask(mgl::Event::KeyEvent key_event) {
         return ((uint32_t)key_event.key_states.alt     << (uint32_t)0)
             |  ((uint32_t)key_event.key_states.control << (uint32_t)1)
@@ -875,6 +967,9 @@ namespace gsr {
         }
     }
 
+#ifdef _WIN32
+    void Overlay::handle_x11_events() {}
+#else
     void Overlay::handle_x11_events() {
         if(!x11_dpy)
             return;
@@ -896,6 +991,11 @@ namespace gsr {
             rebind_all_keyboard_hotkeys();
     }
 
+#endif /* !_WIN32 */
+
+#ifdef _WIN32
+    void Overlay::handle_wayland_events() {}
+#else
     void Overlay::handle_wayland_events() {
         if(!wayland_dpy)
             return;
@@ -916,6 +1016,8 @@ namespace gsr {
         region_selector->handle_event(nullptr);
     }
 
+#endif /* !_WIN32 */
+
     void Overlay::handle_events() {
         if(led_indicator)
             led_indicator->update();
@@ -935,8 +1037,10 @@ namespace gsr {
         if(global_hotkeys)
             global_hotkeys->poll_events();
 
+#ifndef _WIN32
         if(global_hotkeys_js)
             global_hotkeys_js->poll_events();
+#endif
 
         if(cursor_tracker_update_clock.get_elapsed_time_seconds() >= cursor_tracker_update_timeout_sec) {
             cursor_tracker_update_clock.restart();
@@ -960,6 +1064,7 @@ namespace gsr {
                     break;
                 }
                 case RegionSelector::SelectionType::WINDOW: {
+#ifndef _WIN32
                     Display *display = x11_dpy;
 
                     const Window selected_window = region_selector->get_window_selection();
@@ -968,6 +1073,14 @@ namespace gsr {
                     } else {
                         show_notification(TR("No window selected"), notification_timeout_seconds, mgl::Color(255, 255, 255), mgl::Color(255, 0, 0), NotificationType::NOTICE, nullptr, NotificationLevel::ERROR);
                     }
+#else
+                    const Window selected_window = region_selector->get_window_selection();
+                    if(selected_window) {
+                        on_region_selected();
+                    } else {
+                        show_notification(TR("No window selected"), notification_timeout_seconds, mgl::Color(255, 255, 255), mgl::Color(255, 0, 0), NotificationType::NOTICE, nullptr, NotificationLevel::ERROR);
+                    }
+#endif
                     break;
                 }
             }
@@ -1113,6 +1226,9 @@ namespace gsr {
         return true;
     }
 
+#ifdef _WIN32
+    void Overlay::grab_mouse_and_keyboard() {}
+#else
     void Overlay::grab_mouse_and_keyboard() {
         // TODO: Remove these grabs when debugging with a debugger, or your X11 session will appear frozen.
         // There should be a debug mode to not use these
@@ -1133,6 +1249,11 @@ namespace gsr {
         XFlush(display);
     }
 
+#endif /* !_WIN32 */
+
+#ifdef _WIN32
+    void Overlay::xi_setup_fake_cursor() {}
+#else
     void Overlay::xi_setup_fake_cursor() {
         if(!xi_display)
             return;
@@ -1188,6 +1309,8 @@ namespace gsr {
         XcursorImageDestroy(cursor_image);
     }
 
+#endif /* !_WIN32 */
+
     void Overlay::show() {
         if(visible)
             return;
@@ -1222,7 +1345,7 @@ namespace gsr {
         }
 
         // The cursor position is wrong on wayland if an x11 window is not focused. On wayland we instead create a window and get the position where the wayland compositor puts it
-        Window x11_cursor_window = None;
+        Window x11_cursor_window = 0;
         mgl::vec2i cursor_position = get_cursor_position(display, &x11_cursor_window);
         const Monitor *focused_monitor = nullptr;
         if(cursor_info) {
@@ -1283,10 +1406,14 @@ namespace gsr {
         // Use Glx on Wayland to workaround this issue. This is fine since Egl is only needed for x11 to reliably get the texture of the fullscreen window on Nvidia
         // when a compositor isn't running.
         // Layer-shell requires a native Wayland surface, which means EGL — the GLX workaround above doesn't apply to it.
+#ifndef _WIN32
         if(wayland_native_overlay)
             window_create_params.graphics_api = MGL_GRAPHICS_API_EGL;
         else
             window_create_params.graphics_api = gsr_info.system_info.display_server == DisplayServer::WAYLAND ? MGL_GRAPHICS_API_GLX : MGL_GRAPHICS_API_EGL;
+#else
+        window_create_params.graphics_api = MGL_GRAPHICS_API_WGL;
+#endif
         window_create_params.class_name = "gsr-ui";
 
         if(!window->create("gsr ui", window_create_params)) {
@@ -1296,6 +1423,7 @@ namespace gsr {
         }
         //window->set_low_latency(true);
 
+#ifndef _WIN32
         if(!wayland_native_overlay) {
             // Properties set on the mgl window must use mgl's X11 connection.
             Display *mgl_display = (Display*)mgl_get_context()->connection;
@@ -1305,6 +1433,7 @@ namespace gsr {
             data = 1;
             XChangeProperty(mgl_display, (Window)window->get_system_handle(), XInternAtom(mgl_display, "GAMESCOPE_EXTERNAL_OVERLAY", False), XA_CARDINAL, 32, PropModeReplace, &data, 1);
         }
+#endif
 
         const auto original_window_size = window_size;
         window_pos = focused_monitor->position;
@@ -1334,7 +1463,7 @@ namespace gsr {
 
         // The focused application can be an xwayland application but the cursor can hover over a wayland application.
         // This is even the case when hovering over the titlebar of the xwayland application.
-        const bool fake_cursor = !wayland_native_overlay && (is_wlroots ? x11_cursor_window != None : prevent_game_minimizing);
+        const bool fake_cursor = !wayland_native_overlay && (is_wlroots ? x11_cursor_window != 0 : prevent_game_minimizing);
         if(fake_cursor)
             xi_setup();
 
@@ -1345,8 +1474,10 @@ namespace gsr {
             window->set_fullscreen(true);
 
         window->set_visible(true);
+#ifndef _WIN32
         if(!wayland_native_overlay && !prevent_game_minimizing)
             wait_until_window_viewable((Display*)mgl_get_context()->connection, (Window)window->get_system_handle(), 0.5);
+#endif
 
         if(!wayland_native_overlay) {
             // All ops below operate on the mgl window — use mgl's X11 connection.
@@ -1354,12 +1485,14 @@ namespace gsr {
             make_window_sticky(mgl_display, (Window)window->get_system_handle());
             hide_window_from_taskbar(mgl_display, (Window)window->get_system_handle());
 
+#ifndef _WIN32
             if(default_cursor) {
                 XFreeCursor(mgl_display, default_cursor);
                 default_cursor = 0;
             }
             default_cursor = XCreateFontCursor(mgl_display, XC_left_ptr);
             XFlush(mgl_display);
+#endif
         }
 
         grab_mouse_and_keyboard();
@@ -1398,6 +1531,7 @@ namespace gsr {
 
     void Overlay::recreate_global_hotkeys(std::string_view hotkey_option) {
         global_hotkeys.reset();
+#ifndef _WIN32
         if(hotkey_option == "enable_hotkeys")
             global_hotkeys = register_linux_hotkeys(this, x11_dpy, GlobalHotkeysLinux::GrabType::ALL, on_region_selected != nullptr);
         else if(hotkey_option == "enable_hotkeys_virtual_devices")
@@ -1406,6 +1540,10 @@ namespace gsr {
             global_hotkeys = register_linux_hotkeys(this, x11_dpy, GlobalHotkeysLinux::GrabType::NO_GRAB, on_region_selected != nullptr);
         else if(hotkey_option == "disable_hotkeys")
             global_hotkeys.reset();
+#else
+        if(hotkey_option != "disable_hotkeys")
+            global_hotkeys = register_win32_hotkeys(this, on_region_selected != nullptr);
+#endif
     }
 
     void Overlay::update_led_indicator_after_settings_change() {
@@ -1946,7 +2084,7 @@ namespace gsr {
         if(is_capture_target_monitor(capture_target)) {
             result = TR("this monitor");
         } else if(is_number(capture_target)) {
-            int64_t window_id = None;
+            int64_t window_id = 0;
             sscanf(capture_target, "%" PRIi64, &window_id);
 
             const std::optional<std::string> window_title = x11_dpy ? get_window_title(x11_dpy, window_id) : std::optional<std::string>();
@@ -1993,7 +2131,7 @@ namespace gsr {
         if(cursor_info) {
             focused_monitor_name = std::move(cursor_info->monitor_name);
         } else if(x11_dpy) {
-            Window x11_cursor_window = None;
+            Window x11_cursor_window = 0;
             mgl::vec2i cursor_position = get_cursor_position(x11_dpy, &x11_cursor_window);
 
             const mgl::vec2i monitor_position_query_value = (x11_cursor_window || gsr_info.system_info.display_server != DisplayServer::WAYLAND) ? cursor_position : create_window_get_center_position(x11_dpy);
@@ -3792,6 +3930,7 @@ namespace gsr {
         screenshot_texture.clear();
         screenshot_sprite.set_texture(nullptr);
 
+#ifndef _WIN32
         if(gsr_info.system_info.display_server != DisplayServer::X11 || wayland_native_overlay)
             return false;
 
@@ -3826,7 +3965,12 @@ namespace gsr {
         return true;
     }
 
+#endif /* !_WIN32 */
+
     void Overlay::force_window_on_top() {
+#ifdef _WIN32
+        return;
+#else
         if(wayland_native_overlay)
             return;
 
@@ -3839,4 +3983,5 @@ namespace gsr {
             XFlush(mgl_display);
         }
     }
+#endif /* !_WIN32 */
 }

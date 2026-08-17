@@ -160,14 +160,15 @@ jobs:
         shell: msys2 {0}
         run: cmake --build build/cmake --parallel
 
-      # Bundle the pango/fontconfig/freetype/glib DLLs next to the mgl test
-      # binary so the direct runs (plain runner) and the `test` job find
-      # them without MSYS2 — same DLLs the installer will bundle (Phase
-      # 13/17).
-      - name: Bundle pango DLLs next to mgl test binaries
+      # Bundle the pango/fontconfig/freetype/glib DLLs next to the binaries
+      # that pull them (mgl test, the UI module test, and the gsr-ui app
+      # itself — all link the pango text pipeline) so the direct runs (plain
+      # runner) and the `test` job find them without MSYS2 — same DLLs the
+      # installer will bundle (Phase 13/17).
+      - name: Bundle pango DLLs next to mgl/UI binaries
         shell: msys2 {0}
         run: |
-          for exe in build/cmake/mgl-win32-test.exe; do
+          for exe in build/cmake/mgl-win32-test.exe build/cmake/ui-module-test.exe build/cmake/ui-rpc-test.exe build/cmake/gsr-ui.exe build/cmake/gsr-ui-cli.exe; do
             for dll in $(ldd "$exe" 2>/dev/null | awk '{print $3}' | grep '^/mingw64/bin/'); do
               cp -n "$dll" "$(dirname "$exe")/" 2>/dev/null || true
             done
@@ -224,6 +225,10 @@ jobs:
           .\build\cmake\replay-save-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\cmake\mgl-win32-test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\cmake\ui-rpc-test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\cmake\ui-module-test.exe
 
       # Run the recorder self-test in the MSYS2 shell too: this is where the
       # ANGLE DLLs are on PATH, so the verbose recording logs (backend
@@ -261,6 +266,10 @@ jobs:
             build/cmake/audio-sync-test.exe
             build/cmake/replay-save-test.exe
             build/cmake/mgl-win32-test.exe
+            build/cmake/ui-rpc-test.exe
+            build/cmake/ui-module-test.exe
+            build/cmake/gsr-ui.exe
+            build/cmake/gsr-ui-cli.exe
             build/cmake/recorder-self-test-output.mkv
             build/cmake/*.dll
           if-no-files-found: error

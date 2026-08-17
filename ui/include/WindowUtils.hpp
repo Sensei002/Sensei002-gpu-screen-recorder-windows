@@ -7,11 +7,16 @@
 
 #ifdef _WIN32
 /* X11 types the UI uses as opaque handles. On Windows, Display is never
-   dereferenced (x11_dpy is NULL) and Window is an HWND-sized handle. */
+   dereferenced (x11_dpy is NULL) and Window is an HWND-sized handle.
+   None == 0 in X11; upstream code uses it as a "no window" sentinel
+   (e.g. RegionSelector.hpp's RegionWindow default), so provide it too. */
 typedef struct _XDisplay Display;
 typedef uint64_t Window;
 typedef uint64_t Drawable;
 typedef unsigned long Atom;
+#ifndef None
+#define None 0
+#endif
 #else
 #include <X11/Xlib.h>
 #endif

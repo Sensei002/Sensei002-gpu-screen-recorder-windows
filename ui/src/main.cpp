@@ -8,7 +8,9 @@
 #include "../include/Translation.hpp"
 #include "../include/WaylandHostBridge.hpp"
 
+#ifndef _WIN32
 #include <wayland-client.h>
+#endif
 #include <signal.h>
 #include <string.h>
 #include <limits.h>
@@ -41,11 +43,13 @@ static void signal_ignore(int) {
 }
 
 static void disable_prime_run() {
+#ifndef _WIN32
     unsetenv("__NV_PRIME_RENDER_OFFLOAD");
     unsetenv("__NV_PRIME_RENDER_OFFLOAD_PROVIDER");
     unsetenv("__GLX_VENDOR_LIBRARY_NAME");
     unsetenv("__VK_LAYER_NV_optimus");
     unsetenv("DRI_PRIME");
+#endif
 }
 
 static void rpc_add_commands(gsr::Rpc *rpc, gsr::Overlay *overlay) {
@@ -122,6 +126,7 @@ static void rpc_add_commands(gsr::Rpc *rpc, gsr::Overlay *overlay) {
 
 
 static void set_display_server_environment_variables() {
+#ifndef _WIN32
     // Some users dont have properly setup environments (no display manager that does systemctl --user import-environment DISPLAY WAYLAND_DISPLAY)
     const char *display = getenv("DISPLAY");
     if(!display) {
@@ -134,6 +139,7 @@ static void set_display_server_environment_variables() {
         wayland_display = "wayland-0";
         setenv("WAYLAND_DISPLAY", wayland_display, true);
     }
+#endif
 }
 
 static void usage() {
@@ -162,6 +168,24 @@ int main(int argc, char **argv) {
 #endif
 
     std::string resources_path;
+#ifdef _WIN32
+    /* Windows: resources (images/, translations/, theme/) live next to the
+       gsr-ui.exe binary. */
+    {
+        char exe_path[MAX_PATH];
+        const DWORD exe_path_size = GetModuleFileNameA(NULL, exe_path, sizeof(exe_path));
+        if(exe_path_size > 0 && exe_path_size < sizeof(exe_path)) {
+            char *last_separator = strrchr(exe_path, '\\');
+            if(last_separator) {
+                *last_separator = '\0';
+                resources_path = exe_path;
+                resources_path += "/";
+            }
+        }
+        if(resources_path.empty())
+            resources_path = "./";
+    }
+#else
     if(access("sibs-build/linux_x86_64/debug/gsr-ui", F_OK) == 0) {
         resources_path = "./";
     } else {
@@ -171,14 +195,17 @@ int main(int argc, char **argv) {
         resources_path = "/usr/share/gsr-ui/";
 #endif
     }
+#endif
 
     std::optional<gsr::Config> config = read_config(gsr::SupportedCaptureOptions{});
     gsr::Translation::instance().init((resources_path + "translations/").c_str(), config.has_value() ? config.value().main_config.language.c_str() : nullptr);
 
+#ifndef _WIN32
     if(geteuid() == 0) {
         fprintf(stderr, "Error: don't run gsr-ui as the root user\n");
         return 1;
     }
+#endif
 
     LaunchAction launch_action = LaunchAction::LAUNCH_HIDE;
     if(argc == 1) {
@@ -249,6 +276,7 @@ int main(int argc, char **argv) {
     // host bridge) and lend it to mgl. Owned and disconnected by main(), see
     // the bottom of this function.
     struct wl_display *wayland_dpy = nullptr;
+#ifndef _WIN32
     if(getenv("WAYLAND_DISPLAY"))
         wayland_dpy = gsr::wayland_connect_to_host();
 
@@ -275,6 +303,13 @@ int main(int argc, char **argv) {
     unsetenv("__GL_SYNC_TO_VBLANK");
     // Same as above, but for amd/intel
     unsetenv("vblank_mode");
+#else
+    const int mgl_init_result = mgl_init(MGL_WINDOW_SYSTEM_WIN32);
+    if(mgl_init_result != 0) {
+        fprintf(stderr, "Error: failed to initialize mgl (Win32 backend)\n");
+        return 1;
+    }
+#endif
 
     signal(SIGINT, sigint_handler);
     signal(SIGTERM, sigint_handler);
@@ -306,6 +341,7 @@ int main(int argc, char **argv) {
 
     gsr::SupportedCaptureOptions capture_options = gsr::get_supported_capture_options(gsr_info);
 
+#ifndef _WIN32
     mgl_context *context = mgl_get_context();
 
     egl_functions egl_funcs;
@@ -318,6 +354,12 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Error: required opengl functions not available on your system\n");
         exit(1);
     }
+#else
+    /* On Windows the X11 window-texture path (the only consumer of egl_funcs)
+       is disabled — update_compositor_texture is a no-op — so leave the
+       function table empty. */
+    egl_functions egl_funcs = {};
+#endif
 
     fprintf(stderr, "Info: gsr ui is now ready, waiting for inputs. Press %s to show/hide the overlay\n", show_hide_hotkey_str.c_str());
 
@@ -379,10 +421,12 @@ int main(int argc, char **argv) {
     rpc.reset();
     overlay.reset();
     mgl_deinit();
+#ifndef _WIN32
     /* Disconnect the borrowed Wayland display only after mgl_deinit and the
        overlay destructor — both may use the connection during teardown. */
     if(wayland_dpy)
         wl_display_disconnect(wayland_dpy);
+#endif
 
     if(exit_reason == "back-to-old-ui") {
         gsr::set_xdg_autostart(false);

@@ -389,6 +389,33 @@ target_include_directories(mgl_core PUBLIC ${CMAKE_SOURCE_DIR}/ui/depends/mglpp/
 target_compile_options(mgl_core PRIVATE ${MGL_PANGO_CFLAGS_LIST})
 target_link_libraries(mgl_core PUBLIC opengl32 user32 gdi32 ${MGL_PANGO_LIBS_FLAGS_LIST})
 
+# mglpp — the vendored upstream C++ wrapper over mgl (ui/depends/mglpp).
+# Purely portable: it wraps the mgl C API (Window/Text/Texture/...), which on
+# Windows is the Win32 backend from mgl_core. The gsr-ui app and its tests
+# use the C++ API (mgl::Window, mgl::vec2i, ...).
+set(MGLPP_CORE_SOURCES
+    ui/depends/mglpp/src/graphics/Text.cpp
+    ui/depends/mglpp/src/graphics/TextEdit.cpp
+    ui/depends/mglpp/src/graphics/Image.cpp
+    ui/depends/mglpp/src/graphics/VertexBuffer.cpp
+    ui/depends/mglpp/src/graphics/Rectangle.cpp
+    ui/depends/mglpp/src/graphics/Texture.cpp
+    ui/depends/mglpp/src/graphics/Sprite.cpp
+    ui/depends/mglpp/src/graphics/Shader.cpp
+    ui/depends/mglpp/src/system/MemoryMappedFile.cpp
+    ui/depends/mglpp/src/system/Clock.cpp
+    ui/depends/mglpp/src/system/Utf8.cpp
+    ui/depends/mglpp/src/window/Window.cpp
+    ui/depends/mglpp/src/window/Keyboard.cpp
+    ui/depends/mglpp/src/mglpp.cpp
+)
+add_library(mglpp_core STATIC ${MGLPP_CORE_SOURCES})
+target_include_directories(mglpp_core PUBLIC
+    ${CMAKE_SOURCE_DIR}/ui/depends/mglpp/include
+    ${CMAKE_SOURCE_DIR}/ui/depends/mglpp/depends/mgl/include)
+target_compile_options(mglpp_core PRIVATE ${MGL_PANGO_CFLAGS_LIST})
+target_link_libraries(mglpp_core PUBLIC mgl_core)
+
 # Phase 10 (milestone A) mgl Win32 backend smoke test: window creation
 # (hidden), WGL context + GL sanity, input events (key/char/mouse/wheel via
 # synthetic messages), clipboard round-trip, monitor enumeration, fullscreen
@@ -408,13 +435,97 @@ target_include_directories(gsr-ui-cli PRIVATE ${CMAKE_SOURCE_DIR}/ui/include)
 add_executable(ui-rpc-test tests/ui-rpc-test/main.cpp)
 target_link_libraries(ui-rpc-test PRIVATE ui_rpc)
 
+# ---------------------------------------------------------------------------
+# ui_core — the gsr-ui application sources that compile on Windows. This is
+# the upstream UI code (settings pages, widgets, Overlay) plus the ported
+# platform layer: Process/Utils/WindowUtils are Windows implementations,
+# the platform modules (GlobalHotkeys/CursorTracker/DesktopEnvironment/
+# Clipboard/RegionSelector) are the Win32 backends, AudioPlayer is the
+# waveOut backend, LedIndicator is a no-op (Linux sysfs feature). The
+# X11/Wayland-only sources (WindowUtils.cpp, the *X11/*Wayland/*Linux/
+# *Joystick modules, window_texture.c, WaylandHostBridge, Hotplug, the
+# generated wayland protocol) are not built; Overlay.cpp and main.cpp carry
+# #ifndef _WIN32 guards around their X11/Wayland code paths.
+# ---------------------------------------------------------------------------
+set(UI_CORE_SOURCES
+    ui/src/Process.cpp
+    ui/src/Utils.cpp
+    ui/src/WindowUtilsWin32.cpp
+    ui/src/GsrInfo.cpp
+    ui/src/Config.cpp
+    ui/src/Theme.cpp
+    ui/src/Translation.cpp
+    ui/src/AudioPlayer.cpp
+    ui/src/LedIndicatorWin32.cpp
+    ui/src/GlobalHotkeys/GlobalHotkeysWin32.cpp
+    ui/src/CursorTracker/CursorTrackerWin32.cpp
+    ui/src/DesktopEnvironment/DesktopEnvironmentWin32.cpp
+    ui/src/Clipboard/ClipboardWin32.cpp
+    ui/src/RegionSelector/RegionSelectorWin32.cpp
+    ui/src/gui/Widget.cpp
+    ui/src/gui/ScrollablePage.cpp
+    ui/src/gui/Button.cpp
+    ui/src/gui/RadioButton.cpp
+    ui/src/gui/Entry.cpp
+    ui/src/gui/CheckBox.cpp
+    ui/src/gui/ComboBox.cpp
+    ui/src/gui/Page.cpp
+    ui/src/gui/StaticPage.cpp
+    ui/src/gui/PageStack.cpp
+    ui/src/gui/List.cpp
+    ui/src/gui/Utils.cpp
+    ui/src/gui/DropdownButton.cpp
+    ui/src/gui/Label.cpp
+    ui/src/gui/Image.cpp
+    ui/src/gui/LineSeparator.cpp
+    ui/src/gui/CustomRendererWidget.cpp
+    ui/src/gui/FileChooser.cpp
+    ui/src/gui/SettingsPage.cpp
+    ui/src/gui/ScreenshotSettingsPage.cpp
+    ui/src/gui/GlobalSettingsPage.cpp
+    ui/src/gui/GsrPage.cpp
+    ui/src/gui/Subsection.cpp
+    ui/src/gui/Tooltip.cpp
+    ui/src/Overlay.cpp
+)
+add_library(ui_core STATIC ${UI_CORE_SOURCES})
+target_include_directories(ui_core PUBLIC
+    ${CMAKE_SOURCE_DIR}/ui/include
+    # GlobalSettingsPage.cpp has a vestigial <X11/Xlib.h> include; the empty
+    # stub resolves it on Windows (no X11 types are used).
+    ${CMAKE_SOURCE_DIR}/platform/windows/stubs)
+target_compile_options(ui_core PRIVATE ${MGL_PANGO_CFLAGS_LIST})
+target_link_libraries(ui_core PUBLIC
+    ui_rpc
+    mglpp_core
+    user32    # GetForegroundWindow/GetCursorPos/RegisterHotKey/EnumDisplayMonitors
+    gdi32     # RegionSelectorWin32 GDI drawing
+    advapi32  # RegOpenKeyExA (set_xdg_autostart), CreateProcess
+    shell32   # SHGetFolderPathW (config dir)
+    ole32     # OleSetClipboard (ClipboardWin32)
+    winmm     # waveOut (AudioPlayer)
+)
+
+# The gsr-ui application itself. Not exercised end-to-end in CI yet: it needs
+# the gpu-screen-recorder engine binary (Phase 11) for --info at startup, so
+# CI validates the UI through ui-rpc-test + ui-module-test + gsr-ui-cli for
+# now.
+add_executable(gsr-ui ui/src/main.cpp)
+target_link_libraries(gsr-ui PRIVATE ui_core)
+
+# Phase 10 (remaining) UI platform-module smoke test: the Win32 equivalents of
+# the X11/Wayland modules (WindowUtils, cursor tracker, desktop environment,
+# global hotkeys, clipboard, audio, region selector) exercised headlessly.
+add_executable(ui-module-test tests/ui-module-test/main.cpp)
+target_link_libraries(ui-module-test PRIVATE ui_core)
+
 # Link the test executables against the static MinGW runtime so they can be
 # re-run by the workflow's `test` job without the MSYS2 environment.
 # -static-libgcc works with the C driver; the C++ runtime (libstdc++.a),
 # winpthread and atomic are already linked statically via the gsr_core
 # PUBLIC link flags above (-static-libstdc++/-static-libwinpthread are
 # driver options that do nothing when linking with cc).
-foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test dxgi-self-test recorder-self-test audio-conv-test nvenc-self-test audio-list-test audio-sync-test replay-save-test mgl-win32-test ui-rpc-test)
+foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test dxgi-self-test recorder-self-test audio-conv-test nvenc-self-test audio-list-test audio-sync-test replay-save-test mgl-win32-test ui-rpc-test ui-module-test gsr-ui gsr-ui-cli)
     set_target_properties(${target} PROPERTIES
         LINK_FLAGS "-static-libgcc")
 endforeach()
@@ -434,3 +545,4 @@ add_test(NAME audio-sync-test COMMAND audio-sync-test)
 add_test(NAME replay-save-test COMMAND replay-save-test)
 add_test(NAME mgl-win32-test COMMAND mgl-win32-test)
 add_test(NAME ui-rpc-test COMMAND ui-rpc-test)
+add_test(NAME ui-module-test COMMAND ui-module-test)

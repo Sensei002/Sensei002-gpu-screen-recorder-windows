@@ -161,6 +161,12 @@ int gsr_platform_replay_cleanup_stale_directories(const char *replay_directory, 
 #ifndef SIGUSR2
 #define SIGUSR2 12
 #endif
+/* MinGW-w64 has no real-time signals. The UI uses SIGRTMIN+n as opaque
+   custom command codes for kill(); the kill() shim below ignores the signal
+   anyway, so an arbitrary unused value is fine. */
+#ifndef SIGRTMIN
+#define SIGRTMIN 16
+#endif
 #ifndef WNOHANG
 #define WNOHANG 1
 #endif
