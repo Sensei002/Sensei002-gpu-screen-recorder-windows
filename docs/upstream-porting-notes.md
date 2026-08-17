@@ -1139,3 +1139,42 @@ the order CI found them:
   Status | Notes`), and state the CI hardware reality explicitly (no
   physical GPU on runners; hardware validation required) per brief §64.
   Nothing in the notes claims hardware testing that did not happen.
+
+## 3u. Phase 14 hotkey-conflict lessons (silent RegisterHotKey failure)
+
+* **A failed `RegisterHotKey` is SILENT — surface it.** The Win32 global
+  hotkey path (`GlobalHotkeysWin32::bind_key_press`) returned `false` on
+  failure but no caller checked it. The most common real-world failure is
+  another application already owning the same combination — notably the
+  NVIDIA App / GeForce Experience overlay grabs **Alt+Z by default**, which
+  is exactly GPU Screen Recorder's default show/hide hotkey. The user
+  reported exactly this: the installed app ran (gsr-ui.exe hidden, waiting
+  for Alt+Z) but Alt+Z did nothing. Root cause was invisible without the
+  fix.
+* **Hotkeys live ONLY in the UI process, never the engine.** The engine
+  (`gpu-screen-recorder.exe`) has no hotkey code at all — hotkeys are a
+  gsr-ui feature (upstream's gsr-global-hotkeys helper replaced by
+  in-process `RegisterHotKey`). If only the engine is running, Alt+Z does
+  nothing *by design*. The installer's [Run] step and Start Menu shortcut
+  point at gsr-ui.exe; running the engine exe directly gives a headless
+  CLI, not the overlay.
+* **The hidden UI is a lockout trap when its only opener fails.** The
+  default launch actions (`launch-hide`, `launch-daemon`) start gsr-ui
+  hidden until the show/hide hotkey is pressed. If that hotkey can't
+  register, the UI is unreachable — no window, no tray icon. Fix:
+  `register_win32_hotkeys` records success on the Overlay
+  (`show_hide_hotkey_bound`), and main.cpp force-shows the UI after
+  construction when the flag is false, so the user lands in the UI and can
+  change the hotkey in Settings. This must happen AFTER the Overlay
+  constructor — `overlay->show()` inside `register_win32_hotkeys` would
+  dereference the still-null `region_selector`.
+* **Don't use `show_notification` for constructor-time errors.** The
+  notification path spawns the `gsr-notify` helper binary, which the
+  Windows port does NOT build — the spawn fails silently and nothing
+  appears. Stderr logging (the UI has a console attached) + the
+  force-show is the reliable channel.
+* **A duplicate-combination bind is unit-testable.** `RegisterHotKey`
+  fails with ERROR_HOTKEY_ALREADY_REGISTERED when the combination is
+  already taken — even by the same process. `ui-module-test` now binds the
+  same Ctrl+Alt+Shift+F12 twice and asserts the second `bind_key_press`
+  returns false, exercising the exact code path a hotkey-conflict takes.

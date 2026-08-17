@@ -124,6 +124,11 @@ namespace gsr {
         void set_notification_speed(NotificationSpeed notification_speed);
 
         bool global_hotkeys_ungrab_keyboard = false;
+        // Windows: set by register_win32_hotkeys; main.cpp force-shows the UI
+        // after construction when it's false (the show/hide hotkey failed to
+        // register, e.g. the NVIDIA App owns Alt+Z) so the hidden UI isn't
+        // unreachable.
+        bool show_hide_hotkey_bound = true;
     private:
         const char* notification_type_to_string(NotificationType notification_type);
         void update_upause_status();

@@ -401,6 +401,16 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Info: gsr ui is now ready, waiting for inputs. Press %s to show/hide the overlay\n", show_hide_hotkey_str.c_str());
 
     auto overlay = std::make_unique<gsr::Overlay>(resources_path, std::move(gsr_info), std::move(capture_options), egl_funcs, wayland_dpy);
+#ifdef _WIN32
+    // If the show/hide hotkey (Alt+Z by default) failed to register — almost
+    // always because another application owns the same combination (the
+    // NVIDIA App / GeForce Experience overlay grabs Alt+Z by default) — a
+    // launch-hide/launch-daemon UI would be unreachable. Force-show it so
+    // the user lands in the UI and can change the hotkey in Settings (or
+    // disable the other application's hotkey).
+    if(!overlay->show_hide_hotkey_bound && launch_action != LaunchAction::LAUNCH_SHOW)
+        overlay->show();
+#endif
     if(launch_action == LaunchAction::LAUNCH_SHOW)
         overlay->show();
     else if(launch_action == LaunchAction::LAUNCH_HIDE_ANNOUNCE) {

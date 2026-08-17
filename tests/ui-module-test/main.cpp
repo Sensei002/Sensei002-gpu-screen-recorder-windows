@@ -111,6 +111,15 @@ static void test_global_hotkeys(void) {
     /* RegisterHotKey works in headless sessions; fail loudly if it doesn't. */
     CHECK(bound);
 
+    /* Registering the same combination again must fail: this is exactly the
+       failure mode when another application (e.g. the NVIDIA App overlay)
+       already owns the hotkey, and it's what surfaces the force-show of the
+       hidden UI (main.cpp checks show_hide_hotkey_bound). */
+    const bool second_bound = hotkeys.bind_key_press(hotkey, "test_hotkey_conflict", [](const std::string &id) {
+        (void)id;
+    });
+    CHECK(!second_bound);
+
     hotkeys.poll_events();
     (void)callback_called;
 

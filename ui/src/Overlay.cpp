@@ -370,8 +370,11 @@ namespace gsr {
         };
     }
 
-    static void bind_linux_hotkeys(GlobalHotkeys *global_hotkeys, Overlay *overlay, bool enable_region_exit) {
-        global_hotkeys->bind_key_press(
+    static bool bind_linux_hotkeys(GlobalHotkeys *global_hotkeys, Overlay *overlay, bool enable_region_exit) {
+        // Returns whether the show/hide hotkey bound: on Windows a failed
+        // RegisterHotKey (e.g. the NVIDIA App owns Alt+Z) must be surfaced
+        // so the user isn't left with an unreachable hidden UI.
+        const bool show_hide_bound = global_hotkeys->bind_key_press(
             config_hotkey_to_hotkey(overlay->get_config().main_config.show_hide_hotkey),
             "toggle_show", [overlay](const std::string &id) {
                 fprintf(stderr, "pressed %s\n", id.c_str());
@@ -477,6 +480,8 @@ namespace gsr {
                     overlay->cancel_region_selection();
                 });
         }
+
+        return show_hide_bound;
     }
 
 #ifndef _WIN32
@@ -496,7 +501,16 @@ namespace gsr {
 #ifdef _WIN32
     static std::unique_ptr<GlobalHotkeys> register_win32_hotkeys(Overlay *overlay, bool enable_region_exit) {
         auto global_hotkeys = std::make_unique<GlobalHotkeysWin32>();
-        bind_linux_hotkeys(global_hotkeys.get(), overlay, enable_region_exit);
+        // Records on the Overlay whether the show/hide hotkey (Alt+Z by
+        // default) registered. A failed RegisterHotKey (most commonly the
+        // NVIDIA App / GeForce Experience overlay owning the same
+        // combination) is logged by GlobalHotkeysWin32 and surfaced here:
+        // main.cpp force-shows the UI after construction so the user isn't
+        // left with an unreachable hidden UI (launch-hide / launch-daemon).
+        overlay->show_hide_hotkey_bound = bind_linux_hotkeys(global_hotkeys.get(), overlay, enable_region_exit);
+        if(!overlay->show_hide_hotkey_bound) {
+            fprintf(stderr, "Error: failed to register the show/hide hotkey - it is likely already in use by another application (e.g. the NVIDIA App or GeForce Experience overlay). The UI will open anyway - change the hotkey in Settings or disable the other application's hotkey.\n");
+        }
         return global_hotkeys;
     }
 #endif /* _WIN32 */

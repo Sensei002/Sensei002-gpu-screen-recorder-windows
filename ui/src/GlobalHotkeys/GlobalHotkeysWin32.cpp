@@ -125,8 +125,17 @@ namespace gsr {
 
         const UINT mod = modifiers_to_mod(hotkey.modifiers);
         const UINT hotkey_id = next_id++;
-        if(!RegisterHotKey((HWND)hwnd, hotkey_id, mod, vk))
+        if(!RegisterHotKey((HWND)hwnd, hotkey_id, mod, vk)) {
+            /* The most common cause is another process already owning the
+               same combination (the NVIDIA App / GeForce Experience overlay
+               grabs Alt+Z by default). Surface the failure instead of
+               silently dropping the hotkey. */
+            const DWORD err = GetLastError();
+            fprintf(stderr,
+                "GlobalHotkeysWin32 error: RegisterHotKey failed for '%s' (vk=0x%02x mod=0x%x), error %lu - another application is likely using this hotkey combination\n",
+                id.c_str(), vk, mod, err);
             return false;
+        }
 
         bound_hotkeys_by_id[id] = hotkey;
         hotkey_callbacks_by_id[id] = std::move(callback);
