@@ -23,6 +23,7 @@
 #include "../../upstream/include/recorder/error.h"
 #include "../../upstream/include/recorder/replay_save.h" /* GSR_SAVE_REPLAY_SECONDS_FULL */
 #include "../../upstream/include/egl.h"
+#include "../../upstream/include/window/window.h" /* full gsr_window struct */
 #include "../../upstream/include/log.h"
 #include "../../platform/include/ipc.h" /* codec + client API */
 #include "../../platform/include/display.h" /* primary monitor for -w */

@@ -115,7 +115,7 @@ static bool ipc_stop_handler(char *error_message, size_t error_message_size, voi
     (void)error_message;
     (void)error_message_size;
     (void)userdata;
-    stop_recorder();
+    stop_recorder(0);
     return true;
 }
 
