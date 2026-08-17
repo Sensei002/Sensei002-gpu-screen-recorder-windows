@@ -910,10 +910,13 @@ HANDLE gsr_platform_ipc_client_connect(const char *socket_filepath, int reply_ti
     char full_name[GSR_IPC_WIN32_MAX_PIPE_NAME + sizeof(GSR_IPC_WIN32_PIPE_PREFIX)];
     snprintf(full_name, sizeof(full_name), "%s%s", GSR_IPC_WIN32_PIPE_PREFIX, pipe_name);
 
-    /* Bounded retry: the server accepts a client and then re-arms its next
-       listen instance; a CreateFileA landing in that window fails with
-       ERROR_PIPE_BUSY. Same retry the UI's Rpc.cpp uses — wait for an
-       instance (100ms), give up after ~5s instead of spinning forever. */
+    /* Bounded retry: the server accepts a client, then frees the listen
+       pipe and creates the next instance. A CreateFileA landing in that
+       window fails with ERROR_PIPE_BUSY (instance exists but is being
+       connected) or ERROR_FILE_NOT_FOUND (instance freed, next one not yet
+       created). Both are transient — retry briefly instead of failing,
+       like the UI's Rpc.cpp does. Give up after ~5s rather than spinning
+       forever. */
     HANDLE pipe = INVALID_HANDLE_VALUE;
     int retries = 0;
     while(true) {
@@ -927,6 +930,13 @@ HANDLE gsr_platform_ipc_client_connect(const char *socket_filepath, int reply_ti
                 return INVALID_HANDLE_VALUE;
             if(!WaitNamedPipeA(full_name, 100))
                 continue;
+        } else if(err == ERROR_FILE_NOT_FOUND) {
+            if(++retries > 50)
+                return INVALID_HANDLE_VALUE;
+            /* No instance exists yet (server between pipe instances); wait
+               for one to appear. WaitNamedPipeA returns immediately with
+               FILE_NOT_FOUND here, so sleep briefly before retrying. */
+            Sleep(10);
         } else {
             return INVALID_HANDLE_VALUE;
         }
