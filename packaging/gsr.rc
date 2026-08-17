@@ -16,9 +16,17 @@
 #define GSR_VERSION_STR "6.0.0-w1"
 #define GSR_VERSION_NUM 6,0,0,1
 
+/* The resource must be named 1 (numeric) — the exact name that
+   GetFileVersionInfoSize/VerQueryValue look up (VS_VERSION_INFO = 1 in
+   winver.h). A string name like "VS_VERSION_INFO" embeds fine but Windows
+   reports the version info as absent (error 1813), which is exactly what
+   happens if this is written as `VS_VERSION_INFO VERSIONINFO` without
+   #include <winver.h> to expand the macro. The icon in the same .rc
+   embeds correctly either way. */
+
 IDI_ICON1 ICON "gsr.ico"
 
-VS_VERSION_INFO VERSIONINFO
+1 VERSIONINFO
  FILEVERSION    GSR_VERSION_NUM
  PRODUCTVERSION GSR_VERSION_NUM
  FILEFLAGSMASK  0x3fL

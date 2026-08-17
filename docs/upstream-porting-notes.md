@@ -1052,6 +1052,18 @@ the order CI found them:
   with CMakeLists.txt" comment. RC_FLAGS now only carries `-Ipackaging/`.
   (GCC's driver unescapes `\"` correctly; windres does not guarantee the
   same behavior.)
+* **windres resource NAME matters: the version block must be named `1`.**
+  The first build embedded the icon (from the same `.rc`) fine but Windows
+  reported the version info as absent: `ExtractIconEx` found the icon,
+  `EnumResourceTypes` listed RT_VERSION (16), yet `GetFileVersionInfoSize`
+  failed with error 1813. Root cause: the block was declared as
+  `VS_VERSION_INFO VERSIONINFO` *without* `#include <winver.h>`, so windres
+  kept the literal string `"VS_VERSION_INFO"` as the resource name instead
+  of the numeric ID 1 that the version API looks up
+  (`FindResource(MAKEINTRESOURCE(VS_VERSION_INFO)=1, RT_VERSION)`). The
+  block silently embeds under the wrong name. Fix: declare it `1 VERSIONINFO`
+  directly (or `#include <winver.h>` to expand the macro). `build-package.ps1`
+  validates this with `Get-Item(...).VersionInfo.ProductName`.
 * **PNG-compressed ICO entries are fine for Windows 10/11.** The icon
   generator (`make_icon.ps1`) writes 7 sizes (16–256) all as embedded PNGs
   rather than the traditional mixed BMP+PNG format. Windows 10 and 11
