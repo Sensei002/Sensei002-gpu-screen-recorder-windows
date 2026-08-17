@@ -48,10 +48,19 @@ namespace gsr {
         NOTICE
     };
 
+    // windows.h defines a bare `ERROR` macro that would collide with the
+    // enumerator below; save and restore it around the enum.
+#ifdef _WIN32
+#pragma push_macro("ERROR")
+#undef ERROR
+#endif
     enum class NotificationLevel {
         INFO,
         ERROR,
     };
+#ifdef _WIN32
+#pragma pop_macro("ERROR")
+#endif
 
     enum class RecordForceType {
         NONE,

@@ -21,6 +21,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
+#ifdef _WIN32
+#include <strings.h> /* strcasecmp */
+#endif
 #include <charconv>
 
 namespace gsr {

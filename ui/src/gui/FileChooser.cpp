@@ -166,7 +166,11 @@ namespace gsr {
             if(!S_ISDIR(st.st_mode))
                 continue;
 
+#ifdef _WIN32
+            folders.push_back({mgl::Text(dir->d_name, get_theme().body_font_desc.c_str()), st.st_mtime});
+#else
             folders.push_back({mgl::Text(dir->d_name, get_theme().body_font_desc.c_str()), st.st_mtim.tv_sec});
+#endif
         }
 
         closedir(d);
