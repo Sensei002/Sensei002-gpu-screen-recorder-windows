@@ -196,6 +196,11 @@ jobs:
         shell: msys2 {0}
         run: |
           export FONTCONFIG_PATH="$(cygpath -m "$PWD/tests")"
+          # TEMP (golden re-bootstrap): fonts are now pinned in-repo
+          # (tests/fonts), so this run re-baselines ui-settings-golden.ppm;
+          # the artifact ui-golden-render.ppm is then committed as the new
+          # golden and this env line is removed.
+          export GSR_GOLDEN_UPDATE=1
           # 120s per test: a hang fails fast instead of burning ctest's 1500s
           # default timeout (which is how a stuck test ate the whole runner).
           ctest --test-dir build/cmake --output-on-failure --timeout 120

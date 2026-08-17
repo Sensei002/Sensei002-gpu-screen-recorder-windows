@@ -72,6 +72,46 @@ static void write_ppm(const char *path, const Image &image) {
     fclose(f);
 }
 
+/* Generate a fontconfig config that ONLY uses the bundled DejaVu fonts
+   (tests/fonts) and aliases the UI's font requests ("Segoe UI" default from
+   mgl_text_get_default_font_name, "Sans" fallback from Theme.cpp) to them.
+   FONTCONFIG_PATH is pointed at a temp dir containing this config, so the
+   golden render is byte-stable across runner images — the windows-latest
+   font set and MSYS2's fontconfig/freetype/pango packages change over time,
+   and letting the runner pick the font made the golden compare drift.
+   Must run before mgl_init (fontconfig is initialized on first use). */
+static void setup_pinned_fontconfig(const std::string &repo_root) {
+    char temp_dir[MAX_PATH];
+    if(GetTempPathA(sizeof(temp_dir), temp_dir) == 0)
+        return;
+    const std::string fc_dir = std::string(temp_dir) + "gsr-golden-fonts";
+    CreateDirectoryA(fc_dir.c_str(), NULL);
+
+    const std::string fonts_dir = repo_root + "/tests/fonts";
+    const std::string config_path = fc_dir + "\\fonts.conf";
+    FILE *f = fopen(config_path.c_str(), "wb");
+    if(!f)
+        return;
+    fprintf(f,
+        "<?xml version=\"1.0\"?>\n"
+        "<!DOCTYPE fontconfig SYSTEM \"fonts.dtd\">\n"
+        "<fontconfig>\n"
+        "  <dir>%s</dir>\n"
+        "  <cachedir>%s</cachedir>\n"
+        "  <match target=\"pattern\">\n"
+        "    <test name=\"family\"><string>Segoe UI</string></test>\n"
+        "    <edit name=\"family\" mode=\"assign\" binding=\"strong\"><string>DejaVu Sans</string></edit>\n"
+        "  </match>\n"
+        "  <match target=\"pattern\">\n"
+        "    <test name=\"family\"><string>Sans</string></test>\n"
+        "    <edit name=\"family\" mode=\"assign\" binding=\"strong\"><string>DejaVu Sans</string></edit>\n"
+        "  </match>\n"
+        "</fontconfig>\n",
+        fonts_dir.c_str(), fc_dir.c_str());
+    fclose(f);
+    SetEnvironmentVariableA("FONTCONFIG_PATH", fc_dir.c_str());
+}
+
 static bool read_ppm(const char *path, Image *image) {
     FILE *f = fopen(path, "rb");
     if(!f)
@@ -167,6 +207,10 @@ int main(int argc, char **argv) {
     const std::string repo_root = argv[1];
     const std::string resources_path = repo_root + "/ui/";
     const std::string golden_path = repo_root + "/tests/golden/ui-settings-golden.ppm";
+
+    /* Pin the font before fontconfig initializes: the bundled DejaVu fonts
+       make the render deterministic across runner images (see above). */
+    setup_pinned_fontconfig(repo_root);
 
     if(mgl_init(MGL_WINDOW_SYSTEM_WIN32) != 0) {
         fprintf(stderr, "FAIL: mgl_init failed\n");
