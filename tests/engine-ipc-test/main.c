@@ -288,7 +288,14 @@ static void test_transport(void) {
 
 #ifdef _WIN32
 /* Runs gsr-cli.exe with |args| (e.g. "-ipc gsr-x status") and returns its
-   stdout. The binary is next to the test exe. */
+   stdout. The binary is next to the test exe.
+
+   Bounded by design: the read loop must not block forever when gsr-cli
+   hangs (e.g. a no-timeout save-replay/stop waiting on an engine that
+   stalled before starting its ipc thread). It drains whatever gsr-cli
+   writes, but also watches for the process to exit and gives up after a
+   deadline, so a hung child fails the check instead of eating the whole
+   120s ctest timeout. */
 static bool exec_gsr_cli(const char *args, char *out, size_t out_size) {
     char exe_path[MAX_PATH];
     GetModuleFileNameA(NULL, exe_path, sizeof(exe_path));
@@ -324,17 +331,47 @@ static bool exec_gsr_cli(const char *args, char *out, size_t out_size) {
 
     size_t offset = 0;
     char buf[512];
-    DWORD bytes_read = 0;
-    while(offset < out_size - 1 &&
-          ReadFile(read_pipe, buf, sizeof(buf) - 1, &bytes_read, NULL) && bytes_read > 0) {
-        buf[bytes_read] = '\0';
-        const size_t to_copy = bytes_read < out_size - 1 - offset ? bytes_read : out_size - 1 - offset;
-        memcpy(out + offset, buf, to_copy);
-        offset += to_copy;
+    bool process_exited = false;
+    const DWORD deadline_ms = 25000;
+    const DWORD start_time = GetTickCount();
+    for(;;) {
+        DWORD bytes_read = 0;
+        if(PeekNamedPipe(read_pipe, NULL, 0, NULL, &bytes_read, NULL) && bytes_read > 0) {
+            if(!ReadFile(read_pipe, buf, sizeof(buf) - 1, &bytes_read, NULL) || bytes_read == 0)
+                break;
+            buf[bytes_read] = '\0';
+            const size_t to_copy = bytes_read < out_size - 1 - offset ? bytes_read : out_size - 1 - offset;
+            memcpy(out + offset, buf, to_copy);
+            offset += to_copy;
+            continue;
+        }
+
+        if(WaitForSingleObject(pi.hProcess, 50) == WAIT_OBJECT_0) {
+            process_exited = true;
+            break;
+        }
+        if(GetTickCount() - start_time >= deadline_ms) {
+            fprintf(stderr, "exec_gsr_cli: %s timed out after %lu ms (engine/ipc hang?)\n",
+                args, (unsigned long)deadline_ms);
+            break;
+        }
+    }
+    /* Only drain after a clean exit (EOF is then guaranteed); on the
+       timeout path the child is still alive and a blocking read would hang
+       forever. */
+    if(process_exited) {
+        for(;;) {
+            DWORD bytes_read = 0;
+            if(!ReadFile(read_pipe, buf, sizeof(buf) - 1, &bytes_read, NULL) || bytes_read == 0)
+                break;
+            buf[bytes_read] = '\0';
+            const size_t to_copy = bytes_read < out_size - 1 - offset ? bytes_read : out_size - 1 - offset;
+            memcpy(out + offset, buf, to_copy);
+            offset += to_copy;
+        }
     }
     out[offset] = '\0';
     CloseHandle(read_pipe);
-    WaitForSingleObject(pi.hProcess, 30000);
     DWORD exit_code = 1;
     GetExitCodeProcess(pi.hProcess, &exit_code);
     CloseHandle(pi.hProcess);
@@ -428,22 +465,26 @@ static void test_engine_binary(void) {
     char args[512];
 
     /* status -> running */
+    printf("   [engine] gsr-cli status...\n");
     snprintf(args, sizeof(args), "-ipc %s status", pipe_name);
     CHECK(exec_gsr_cli(args, out, sizeof(out)));
     CHECK(strstr(out, "running") != NULL);
 
     /* toggle-pause -> ok */
+    printf("   [engine] gsr-cli toggle-pause...\n");
     snprintf(args, sizeof(args), "-ipc %s toggle-pause", pipe_name);
     CHECK(exec_gsr_cli(args, out, sizeof(out)));
 
     /* save-replay without -r -> error "option -r is required to save a
        replay" (gsr-cli exits 1 on an error reply, so exec_gsr_cli returns
        false but still captured the message on stderr). */
+    printf("   [engine] gsr-cli save-replay (expect error)...\n");
     snprintf(args, sizeof(args), "-ipc %s save-replay", pipe_name);
     CHECK(!exec_gsr_cli(args, out, sizeof(out)));
     CHECK(strstr(out, "option -r is required to save a replay") != NULL);
 
     /* stop -> the saved filepath, engine exits 0 */
+    printf("   [engine] gsr-cli stop...\n");
     snprintf(args, sizeof(args), "-ipc %s stop", pipe_name);
     CHECK(exec_gsr_cli(args, out, sizeof(out)));
     CHECK(strlen(out) > 0);
@@ -467,6 +508,12 @@ static void test_engine_binary(void) {
 }
 
 int main(void) {
+    /* Unbuffered: ctest's timeout kill discards buffered stdout, which made
+       a hang look like "no output at all". With unbuffered output the log
+       shows exactly how far the test got before it stalled. */
+    setvbuf(stdout, NULL, _IONBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
+
     printf("engine-ipc-test: Phase 11 engine IPC + engine binary test\n");
     test_transport();
     test_engine_binary();
