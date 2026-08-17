@@ -720,6 +720,30 @@ Tasks:
    same binaries.
 3. Validation in CI: extract zip, check expected executables + DLLs + license,
    run `--help`/`--version`/`--info`.
+4. **Original logo/branding in the installer and on the executables** (so
+   Windows users see exactly what they're getting — the same GPU Screen
+   Recorder branding as the original):
+   - Generate a multi-resolution `.ico` (16/24/32/48/64/128/256) from the
+     vendored upstream logo `ui/images/gpu_screen_recorder_logo.png` — the
+     exact file upstream ships, so the icon is the original logo, not a
+     re-draw. Commit the `.ico` (and the generation script, e.g. ImageMagick
+     `convert` or a small Python/PIL script pinned in CI) under
+     `packaging/`.
+   - Embed the icon in all three executables (`gpu-screen-recorder.exe`,
+     `gsr-ui.exe`, `gsr-cli.exe`) via a `.rc` resource (`IDI_ICON1 ICON
+     "gsr.ico"`) compiled with windres — Explorer/taskbar/Task Manager then
+     show the logo instead of the default blank exe icon.
+   - Version-info resource on the executables (CompanyName/ProductName
+     "GPU Screen Recorder"/FileDescription/ProductVersion) so Explorer's
+     Details tab and the installer's installed-programs entry look right.
+   - Installer branding: installer icon + banner image from the same logo,
+     product name "GPU Screen Recorder", matching the original's look; the
+     Start Menu / desktop shortcuts inherit the embedded exe icon.
+   - Verification in CI: assert the `.exe` resources contain the icon and
+     version info (e.g. `windres`-produced resource check, or a small probe
+     that loads the icon via `LoadImage`/`ExtractIconEx` and checks the
+     version resource), and that the installer's shortcut points at the
+     branded exe.
 
 ---
 
