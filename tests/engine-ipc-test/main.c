@@ -220,7 +220,7 @@ static void test_transport(void) {
         params.ipc = &ipc;
         params.type = GSR_IPC_DEFERRED_REQUEST_SAVE_REPLAY;
         params.success = true;
-        params.filepath = "C:\\\\Users\\\\test\\\\Replay_2026-08-05_14-04-22.mp4";
+        params.filepath = "C:\\Users\\test\\Replay_2026-08-05_14-04-22.mp4";
         pthread_t thread;
         printf("   [transport] test5 spawn complete thread\n");
         CHECK(pthread_create(&thread, NULL, complete_request_thread, &params) == 0);
@@ -260,7 +260,7 @@ static void test_transport(void) {
         gsr_platform_ipc_client_disconnect(pipe2);
 
         /* Complete pipe1's pending request. */
-        gsr_ipc_complete_request(&ipc, GSR_IPC_DEFERRED_REQUEST_SAVE_REPLAY, true, "C:\\\\Users\\\\test\\\\Replay_2.mp4");
+        gsr_ipc_complete_request(&ipc, GSR_IPC_DEFERRED_REQUEST_SAVE_REPLAY, true, "C:\\Users\\test\\Replay_2.mp4");
         CHECK(gsr_platform_ipc_client_receive_reply(pipe1, reply, sizeof(reply), &reply_size));
         CHECK(strstr(reply, "\"result\":\"ok\"") != NULL);
         gsr_platform_ipc_client_disconnect(pipe1);
