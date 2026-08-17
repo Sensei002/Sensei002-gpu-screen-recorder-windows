@@ -1,12 +1,12 @@
 # =============================================================================
-# make_icon.ps1 — generate the Windows branding assets from the vendored
+# make_icon.ps1 - generate the Windows branding assets from the vendored
 # upstream logo (ui/images/gpu_screen_recorder_logo.png).
 #
 # Produces (all committed so packaging is reproducible without this script):
-#   packaging/gsr.ico              — multi-resolution icon (16..256) embedded
+#   packaging/gsr.ico              - multi-resolution icon (16..256) embedded
 #                                    in the three executables and the installer
-#   packaging/installer_banner.bmp — Inno Setup WizardImageFile (164x314, 24-bit)
-#   packaging/installer_banner_small.bmp — Inno WizardSmallImageFile (55x58)
+#   packaging/installer_banner.bmp - Inno Setup WizardImageFile (164x314, 24-bit)
+#   packaging/installer_banner_small.bmp - Inno WizardSmallImageFile (55x58)
 #
 # Zero dependencies: plain PowerShell + System.Drawing (present on every
 # Windows system and the GitHub-hosted runners). Run:
@@ -20,7 +20,7 @@ param(
 Add-Type -AssemblyName System.Drawing
 
 # The app's color theme (ui/include/Theme.hpp): page background rgb(38,43,47),
-# accent tint rgb(118,185,0) — the installer banner matches the app itself.
+# accent tint rgb(118,185,0) - the installer banner matches the app itself.
 $bgColor   = [System.Drawing.Color]::FromArgb(255, 38, 43, 47)
 $accent    = [System.Drawing.Color]::FromArgb(255, 118, 185, 0)
 

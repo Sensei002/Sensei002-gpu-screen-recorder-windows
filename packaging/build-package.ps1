@@ -1,12 +1,12 @@
 # =============================================================================
-# build-package.ps1 — Phase 13 packaging: assembles the release layout from
+# build-package.ps1 - Phase 13 packaging: assembles the release layout from
 # the `build` job artifact, validates it (executables, DLLs, license, icon +
 # version resources, --help/--version/--info), and produces:
 #
 #   GPU-Screen-Recorder-Windows-x64-Portable.zip   (portable build)
 #   GPU-Screen-Recorder-Windows-x64-Setup.exe      (Inno Setup installer)
 #
-# Runs on the plain `package` job runner (pwsh) — no MSYS2 needed. The
+# Runs on the plain `package` job runner (pwsh) - no MSYS2 needed. The
 # binaries are statically linked; the only DLLs are the pango/fontconfig
 # set for gsr-ui and the ANGLE DLLs (libEGL/libGLESv2) the engine dlopens,
 # all bundled next to the exes by the build job and shipped in the artifact.
@@ -57,7 +57,7 @@ function Get-IconCount([string]$Path) {
 }
 
 function Assert-ExeResources([string]$Path, [string]$Label) {
-    if (-not (Test-Path $Path)) { throw "$Label: missing $Path" }
+    if (-not (Test-Path $Path)) { throw "${Label}: missing $Path" }
     $icons = Get-IconCount $Path
     if ($icons -lt 1) { throw "$Label ($Path): no icon resource (ExtractIconEx = $icons)" }
     Write-Host "   [ok] $Label icon: $icons icon resource(s) embedded"
@@ -73,7 +73,7 @@ function Assert-ExeResources([string]$Path, [string]$Label) {
 
 function Assert-Runs([string]$Path, [string[]]$ArgsList, [string]$Label) {
     # 2>&1 on a native command turns stderr into ErrorRecords, which under
-    # EAP=Stop would throw on any stderr write — suspend it for the call.
+    # EAP=Stop would throw on any stderr write - suspend it for the call.
     $prev = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
     try {
@@ -83,9 +83,9 @@ function Assert-Runs([string]$Path, [string[]]$ArgsList, [string]$Label) {
         $ErrorActionPreference = $prev
     }
     if ($code -ne 0) {
-        throw "$Label: '$Path $ArgsList' exited $code`n$out"
+        throw "${Label}: '$Path $ArgsList' exited $code`n$out"
     }
-    Write-Host "   [ok] $Label: '$Path $ArgsList' (exit 0)"
+    Write-Host "   [ok] ${Label}: '$Path $ArgsList' (exit 0)"
 }
 
 function Invoke-Validation([string]$Dir, [string]$Label) {
@@ -98,12 +98,12 @@ function Invoke-Validation([string]$Dir, [string]$Label) {
     Assert-Runs $engine @("--version") "engine --version"
     Assert-Runs $engine @("--help")    "engine --help"
     Assert-Runs $cli    @("-h")        "gsr-cli -h"
-    # --info needs the ANGLE DLLs next to the exe (dlopen'd) — they are in the
+    # --info needs the ANGLE DLLs next to the exe (dlopen'd) - they are in the
     # staged layout, which is exactly the portable/installer layout.
     Assert-Runs $engine @("--info")    "engine --info (ANGLE)"
     foreach ($required in @("LICENSE", "README.md", "NOTICE-WINDOWS-PORT.md")) {
         if (-not (Test-Path (Join-Path $Dir $required))) {
-            throw "$Label: missing $required"
+            throw "${Label}: missing $required"
         }
     }
     Write-Host "   [ok] $Label validation passed"
@@ -123,12 +123,12 @@ foreach ($exe in $ExeNames) {
 }
 # All bundled DLLs (pango set for gsr-ui + ANGLE for the engine).
 $dlls = Get-ChildItem $BinDir -Filter *.dll -File
-if ($dlls.Count -eq 0) { throw "no DLLs in artifact — the portable build needs the bundled pango/ANGLE DLLs" }
+if ($dlls.Count -eq 0) { throw "no DLLs in artifact - the portable build needs the bundled pango/ANGLE DLLs" }
 foreach ($dll in $dlls) { Copy-Item $dll.FullName (Join-Path $StageDir $dll.Name) }
 # ANGLE is required for the engine; fail loudly rather than ship a broken zip.
 foreach ($angle in @("libEGL.dll", "libGLESv2.dll")) {
     if (-not (Test-Path (Join-Path $StageDir $angle))) {
-        throw "missing $angle in artifact — the engine dlopens ANGLE and the portable build cannot work without it"
+        throw "missing $angle in artifact - the engine dlopens ANGLE and the portable build cannot work without it"
     }
 }
 # License + docs + branding assets (banners/ico also used by the installer).
@@ -140,7 +140,7 @@ foreach ($asset in @("gsr.ico", "installer_banner.bmp", "installer_banner_small.
 }
 # Build manifest so users can identify the build.
 @"
-GPU Screen Recorder — Windows port
+GPU Screen Recorder - Windows port
 Version: $Version
 Upstream: gpu-screen-recorder (see NOTICE-WINDOWS-PORT.md for provenance)
 Build: portable x64 (MinGW-w64), FFmpeg statically linked
@@ -162,7 +162,7 @@ if (Test-Path $ZipPath) { Remove-Item -Force $ZipPath }
 Compress-Archive -Path (Join-Path $StageDir "*") -DestinationPath $ZipPath -CompressionLevel Optimal
 Write-Host "== wrote $ZipPath ($([math]::Round((Get-Item $ZipPath).Length / 1MB, 1)) MB)"
 
-# Extract and re-validate — proves the archive round-trips and runs standalone.
+# Extract and re-validate - proves the archive round-trips and runs standalone.
 $ExtractDir = Join-Path $OutDir "extract-check"
 if (Test-Path $ExtractDir) { Remove-Item -Recurse -Force $ExtractDir }
 Expand-Archive -Path $ZipPath -DestinationPath $ExtractDir
@@ -172,7 +172,7 @@ Invoke-Validation $ExtractDir "extracted zip"
 # 4. Inno Setup installer (per-user, Start Menu + optional desktop/startup).
 # ---------------------------------------------------------------------------
 $ISCC = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-if (-not (Test-Path $ISCC)) { throw "ISCC.exe not found at $ISCC — install Inno Setup first" }
+if (-not (Test-Path $ISCC)) { throw "ISCC.exe not found at $ISCC - install Inno Setup first" }
 
 # The .iss is generated here (not committed) so the stage path is embedded
 # without ISPP path-quoting pitfalls.
@@ -220,7 +220,7 @@ Source: "$stageEsc\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs cre
 Name: "{userprograms}\GPU Screen Recorder"; Filename: "{app}\gsr-ui.exe"
 Name: "{userdesktop}\GPU Screen Recorder";  Filename: "{app}\gsr-ui.exe"; Tasks: desktopicon
 
-; Optional autostart — same HKCU Run entry the app's own autostart toggle writes.
+; Optional autostart - same HKCU Run entry the app's own autostart toggle writes.
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "GPU Screen Recorder"; ValueData: """{app}\gsr-ui.exe"" launch-daemon"; Tasks: startup; Flags: uninsdeletevalue
 
