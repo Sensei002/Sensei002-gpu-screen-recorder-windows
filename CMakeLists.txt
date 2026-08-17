@@ -515,9 +515,20 @@ target_link_libraries(gsr-ui PRIVATE ui_core)
 
 # Phase 10 (remaining) UI platform-module smoke test: the Win32 equivalents of
 # the X11/Wayland modules (WindowUtils, cursor tracker, desktop environment,
-# global hotkeys, clipboard, audio, region selector) exercised headlessly.
+# global hotkeys, clipboard, audio, region selector) exercised headlessly,
+# plus the overlay window behavior (click-through/taskbar/topmost/fullscreen/
+# alpha styles via a real hidden mgl window).
 add_executable(ui-module-test tests/ui-module-test/main.cpp)
 target_link_libraries(ui-module-test PRIVATE ui_core)
+
+# Phase 10 (remaining) golden render test: renders the real settings page
+# headless (theme textures + fontconfig text + widget draw + WGL swap) and
+# compares against tests/golden/ui-settings-golden.ppm with a per-pixel
+# tolerance. Self-bootstrapping: if the golden is missing the test passes
+# and writes ui-golden-render.ppm to the CWD (uploaded as an artifact, then
+# committed as the golden); GSR_GOLDEN_UPDATE=1 re-baselines explicitly.
+add_executable(ui-golden-test tests/ui-golden-test/main.cpp)
+target_link_libraries(ui-golden-test PRIVATE ui_core)
 
 # Link the test executables against the static MinGW runtime so they can be
 # re-run by the workflow's `test` job without the MSYS2 environment.
@@ -525,7 +536,7 @@ target_link_libraries(ui-module-test PRIVATE ui_core)
 # winpthread and atomic are already linked statically via the gsr_core
 # PUBLIC link flags above (-static-libstdc++/-static-libwinpthread are
 # driver options that do nothing when linking with cc).
-foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test dxgi-self-test recorder-self-test audio-conv-test nvenc-self-test audio-list-test audio-sync-test replay-save-test mgl-win32-test ui-rpc-test ui-module-test gsr-ui gsr-ui-cli)
+foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test dxgi-self-test recorder-self-test audio-conv-test nvenc-self-test audio-list-test audio-sync-test replay-save-test mgl-win32-test ui-rpc-test ui-module-test ui-golden-test gsr-ui gsr-ui-cli)
     set_target_properties(${target} PROPERTIES
         LINK_FLAGS "-static-libgcc")
 endforeach()
@@ -546,3 +557,4 @@ add_test(NAME replay-save-test COMMAND replay-save-test)
 add_test(NAME mgl-win32-test COMMAND mgl-win32-test)
 add_test(NAME ui-rpc-test COMMAND ui-rpc-test)
 add_test(NAME ui-module-test COMMAND ui-module-test)
+add_test(NAME ui-golden-test COMMAND ui-golden-test ${CMAKE_SOURCE_DIR})

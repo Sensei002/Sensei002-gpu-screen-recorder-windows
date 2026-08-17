@@ -909,3 +909,39 @@ the order CI found them:
 * **The `-static-libgcc` link flag on the C++ UI tests is fine**, but any
   future static/dynamic CRT mixing will resurface as exit-code-only
   crashes (0xc0000374 family) — check heap-adjacent ordering bugs first.
+
+## 3p. Phase 10 (remaining) CI validation lessons (overlay behavior, golden render)
+
+* **Overlay window styles are testable headless via GetWindowLongPtr.** The
+  UI's `show()` treatment maps to queryable Win32 style bits: click-through
+  → `WS_EX_LAYERED|WS_EX_TRANSPARENT`, taskbar-hide →
+  `WS_EX_TOOLWINDOW`, alpha → `WS_EX_LAYERED` (via `support_alpha`).
+  `ui-module-test` asserts them on a real hidden mgl window, so the
+  overlay behavior milestone needs no running engine.
+* **Always-on-top is NOT in the ex-style bits.** `WS_EX_TOPMOST` passed to
+  `CreateWindowEx`/`SetWindowPos` is translated into z-order placement and
+  never readable from `GetWindowLongPtr`. Verify it behaviorally: create a
+  second window after the first, `make_window_sticky` the first, then walk
+  `GetWindow(hwnd_b, GW_HWNDPREV)` and assert the sticky window is reached.
+* **mgl owns `GWLP_USERDATA`** (its `mgl_window*`), so a test that needs to
+  map HWND→its own state must use `SetPropA`/`GetPropA` window properties,
+  not the userdata slot.
+* **A golden render test can be self-bootstrapping on CI.** `ui-golden-test`
+  renders the real settings page (theme textures + fontconfig text + widget
+  draw + WGL swap) headless on the runner's GDI Generic software GL, writes
+  `ui-golden-render.ppm` to the CWD, and: updates the committed golden when
+  `GSR_GOLDEN_UPDATE=1`; passes with a warning when the golden is missing
+  (first run — the artifact render is then committed as the golden); and
+  otherwise compares with a per-pixel tolerance (>= 99.5% within ±4/channel)
+  to absorb fontconfig/antialiasing drift between runner images.
+* **Read the framebuffer BEFORE `SwapBuffers`.** With WGL double buffering
+  the back buffer is only defined until the swap; `glReadPixels` before
+  `mgl_window_display()` and flip rows (GL is bottom-up, PPM top-down).
+* **Teardown order in a GL golden test matters.** The mgl window (and the
+  widgets holding theme-texture references) must be destroyed before
+  `deinit_theme()`, and the window before `mgl_deinit()` — scope the whole
+  render in a block and tear down outside it.
+* **Subprocess probes degrade gracefully on CI.** `get_audio_devices` /
+  `get_supported_capture_options` spawn `gpu-screen-recorder` (not on PATH
+  in the test job) — `spawn_program` returns -1 and the page renders with
+  empty lists, which is deterministic enough for a golden baseline.

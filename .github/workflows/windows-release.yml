@@ -244,6 +244,8 @@ jobs:
           .\build\cmake\ui-rpc-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\cmake\ui-module-test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\cmake\ui-golden-test.exe "$PWD"
 
       # Run the recorder self-test in the MSYS2 shell too: this is where the
       # ANGLE DLLs are on PATH, so the verbose recording logs (backend
@@ -283,6 +285,8 @@ jobs:
             build/cmake/mgl-win32-test.exe
             build/cmake/ui-rpc-test.exe
             build/cmake/ui-module-test.exe
+            build/cmake/ui-golden-test.exe
+            build/cmake/ui-golden-render.ppm
             build/cmake/gsr-ui.exe
             build/cmake/gsr-ui-cli.exe
             build/cmake/recorder-self-test-output.mkv

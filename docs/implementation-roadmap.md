@@ -600,24 +600,35 @@ run `31973326044`).**
   exercised end-to-end — it execs `gpu-screen-recorder --info` at startup,
   which needs the engine binary (Phase 11+).
 
-Remaining in Phase 10 (smaller items): real-window overlay behavior
-verification (fullscreen/topmost/per-monitor once the engine runs),
-startup integration + tray-icon decision, translations/assets verification,
-and screenshot golden tests of the settings pages.
+Remaining in Phase 10: startup integration, per-monitor overlay
+positioning verification once the engine runs, and the tray-icon decision
+(**deferred** — upstream gsr-ui has no tray either; it is controlled by a
+global hotkey + gsr-ui-cli, so the Windows port keeps that model).
 
 Tasks:
 
 1. ~~mgl Win32 backend (window, input, WGL/EGL context)~~ — milestone A.
 2. ~~Replace UI platform modules (architecture §4.2)~~ — milestone C.
 3. ~~`Rpc.cpp` → named pipe; `gsr-ui-cli.exe`; single-instance~~ — milestone C.
-4. Overlay behavior on Windows (fullscreen/topmost/focus/per-monitor) —
-   guards are in; runtime verification needs the engine binary.
-5. Startup option (HKCU Run registry impl is in Utils.cpp); tray-icon
-   decision (not done).
-6. Translations + assets verification; config_ui path mapping.
-7. CI: end-to-end gsr-ui smoke test once the engine binary exists
-   (milestone C validated via ui-rpc-test/ui-module-test instead);
-   screenshot golden tests of the settings pages (render to texture).
+4. ~~Overlay window behavior on Windows~~ — verified headless: `ui-module-test`
+   now creates a real hidden mgl window and asserts the exact styles the UI
+   applies in `show()`: click-through (`WS_EX_LAYERED|WS_EX_TRANSPARENT`),
+   taskbar-hide (`WS_EX_TOOLWINDOW`), always-on-top (z-order vs a second
+   window), borderless fullscreen covering the monitor rect, alpha support
+   (`WS_EX_LAYERED` via `support_alpha`), and `MGL_WINDOW_TYPE_OVERLAY`
+   producing a `WS_POPUP` window with no `WS_OVERLAPPEDWINDOW` chrome.
+5. ~~Screenshot golden test of the settings pages~~ — `ui-golden-test` renders
+   the real RECORD settings page headless (theme textures + fontconfig text
+   + widget draw + WGL swap) to PPM and compares against the committed
+   golden (`tests/golden/ui-settings-golden.ppm`) with a per-pixel
+   tolerance (>= 99.5% within ±4/channel); self-bootstrapping when the
+   golden is missing, `GSR_GOLDEN_UPDATE=1` to re-baseline.
+6. Startup option (HKCU Run registry impl is in Utils.cpp); tray-icon
+   decision (not done — deferred, see above).
+7. Translations + assets verification; config_ui path mapping.
+8. CI: end-to-end gsr-ui smoke test once the engine binary exists
+   (milestone C validated via ui-rpc-test/ui-module-test/ui-golden-test
+   instead).
 
 ---
 
