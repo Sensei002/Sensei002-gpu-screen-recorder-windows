@@ -41,6 +41,14 @@ on:
         required: false
         default: ""
 
+# Only one run per branch at a time: a new push cancels the stale run
+# instead of queueing behind it. This keeps the iterate-to-green loop from
+# piling up orphaned runs (the cache-save step below is a known hang point,
+# and without this a stuck run blocks the runner for the full timeout).
+concurrency:
+  group: windows-pipeline-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # -------------------------------------------------------------------------
   # BUILD
@@ -140,6 +148,11 @@ jobs:
 
       - name: Save FFmpeg build cache
         if: always() && steps.ffmpeg-cache-restore.outputs.cache-hit != 'true'
+        # actions/cache uploads are a known hang point on hosted runners; the
+        # cache is only an optimization, so time it out and never fail the
+        # build over it.
+        timeout-minutes: 15
+        continue-on-error: true
         uses: actions/cache/save@v4
         with:
           path: |
