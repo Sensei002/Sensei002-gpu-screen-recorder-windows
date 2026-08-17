@@ -32,9 +32,15 @@ namespace gsr {
     }
 
     static HANDLE create_pipe_instance(void) {
+        /* NOTE: FILE_FLAG_FIRST_PIPE_INSTANCE must NOT be passed here — it is
+           only valid for the first instance, and CreateNamedPipe FAILS with
+           ERROR_ACCESS_DENIED for the second instance created with it. The
+           server re-creates the listen instance in accept_listen_client(),
+           so the flag would silently break every reconnect after the first
+           client (the next client then spins on ERROR_PIPE_BUSY forever). */
         return CreateNamedPipeA(
             pipe_name("gsr-ui"),
-            PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED | FILE_FLAG_FIRST_PIPE_INSTANCE,
+            PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
             PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
             GSR_RPC_MAX_CONNECTIONS,
             GSR_RPC_MAX_MESSAGE_SIZE * 4,
@@ -151,6 +157,10 @@ namespace gsr {
 
         const char *full_name = pipe_name("gsr-ui");
         HANDLE file = NULL;
+        /* Bounded retry: if every instance is busy for >5s something is stuck
+           (e.g. the server accepted a client but never re-armed its listen
+           instance) — fail instead of spinning forever. */
+        int retries = 0;
         while(true) {
             file = CreateFileA(full_name, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
             if(file != INVALID_HANDLE_VALUE)
@@ -158,6 +168,8 @@ namespace gsr {
 
             const DWORD err = GetLastError();
             if(err == ERROR_PIPE_BUSY) {
+                if(++retries > 50)
+                    return RpcOpenResult::ERROR;
                 if(!WaitNamedPipeA(full_name, 100))
                     continue;
             } else {

@@ -173,12 +173,18 @@ int main(int argc, char **argv) {
 #ifdef _WIN32
     const char *full_name = pipe_full_name();
     HANDLE file = NULL;
+    int retries = 0;
     for(;;) {
         file = CreateFileA(full_name, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
         if(file != INVALID_HANDLE_VALUE)
             break;
         const DWORD err = GetLastError();
         if(err == ERROR_PIPE_BUSY) {
+            /* Bounded retry: fail after ~5s of busy instances. */
+            if(++retries > 50) {
+                fprintf(stderr, "Error: gsr-ui pipe is busy, giving up. Is gsr-ui running?\n");
+                exit(2);
+            }
             if(!WaitNamedPipeA(full_name, 100))
                 continue;
         } else {
