@@ -670,10 +670,19 @@ static void* ipc_thread(void *userdata) {
             continue;
         }
 
-        /* A deferred request completed (gsr_ipc_complete_request): send its
-           reply now. The event is auto-reset. */
-        if(WaitForSingleObject(self->wakeup_event, 0) == WAIT_OBJECT_0)
-            ipc_send_completed_request_replies(self);
+        /* A deferred request completed (gsr_ipc_complete_request from the
+           recorder thread): send its reply now.
+
+           NOTE: do NOT gate this on the wakeup event — the event is
+           auto-reset, and when it fires, WaitForMultipleObjects above
+           consumes it (bWaitAll=FALSE returns the lowest signaled index and
+           resets that auto-reset object), so a subsequent
+           WaitForSingleObject(wakeup, 0) would see it as unsignaled and the
+           completed request would never be drained — the client waits
+           forever for its reply. Draining unconditionally every iteration is
+           cheap (a mutex + a scan of the few deferred slots) and the 100ms
+           wait timeout bounds latency when the event is missed. */
+        ipc_send_completed_request_replies(self);
 
         /* Listen connect completed? */
         if(self->listen_pipe && self->listen_overlapped &&
@@ -901,9 +910,27 @@ HANDLE gsr_platform_ipc_client_connect(const char *socket_filepath, int reply_ti
     char full_name[GSR_IPC_WIN32_MAX_PIPE_NAME + sizeof(GSR_IPC_WIN32_PIPE_PREFIX)];
     snprintf(full_name, sizeof(full_name), "%s%s", GSR_IPC_WIN32_PIPE_PREFIX, pipe_name);
 
-    HANDLE pipe = CreateFileA(full_name, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-    if(pipe == INVALID_HANDLE_VALUE)
-        return INVALID_HANDLE_VALUE;
+    /* Bounded retry: the server accepts a client and then re-arms its next
+       listen instance; a CreateFileA landing in that window fails with
+       ERROR_PIPE_BUSY. Same retry the UI's Rpc.cpp uses — wait for an
+       instance (100ms), give up after ~5s instead of spinning forever. */
+    HANDLE pipe = INVALID_HANDLE_VALUE;
+    int retries = 0;
+    while(true) {
+        pipe = CreateFileA(full_name, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+        if(pipe != INVALID_HANDLE_VALUE)
+            break;
+
+        const DWORD err = GetLastError();
+        if(err == ERROR_PIPE_BUSY) {
+            if(++retries > 50)
+                return INVALID_HANDLE_VALUE;
+            if(!WaitNamedPipeA(full_name, 100))
+                continue;
+        } else {
+            return INVALID_HANDLE_VALUE;
+        }
+    }
 
     /* Read timeout: 0 = wait forever (stop / save-replay), otherwise the
        caller's reply timeout in seconds. */

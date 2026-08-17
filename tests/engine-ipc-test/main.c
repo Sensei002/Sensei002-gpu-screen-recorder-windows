@@ -208,10 +208,12 @@ static void test_transport(void) {
     n = gsr_platform_ipc_build_request(request, sizeof(request), 5, "save-replay", "{\"seconds\":30}");
     CHECK(n > 0);
     {
+        printf("   [transport] test5 connect\n");
         const HANDLE pipe = gsr_platform_ipc_client_connect(pipe_name, 15);
         if(pipe == INVALID_HANDLE_VALUE)
             fprintf(stderr, "   [transport] connect 5 failed, GetLastError: %lu\n", (unsigned long)GetLastError());
         CHECK(pipe != INVALID_HANDLE_VALUE);
+        printf("   [transport] test5 send\n");
         CHECK(gsr_platform_ipc_client_send_all(pipe, request, (size_t)n));
 
         complete_thread_params params;
@@ -220,9 +222,12 @@ static void test_transport(void) {
         params.success = true;
         params.filepath = "C:\\\\Users\\\\test\\\\Replay_2026-08-05_14-04-22.mp4";
         pthread_t thread;
+        printf("   [transport] test5 spawn complete thread\n");
         CHECK(pthread_create(&thread, NULL, complete_request_thread, &params) == 0);
 
+        printf("   [transport] test5 waiting for deferred reply...\n");
         CHECK(gsr_platform_ipc_client_receive_reply(pipe, reply, sizeof(reply), &reply_size));
+        printf("   [transport] test5 got reply\n");
         CHECK(reply_size == (size_t)strlen("{\"id\":5,\"result\":\"ok\",\"data\":\"C:\\\\Users\\\\test\\\\Replay_2026-08-05_14-04-22.mp4\"}"));
         CHECK(strncmp(reply, "{\"id\":5,\"result\":\"ok\",\"data\":\"C:\\\\Users\\\\test\\\\Replay_2026-08-05_14-04-22.mp4\"}", reply_size) == 0);
         CHECK(state.save_replay_called && state.save_replay_seconds == 30);
