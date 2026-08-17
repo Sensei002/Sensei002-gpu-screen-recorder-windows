@@ -196,7 +196,9 @@ jobs:
         shell: msys2 {0}
         run: |
           export FONTCONFIG_PATH="$(cygpath -m "$PWD/tests")"
-          ctest --test-dir build/cmake --output-on-failure
+          # 120s per test: a hang fails fast instead of burning ctest's 1500s
+          # default timeout (which is how a stuck test ate the whole runner).
+          ctest --test-dir build/cmake --output-on-failure --timeout 120
 
       # Phase 5b: run the render pipeline self-test inside the MSYS2 shell so
       # ANGLE (libEGL.dll on /mingw64/bin PATH) is found and the full
@@ -319,7 +321,7 @@ jobs:
         shell: msys2 {0}
         run: |
           export FONTCONFIG_PATH="$(cygpath -m "$PWD/tests")"
-          ctest --test-dir build/coverage --output-on-failure
+          ctest --test-dir build/coverage --output-on-failure --timeout 120
 
       - name: Generate coverage report
         shell: msys2 {0}
