@@ -632,26 +632,72 @@ Tasks:
 
 ---
 
-## Phase 11 — Hotkeys + notifications + IPC integration
+## Phase 11 — Engine binary + IPC + hotkeys/notifications integration
 
-Tasks:
+Milestone A — engine executable + IPC (this push, part of Push 1):
 
-1. Engine control events + named events (architecture §7); gsr-cli.exe
-   end-to-end against a running engine in CI (spawn engine with
-   `-ipc`, run commands, assert replies) — headless-friendly.
-2. gsr-notify port: `gsr-notification.exe` with the same CLI; CI smoke test.
-3. UI↔engine integration in CI: launch UI (daemon mode) → `gsr-ui-cli
-   toggle-show` → assert RPC reply; engine child-process contract tests.
-4. Windows notifications only where they don't distort upstream UX (default:
-   the ShadowPlay-style overlay notifications via gsr-notification.exe).
+- [x] `gpu-screen-recorder.exe` engine binary (platform/windows/
+      gsr_main_win32.c) mirroring upstream `src/cli/main.c` byte for byte:
+      the `-ipc` handlers (stop/toggle-pause/set-paused/toggle-replay-
+      recording/start/stop-replay-recording/save-replay), the deferred-
+      request completion on the recorder callbacks, the screenshot path,
+      `-sc` script execution, the `-f`/`-w`/`-o` args validation. Windows
+      differences: no POSIX signals (SetConsoleCtrlHandler instead), no
+      display-server env, `_putenv_s` for the NVIDIA env vars, app audio
+      honestly rejected (`-a app:*` exits 2), the `hags|yes|no` line in
+      `--info` (HAGS hardening).
+- [x] Named-pipe IPC transport (platform/windows/gsr_ipc_win32.c): the
+      upstream `gsr_ipc` API over `\\.\pipe\gsr-<name>` byte-stream pipes,
+      byte-identical request/reply JSON. Includes the deferred-request
+      state machine and the Rpc.cpp lessons: close the pipe before freeing
+      the OVERLAPPED, no `FILE_FLAG_FIRST_PIPE_INSTANCE`, a distinct
+      wakeup event (a completed deferred request must not kill the loop),
+      sync-read handling for fast clients, and intptr_t client tokens
+      (never truncate a HANDLE to int).
+- [x] `gsr-cli.exe` (platform/windows/gsr_cli_win32.c) — the Windows port
+      of `tools/gsr-cli/main.c`: status/stop/toggle-pause/set-paused/
+      save-replay/... with upstream exit codes and output.
+- [x] Windows commands (platform/windows/gsr_commands_win32.c): `--info`
+      (same section/key lines the UI parses + `hags|yes|no`),
+      `--list-audio-devices` (WASAPI), `--list-monitors` /
+      `--list-capture-options` (DXGI), and the `-sc` script runner
+      (cmd /c for .bat/.cmd, powershell -File for .ps1, direct exe).
+- [x] Windows windowing (platform/windows/gsr_windowing_win32.c): the
+      upstream `gsr_windowing` API over the ANGLE-on-D3D11 loader;
+      `card_path_found` = "GL is usable".
+- [x] CI: `engine-ipc-test` — in-process named-pipe transport round-trips
+      (ok/error replies, deferred completion from another thread, the
+      already-pending guard, a second-init rejection) plus a live spawn of
+      the engine with `-ipc` driven through gsr-cli (status → running,
+      toggle-pause → ok, save-replay → the honest error, stop → the saved
+      filepath + exit 0). Runs headless in ctest; the live half runs in
+      the MSYS2 step where ANGLE is available.
+
+Remaining (not in this push): the UI↔engine wiring (`gsr-ui` daemon mode
+calling `--info` and spawning the engine), the notification/tray decision
+(overlay notifications are already the UI's own rendering — Phase 10 — so
+no separate gsr-notification.exe is needed), and the hotkey integration
+(GlobalHotkeysWin32 exists from Phase 10; wiring it to the engine's IPC is
+left to the UI↔engine milestone).
 
 ---
 
 ## Phase 12 — Startup + Windows integration
 
-Tasks: startup option implementation; clean shutdown on session end/logoff;
-file associations (optional, documented); `-sc` script execution on Windows
-(`cmd /c`/direct exe); environment variable handling parity.
+Tasks:
+
+- [x] `-sc` script execution on Windows (cmd /c for .bat/.cmd,
+      powershell -File for .ps1, direct exe; detached, CREATE_NO_WINDOW) —
+      shipped in this push with the engine (gsr_commands_win32.c).
+- [x] Environment variable handling parity: the NVIDIA env vars upstream
+      sets are set via `_putenv_s`; the VAAPI/LIBVA unsets are skipped
+      (no VAAPI on Windows).
+- [x] HAGS detection (`HwSchMode` under GraphicsDrivers) surfaced as
+      `hags|yes|no` in `--info` + the backend/encoder choices logged.
+- [ ] Startup option implementation (HKCU Run autostart — Utils.cpp
+      already has set_xdg_autostart over the registry); clean shutdown on
+      session end/logoff (SetConsoleCtrlHandler CTRL_LOGOFF is wired in
+      the engine); file associations (optional, documented).
 
 ---
 

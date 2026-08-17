@@ -8,6 +8,7 @@
 #include "../../platform/include/capture.h"
 #include "../../platform/include/filesystem.h"
 #include "../../platform/include/audio.h"
+#include "../../platform/include/hags.h"
 
 #include "../../upstream/include/utils.h" /* clock_get_monotonic_seconds */
 
@@ -15,6 +16,22 @@
 
 #include <stdio.h>
 #include <string.h>
+
+/* ---- HAGS (Phase 11) ----------------------------------------------------- */
+
+bool gsr_platform_hags_enabled(void) {
+    HKEY key = NULL;
+    if(RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+                     0, KEY_QUERY_VALUE | KEY_WOW64_64KEY, &key) != ERROR_SUCCESS)
+        return false;
+
+    DWORD value = 0;
+    DWORD size = sizeof(value);
+    const bool enabled = (RegQueryValueExA(key, "HwSchMode", NULL, NULL, (LPBYTE)&value, &size) == ERROR_SUCCESS)
+        && size == sizeof(value) && value == 2;
+    RegCloseKey(key);
+    return enabled;
+}
 
 /* ---- time ---------------------------------------------------------------- */
 

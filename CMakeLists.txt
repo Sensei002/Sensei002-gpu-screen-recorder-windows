@@ -213,6 +213,13 @@ set(GSR_CORE_SOURCES
     # generation-table logic lives in gsr_nvenc_internal.h for headless
     # testing.
     platform/windows/gsr_nvenc_win32.c
+    # Phase 11: the engine's Windows command handlers (--info/--list-*/
+    # -sc script execution), the windowing abstraction (ANGLE loader wrap),
+    # and the named-pipe IPC transport (server + client). Upstream's
+    # commands.c / windowing.c / ipc.c are Linux-coupled and not built.
+    platform/windows/gsr_commands_win32.c
+    platform/windows/gsr_windowing_win32.c
+    platform/windows/gsr_ipc_win32.c
 )
 
 add_library(gsr_core STATIC ${GSR_CORE_SOURCES})
@@ -347,6 +354,29 @@ target_link_libraries(audio-sync-test PRIVATE gsr_core)
 # replay pass (clone -> thread -> Replay_*.mkv, restart-on-save).
 add_executable(replay-save-test tests/replay-save-test/main.c)
 target_link_libraries(replay-save-test PRIVATE gsr_core)
+
+# ---------------------------------------------------------------------------
+# Phase 11 — the engine binary, gsr-cli, and the IPC transport.
+# ---------------------------------------------------------------------------
+# gpu-screen-recorder.exe — the engine executable (platform/windows/
+# gsr_main_win32.c mirrors upstream src/cli/main.c: the -ipc handlers, the
+# deferred-request completion, screenshot path, args validation).
+add_executable(gpu-screen-recorder platform/windows/gsr_main_win32.c)
+target_link_libraries(gpu-screen-recorder PRIVATE gsr_core)
+
+# gsr-cli.exe — the Windows port of upstream tools/gsr-cli/main.c (status/
+# stop/toggle-pause/set-paused/save-replay/... over the named-pipe client).
+add_executable(gsr-cli platform/windows/gsr_cli_win32.c)
+target_link_libraries(gsr-cli PRIVATE gsr_core)
+
+# Phase 11 engine-IPC test: part 1 (always runs) exercises the named-pipe
+# transport in-process — server with test handlers, client connects, sends
+# requests, asserts the ok/error reply JSON and the deferred-request
+# completion round-trip. Part 2 (SKIPs like recorder-self-test when ANGLE is
+# unavailable) spawns the real gpu-screen-recorder.exe with -ipc and asserts
+# the status/toggle-pause/stop contract through gsr-cli.
+add_executable(engine-ipc-test tests/engine-ipc-test/main.c)
+target_link_libraries(engine-ipc-test PRIVATE gsr_core)
 
 # ---------------------------------------------------------------------------
 # mgl_core — the vendored upstream UI rendering library (ui/depends/mglpp/
@@ -536,7 +566,7 @@ target_link_libraries(ui-golden-test PRIVATE ui_core)
 # winpthread and atomic are already linked statically via the gsr_core
 # PUBLIC link flags above (-static-libstdc++/-static-libwinpthread are
 # driver options that do nothing when linking with cc).
-foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test dxgi-self-test recorder-self-test audio-conv-test nvenc-self-test audio-list-test audio-sync-test replay-save-test mgl-win32-test ui-rpc-test ui-module-test ui-golden-test gsr-ui gsr-ui-cli)
+foreach(target ci-smoke compat-probe gsr-core-test platform-test wgc-self-test render-self-test dxgi-self-test recorder-self-test audio-conv-test nvenc-self-test audio-list-test audio-sync-test replay-save-test mgl-win32-test ui-rpc-test ui-module-test ui-golden-test gsr-ui gsr-ui-cli gpu-screen-recorder gsr-cli engine-ipc-test)
     set_target_properties(${target} PROPERTIES
         LINK_FLAGS "-static-libgcc")
 endforeach()
@@ -554,6 +584,7 @@ add_test(NAME nvenc-self-test COMMAND nvenc-self-test)
 add_test(NAME audio-list-test COMMAND audio-list-test)
 add_test(NAME audio-sync-test COMMAND audio-sync-test)
 add_test(NAME replay-save-test COMMAND replay-save-test)
+add_test(NAME engine-ipc-test COMMAND engine-ipc-test)
 add_test(NAME mgl-win32-test COMMAND mgl-win32-test)
 add_test(NAME ui-rpc-test COMMAND ui-rpc-test)
 add_test(NAME ui-module-test COMMAND ui-module-test)

@@ -945,3 +945,59 @@ the order CI found them:
   `get_supported_capture_options` spawn `gpu-screen-recorder` (not on PATH
   in the test job) — `spawn_program` returns -1 and the page renders with
   empty lists, which is deterministic enough for a golden baseline.
+
+## 3q. Phase 11 CI validation lessons (engine binary + named-pipe IPC)
+
+* **The engine executable is a real target now.** `gpu-screen-recorder.exe`
+  (platform/windows/gsr_main_win32.c) mirrors upstream `src/cli/main.c`:
+  the `-ipc` handlers, deferred-request completion, screenshot path, args
+  validation, `-sc`. The Windows differences are: no POSIX signals
+  (SetConsoleCtrlHandler for Ctrl+C/close/logoff; SIGINT/SIGTERM via
+  signal() still work on MinGW, SIGUSR1/SIGRTMIN don't exist), no
+  display-server env (no DISPLAY/WAYLAND_DISPLAY), no /proc, no geteuid
+  check, no mallopt, no install_cuda_no_stable_perf_limit. The NVIDIA env
+  vars upstream sets are set with `_putenv_s`; the LIBVA/vblank unsets are
+  VAAPI-only and skipped. App audio (`-a app:*`) is rejected with exit 2
+  (GSR_APP_AUDIO is not built on Windows). `windowing` is the
+  ANGLE-on-D3D11 loader; `card_path_found` means "GL is usable".
+* **Named pipes are the IPC transport, and the deferred-request semantics
+  are byte-identical to upstream.** Request/reply JSON, the error strings
+  ("unknown request name '%s'", "a replay is already being saved",
+  "option -r is required to save a replay"), and the deferred replies
+  (stop/save-replay/stop-replay-recording answered only by
+  gsr_ipc_complete_request) all match `src/cli/ipc.c`. `engine-ipc-test`
+  proves the round-trips in-process (server + client API), then spawns the
+  real engine with `-ipc` and drives it through the real `gsr-cli.exe`.
+* **Four named-pipe traps, all caught in review before CI:**
+  1. **Never signal the shutdown event for a completed deferred request** —
+     the loop treats it as quit, so the IPC server would die the first time
+     a replay finished saving. A completed request wakes the thread via a
+     separate auto-reset wakeup event.
+  2. **Free the consumed listen OVERLAPPED before re-arming.** The accept
+     path replaced `self->listen_overlapped` without freeing the old one
+     (handle + struct leak per connection). Free it after
+     GetOverlappedResult, before creating the fresh listen instance.
+  3. **A synchronous ReadFile completion carries data the event never
+     signals.** If a fast client's bytes arrive before the OVERLAPPED goes
+     pending, ReadFile returns TRUE with bytes already in the buffer;
+     treating that as "disconnected" (or ignoring it) loses the request.
+     Process the bytes and re-arm immediately.
+  4. **A HANDLE is 64-bit; the deferred-request client token must be
+     intptr_t, not int.** Upstream's `client_fd` is a Unix socket fd and
+     fits an int; truncating a pipe HANDLE to int corrupts the lookup when
+     the deferred reply is sent (the fix is in `cli/ipc.h`, shared header).
+* **Engine smoke commands need ANGLE, so they run in the MSYS2 step.**
+  `--info`, `--list-capture-options` and `--list-monitors` load EGL
+  (gsr_windowing_load_egl) and exit 22 without ANGLE — matching upstream's
+  exit code when the card isn't found. The workflow runs them only where
+  libEGL.dll is on PATH; `--version`/`gsr-cli -h` run everywhere.
+* **The live engine test must pass `-fallback-cpu-encoding yes`.** CI's
+  runner has no NVIDIA GPU (Basic Display Adapter/WARP), and the engine
+  defaults to the GPU encoder; without the fallback the recording fails
+  exactly like recorder-self-test's would. With it, the engine records the
+  primary monitor with libx264 and the stop request saves the file — the
+  same path recorder-self-test exercises.
+* **`-w monitor` is not a literal on Windows.** The capture setup resolves
+  real monitor names (`\\.\DISPLAY1`) or the primary alias `screen`; the
+  test resolves the primary monitor via gsr_platform_display_list_monitors
+  before spawning the engine.

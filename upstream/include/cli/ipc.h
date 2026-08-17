@@ -7,6 +7,10 @@
 #include <limits.h>
 #include <pthread.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #define GSR_IPC_MAX_CLIENTS 8
 #define GSR_IPC_MAX_REQUEST_SIZE 4096
 #define GSR_IPC_MAX_ERROR_MESSAGE_SIZE 256
@@ -52,13 +56,58 @@ typedef enum {
 
 typedef struct {
     gsr_ipc_deferred_request_state state;
-    int client_fd;
+    /* Windows port modification: the transport token identifying the
+       pending client. On Unix this is the socket fd (fits an int); on
+       Windows it is the client pipe HANDLE, which is 64-bit — so this is
+       intptr_t, never truncate it to int. */
+    intptr_t client_fd;
     int64_t request_id;
     bool success;
     bool has_filepath;
     char filepath[PATH_MAX];
 } gsr_ipc_deferred_request;
 
+#ifdef _WIN32
+/* Windows transport (platform/windows/gsr_ipc_win32.c): the same API over
+   named pipes (\\.\pipe\gsr-<name>). The pipe is a byte-stream so request
+   framing is identical to the Unix socket: newline-terminated JSON. The
+   deferred-request machinery and handlers are unchanged. */
+typedef struct {
+    HANDLE pipe;                   /* client pipe handle */
+    OVERLAPPED *read_overlapped;   /* pending ReadFile on this client */
+    char read_buffer[1024];        /* scratch for the overlapped ReadFile */
+    char request[GSR_IPC_MAX_REQUEST_SIZE];
+    size_t request_size;
+    bool request_too_large;
+    char send_buffer[GSR_IPC_CLIENT_SEND_BUFFER_SIZE];
+    size_t send_buffer_size;
+} gsr_ipc_client;
+
+typedef struct {
+    bool initialized;
+    HANDLE listen_pipe;            /* current listen instance */
+    OVERLAPPED *listen_overlapped; /* pending ConnectNamedPipe */
+    bool listen_connected_sync;    /* ConnectNamedPipe completed synchronously
+                                      (event signalled by hand; skip
+                                      GetOverlappedResult) */
+    HANDLE shutdown_event;         /* wakes the ipc thread on stop */
+    HANDLE wakeup_event;           /* wakes the ipc thread when a deferred
+                                      request completes (auto-reset; distinct
+                                      from shutdown_event so a completed
+                                      request doesn't kill the loop) */
+    bool socket_bound;
+    char socket_filepath[PATH_MAX];/* pipe name (without the \\.\pipe\ prefix) */
+    gsr_ipc_client clients[GSR_IPC_MAX_CLIENTS];
+    int num_clients;
+    gsr_ipc_handlers handlers;
+    gsr_ipc_deferred_request deferred_requests[GSR_IPC_DEFERRED_REQUEST_TYPE_COUNT];
+    pthread_mutex_t deferred_requests_mutex;
+    bool deferred_requests_mutex_created;
+    pthread_t thread;
+    bool thread_running;
+} gsr_ipc;
+#else
+/* Receives newline terminated json requests on a unix domain socket and replies to every request */
 typedef struct {
     int fd;
     char request[GSR_IPC_MAX_REQUEST_SIZE];
@@ -68,7 +117,6 @@ typedef struct {
     size_t send_buffer_size;
 } gsr_ipc_client;
 
-/* Receives newline terminated json requests on a unix domain socket and replies to every request */
 typedef struct {
     bool initialized;
     int socket_fd;
@@ -85,6 +133,7 @@ typedef struct {
     pthread_t thread;
     bool thread_running;
 } gsr_ipc;
+#endif
 
 /* Returns a |gsr_error| value. Creates the socket, requests are not handled until gsr_ipc_start is called */
 int gsr_ipc_init(gsr_ipc *self, const char *socket_filepath);

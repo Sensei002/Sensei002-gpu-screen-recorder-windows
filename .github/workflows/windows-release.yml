@@ -246,6 +246,13 @@ jobs:
           .\build\cmake\ui-module-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\cmake\ui-golden-test.exe "$PWD"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\cmake\engine-ipc-test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\cmake\gsr-cli.exe -h
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\cmake\gpu-screen-recorder.exe --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # Run the recorder self-test in the MSYS2 shell too: this is where the
       # ANGLE DLLs are on PATH, so the verbose recording logs (backend
@@ -262,6 +269,26 @@ jobs:
       - name: Run NVENC self-test (ANGLE + live capture)
         shell: msys2 {0}
         run: ./build/cmake/nvenc-self-test.exe
+
+      # Phase 11: the engine IPC test. Part 1 (the named-pipe transport
+      # round-trips) runs in ctest; part 2 spawns the real
+      # gpu-screen-recorder.exe with -ipc and drives it through gsr-cli
+      # (status/toggle-pause/save-replay/stop + saved-file validation). It
+      # needs ANGLE + a capture backend, so the MSYS2 shell is the only
+      # place it exercises the full path.
+      - name: Run engine IPC test (ANGLE + live engine)
+        shell: msys2 {0}
+        run: ./build/cmake/engine-ipc-test.exe
+
+      # Phase 11: engine smoke — --info and --list-capture-options need
+      # ANGLE (exit 22 without it), so run them here where the DLLs are on
+      # PATH; the hags|yes|no line (HAGS hardening) must be present.
+      - name: Run engine --info (ANGLE)
+        shell: msys2 {0}
+        run: |
+          ./build/cmake/gpu-screen-recorder.exe --info
+          ./build/cmake/gpu-screen-recorder.exe --list-capture-options
+          ./build/cmake/gpu-screen-recorder.exe --list-audio-devices
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -289,6 +316,9 @@ jobs:
             build/cmake/ui-golden-render.ppm
             build/cmake/gsr-ui.exe
             build/cmake/gsr-ui-cli.exe
+            build/cmake/gpu-screen-recorder.exe
+            build/cmake/gsr-cli.exe
+            build/cmake/engine-ipc-test.exe
             build/cmake/recorder-self-test-output.mkv
             build/cmake/*.dll
           if-no-files-found: error
@@ -395,6 +425,12 @@ jobs:
           .\build\bin\replay-save-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\bin\mgl-win32-test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\bin\ui-rpc-test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\bin\ui-module-test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\build\bin\engine-ipc-test.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           .\build\bin\ci-smoke.exe
 
