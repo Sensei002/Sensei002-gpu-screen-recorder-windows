@@ -124,6 +124,23 @@ static void test_global_hotkeys(void) {
    — on CI there is no prior value and the key ends clean. */
 static void test_startup_autostart(void) {
     printf("-- startup (HKCU Run autostart)\n");
+
+    /* HKCU registry access is not guaranteed in every CI context (the
+       artifact re-run job runs the binaries outside MSYS2 with a
+       restricted user hive on some runners). When the Run key is
+       inaccessible, print the error and SKIP — the round-trip is already
+       exercised in the Build job's ctest/direct-run steps, and a locked
+       registry is an environment limitation, not a port bug. */
+    HKEY probe_key = NULL;
+    const LONG probe_result = RegOpenKeyExA(HKEY_CURRENT_USER,
+        "Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_READ, &probe_key);
+    if(probe_result != ERROR_SUCCESS) {
+        printf("SKIP: cannot open the HKCU Run key (error %lu); skipping the registry round-trip\n",
+            (unsigned long)probe_result);
+        return;
+    }
+    RegCloseKey(probe_key);
+
     const bool was_enabled = gsr::is_xdg_autostart_enabled();
 
     CHECK(gsr::set_xdg_autostart(true) == 0);
