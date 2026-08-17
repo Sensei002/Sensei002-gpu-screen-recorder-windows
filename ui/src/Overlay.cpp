@@ -1873,7 +1873,9 @@ namespace gsr {
         }
 #endif /* !_WIN32 */
 
+#ifndef _WIN32
         window_texture_deinit(&window_texture);
+#endif
         window_texture_sprite.set_texture(nullptr);
         screenshot_texture.clear();
         screenshot_sprite.set_texture(nullptr);
@@ -3947,7 +3949,9 @@ namespace gsr {
     }
 
     bool Overlay::update_compositor_texture(const Monitor &monitor) {
+#ifndef _WIN32
         window_texture_deinit(&window_texture);
+#endif
         window_texture_sprite.set_texture(nullptr);
         screenshot_texture.clear();
         screenshot_sprite.set_texture(nullptr);
