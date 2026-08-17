@@ -39,6 +39,16 @@ namespace gsr {
         return result;
     }
 
+    /* Windows CRLF robustness: the engine now writes binary-mode stdout
+       (no \r\n), but tolerate a trailing '\r' from any other producer so
+       exact-string comparisons ("vendor|nvidia", "h264_software", ...)
+       never fail on Windows. */
+    static std::string_view trim_cr(std::string_view line) {
+        if(!line.empty() && line.back() == '\r')
+            line.remove_suffix(1);
+        return line;
+    }
+
     /* Returns -1 on error */
     static int parse_u8(const char *str, int size) {
         if(size <= 0)
@@ -63,27 +73,33 @@ namespace gsr {
         uint8_t numbers[3];
         int number_index = 0;
 
+        /* The Windows port reports "6.0.0-w1" (a suffix after the numeric
+           triple). Stop at the first character that is not a digit or '.',
+           then parse the leading numeric version only. */
+        const size_t suffix_index = str.find_first_not_of("0123456789.");
+        const std::string_view version_str = suffix_index == std::string_view::npos ? str : str.substr(0, suffix_index);
+
         size_t index = 0;
         while(true) {
-            size_t next_index = str.find('.', index);
+            size_t next_index = version_str.find('.', index);
             if(next_index == std::string::npos)
-                next_index = str.size();
+                next_index = version_str.size();
 
-            const int number = parse_u8(str.data() + index, next_index - index);
+            const int number = parse_u8(version_str.data() + index, next_index - index);
             if(number == -1) {
-                fprintf(stderr, "Error: gpu-screen-recorder --info contains invalid gsr version: %.*s\n", (int)str.size(), str.data());
+                fprintf(stderr, "Error: gpu-screen-recorder --info contains invalid gsr version: %.*s\n", (int)version_str.size(), version_str.data());
                 return {0, 0, 0};
             }
 
             if(number_index >= 3) {
-                fprintf(stderr, "Error: gpu-screen-recorder --info contains invalid gsr version: %.*s\n", (int)str.size(), str.data());
+                fprintf(stderr, "Error: gpu-screen-recorder --info contains invalid gsr version: %.*s\n", (int)version_str.size(), version_str.data());
                 return {0, 0, 0};
             }
 
             numbers[number_index] = number;
             ++number_index;
             index = next_index + 1;
-            if(next_index == str.size())
+            if(next_index == version_str.size())
                 break;
         }
 
@@ -207,6 +223,7 @@ namespace gsr {
 
         GsrInfoSection section = GsrInfoSection::UNKNOWN;
         string_split_char(stdout_str, '\n', [&](std::string_view line) {
+            line = trim_cr(line);
             if(starts_with(line, "section=")) {
                 const std::string_view section_name = line.substr(8);
                 if(section_name == "system_info")
@@ -444,7 +461,7 @@ namespace gsr {
         }
 
         string_split_char(stdout_str, '\n', [&](std::string_view line) {
-            parse_capture_options_line(capture_options, line);
+            parse_capture_options_line(capture_options, trim_cr(line));
             return true;
         });
 
@@ -462,7 +479,7 @@ namespace gsr {
         }
 
         string_split_char(stdout_str, '\n', [&](std::string_view line) {
-            parse_camera_line(line, cameras);
+            parse_camera_line(trim_cr(line), cameras);
             return true;
         });
 

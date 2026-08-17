@@ -46,6 +46,8 @@
 #include <locale.h>
 #include <signal.h>
 #include <stdatomic.h>
+#include <io.h>    /* _setmode (Windows CRLF fix) */
+#include <fcntl.h> /* _O_BINARY            */
 
 #ifdef _WIN32
 #include <windows.h>
@@ -498,6 +500,14 @@ static int run(args_parser *arg_parser) {
 }
 
 int main(int argc, char **argv) {
+    /* Windows CRT text mode translates '\n' to "\r\n" when stdout/stderr
+       are pipes, which corrupts every line for consumers that expect '\n'
+       (the gsr-ui --info/--list-capture-options parsers compare exact
+       strings like "vendor|nvidia"). Binary mode keeps the output
+       byte-exact on all targets. */
+    _setmode(_fileno(stdout), _O_BINARY);
+    _setmode(_fileno(stderr), _O_BINARY);
+
     setlocale(LC_ALL, "C"); /* Sigh... stupid C */
 
     install_signal_handlers();

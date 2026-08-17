@@ -1224,3 +1224,42 @@ the order CI found them:
   package job now validates `images/` + `translations/` presence in both
   the staged layout and the extracted zip, which is what would have caught
   this at Phase 13 time.
+
+## 3w. Real-hardware lessons: CRLF stdout, NVENC device flags, overlay alpha
+
+* **Windows pipes are text mode — every stdout line arrives as `\r\n`, and
+  exact-string parsers silently break.** The engine's `--info`/`--list-*`
+  output looked perfect in a terminal (which strips `\r`) but the UI's
+  parser compared `"vendor|nvidia\r" == "vendor|nvidia"` and every field
+  fell through to defaults: the codec dropdown showed only "Auto", the
+  application-info page showed "Unknown" for everything, and capture
+  targets (window/focused/region) disappeared. Fixed twice, belt and
+  braces: the engine now sets `_setmode(_fileno(stdout), _O_BINARY)` at
+  startup (fixes the source), and the UI's stdout parsers trim a trailing
+  `\r` before comparing (robust to any other producer). Lesson: when a
+  port's pipe output is parsed by sibling tools, verify byte-exact output
+  (`od -c`), not terminal-rendered output.
+* **FFmpeg's d3d11va hwcontext requires a D3D11 device created with
+  `D3D11_CREATE_DEVICE_VIDEO_SUPPORT`.** Without it `av_hwdevice_ctx_init`
+  fails and every NVENC probe reports "unsupported" — on a GTX 950 that
+  genuinely supports H.264/HEVC NVENC — which in turn meant `-k auto` had
+  no hardware encoder and recording failed immediately. All four Windows
+  D3D11 device creations (EGL/ANGLE shared, NVENC probe, WGC, DXGI) now
+  use `BGRA | VIDEO_SUPPORT` with a BGRA-only retry for old drivers.
+  The NVENC probe also logs `avcodec_open2`'s error string now, so a
+  future probe failure names its cause instead of staying silent.
+* **A GL overlay window is opaque black until DWM is told to composite its
+  alpha channel.** `WS_EX_LAYERED` + an 8-bit-alpha pixel format is not
+  enough on Windows: DWM ignores the back buffer's alpha and renders the
+  RGB. The canonical fix is the Microsoft "Per-Pixel Alpha in OpenGL"
+  recipe — `DwmEnableBlurBehindWindow` with an empty blur region — which
+  mgl's win32 backend now applies for `support_alpha` windows (dwmapi
+  loaded dynamically, matching the opengl32 pattern).
+* **The UI version string must be defined per build system.** Upstream
+  meson passes `-DGSR_UI_VERSION="..."`; the CMake port never did, so the
+  "GSR-UI version" row read "Unknown". The CMake `gsr-ui` target now
+  defines it from `GSR_VERSION_STR`.
+* **A version suffix breaks upstream's strict `x.y.z` parser.** The port
+  reports `gsr_version|6.0.0-w1`; upstream's `parse_gsr_version` rejected
+  the `-w1` tail and the whole version became "Unknown". The UI now parses
+  only the leading numeric triple and ignores a `-suffix`.

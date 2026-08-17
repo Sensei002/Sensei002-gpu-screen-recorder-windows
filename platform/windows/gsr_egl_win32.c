@@ -81,7 +81,10 @@ static ID3D11Device *create_d3d11_device(void) {
         D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0,
         D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0,
     };
-    const UINT create_flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+    /* VIDEO_SUPPORT is needed so the shared device can also drive NVENC
+       (FFmpeg's d3d11va hwcontext requires it; see gsr_nvenc_win32.c). It is
+       harmless for ANGLE, and we fall back to BGRA-only on old drivers. */
+    const UINT create_flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT | D3D11_CREATE_DEVICE_VIDEO_SUPPORT;
     D3D_FEATURE_LEVEL got_level = D3D_FEATURE_LEVEL_10_0;
     ID3D11Device *device = NULL;
 
@@ -89,8 +92,14 @@ static ID3D11Device *create_d3d11_device(void) {
         levels, (UINT)(sizeof(levels) / sizeof(levels[0])), D3D11_SDK_VERSION,
         &device, &got_level, NULL);
     if(FAILED(hr)) {
+        gsr_log(GSR_LOG_LEVEL_INFO, "gsr_egl_load_win32: video-support device unavailable (0x%08lx), retrying without it", (unsigned long)hr);
+        hr = D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+            levels, (UINT)(sizeof(levels) / sizeof(levels[0])), D3D11_SDK_VERSION,
+            &device, &got_level, NULL);
+    }
+    if(FAILED(hr)) {
         gsr_log(GSR_LOG_LEVEL_INFO, "gsr_egl_load_win32: hardware device unavailable (0x%08lx), using WARP", (unsigned long)hr);
-        hr = D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_WARP, NULL, create_flags,
+        hr = D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_WARP, NULL, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
             levels, (UINT)(sizeof(levels) / sizeof(levels[0])), D3D11_SDK_VERSION,
             &device, &got_level, NULL);
     }

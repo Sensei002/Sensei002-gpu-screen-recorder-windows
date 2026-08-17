@@ -555,6 +555,7 @@ target_link_libraries(ui_core PUBLIC
 # now.
 add_executable(gsr-ui ui/src/main.cpp packaging/gsr.rc)
 target_link_libraries(gsr-ui PRIVATE ui_core)
+target_compile_definitions(gsr-ui PRIVATE GSR_UI_VERSION="${GSR_VERSION_STR}")
 set_target_properties(gsr-ui PROPERTIES RC_FLAGS "${GSR_RC_FLAGS}")
 
 # Phase 10 (remaining) UI platform-module smoke test: the Win32 equivalents of

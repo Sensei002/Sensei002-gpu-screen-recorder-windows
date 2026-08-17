@@ -959,6 +959,34 @@ static void* mgl_window_win32_get_egl_context(mgl_window *self) {
     return NULL;
 }
 
+/* Per-pixel alpha for a WGL window: DWM only composites a window's alpha
+   channel when blur-behind is enabled with an empty blur region (the
+   canonical recipe from Microsoft's "Per-Pixel Alpha in OpenGL" sample).
+   Without this the GL back buffer's alpha is dropped and a transparent
+   overlay renders as opaque black. Loaded dynamically like opengl32. */
+static void mgl_window_win32_enable_per_pixel_alpha(HWND window) {
+    typedef BOOL (WINAPI *dwm_enable_blur_behind_t)(HWND, const void*);
+    HMODULE dwmapi = LoadLibraryA("dwmapi.dll");
+    if(!dwmapi)
+        return;
+    dwm_enable_blur_behind_t fn = (dwm_enable_blur_behind_t)GetProcAddress(dwmapi, "DwmEnableBlurBehindWindow");
+    if(fn) {
+        struct dwm_blur_behind {
+            DWORD dwFlags;
+            BOOL fEnable;
+            HRGN hRgnBlur;
+            BOOL fTransitionOnMaximized;
+        } bb;
+        memset(&bb, 0, sizeof(bb));
+        bb.dwFlags = 0x1 /* DWM_BB_ENABLE */ | 0x2 /* DWM_BB_BLURREGION */;
+        bb.fEnable = TRUE;
+        bb.hRgnBlur = CreateRectRgn(-1, -1, -1, -1); /* empty region: no blur, alpha composited */
+        fn(window, &bb);
+        DeleteObject(bb.hRgnBlur);
+    }
+    FreeLibrary(dwmapi);
+}
+
 /* ---- init --------------------------------------------------------------- */
 
 static bool mgl_window_win32_setup(mgl_window *self, const char *title, const mgl_window_create_params *params, HWND existing_window) {
@@ -1062,6 +1090,9 @@ static bool mgl_window_win32_setup(mgl_window *self, const char *title, const mg
         self->size = window_size;
         self->pos = window_pos;
     }
+
+    if(impl->support_alpha && impl->created_window)
+        mgl_window_win32_enable_per_pixel_alpha(impl->window);
 
     mgl_graphics_create_params gparams;
     memset(&gparams, 0, sizeof(gparams));

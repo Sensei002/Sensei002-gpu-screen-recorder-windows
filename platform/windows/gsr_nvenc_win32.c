@@ -45,6 +45,7 @@
 
 #include <libavcodec/avcodec.h>
 #include <libavutil/dict.h>
+#include <libavutil/error.h> /* av_strerror */
 #include <libavutil/hwcontext.h>
 #include <libavutil/hwcontext_d3d11va.h>
 #include <libavutil/frame.h>
@@ -147,9 +148,22 @@ static ID3D11Device *nvenc_create_hardware_device(void) {
         D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0,
     };
     ID3D11Device *device = NULL;
-    const HRESULT hr = D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+    /* VIDEO_SUPPORT is required for FFmpeg's d3d11va hwcontext to accept the
+       device (it checks D3D11_FEATURE_D3D11_OPTIONS.ExtendedResourceSharing,
+       which is only enabled on devices created with this flag) — without it
+       av_hwdevice_ctx_init fails and every NVENC probe reports unsupported.
+       BGRA is the ANGLE interop requirement. */
+    const UINT create_flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT | D3D11_CREATE_DEVICE_VIDEO_SUPPORT;
+    HRESULT hr = D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, create_flags,
         levels, (UINT)(sizeof(levels) / sizeof(levels[0])), D3D11_SDK_VERSION,
         &device, NULL, NULL);
+    if(FAILED(hr)) {
+        /* Old drivers may reject VIDEO_SUPPORT; retry with BGRA only. */
+        gsr_log(GSR_LOG_LEVEL_INFO, "nvenc: video-support D3D11 device unavailable (0x%08lx), retrying without it", (unsigned long)hr);
+        hr = D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+            levels, (UINT)(sizeof(levels) / sizeof(levels[0])), D3D11_SDK_VERSION,
+            &device, NULL, NULL);
+    }
     return SUCCEEDED(hr) ? device : NULL;
 }
 
@@ -188,27 +202,35 @@ bool gsr_nvenc_get_adapter_description(char *out, size_t out_size) {
    device reference is taken by FFmpeg (which releases it on free). */
 static AVBufferRef *nvenc_create_hw_frames(ID3D11Device *device, int width, int height, enum AVPixelFormat sw_format) {
     AVBufferRef *device_ctx = av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_D3D11VA);
-    if(!device_ctx)
+    if(!device_ctx) {
+        gsr_log(GSR_LOG_LEVEL_ERROR, "nvenc: av_hwdevice_ctx_alloc failed");
         return NULL;
+    }
     AVHWDeviceContext *hw_device_ctx = (AVHWDeviceContext*)device_ctx->data;
     AVD3D11VADeviceContext *d3d11_ctx = (AVD3D11VADeviceContext*)hw_device_ctx->hwctx;
     device->lpVtbl->AddRef(device); /* FFmpeg releases this on free */
     d3d11_ctx->device = device;
     if(av_hwdevice_ctx_init(device_ctx) < 0) {
+        /* Typical cause: the D3D11 device was created without
+           D3D11_CREATE_DEVICE_VIDEO_SUPPORT (see nvenc_create_hardware_device). */
+        gsr_log(GSR_LOG_LEVEL_ERROR, "nvenc: av_hwdevice_ctx_init failed (device lacks video support?)");
         av_buffer_unref(&device_ctx);
         return NULL;
     }
 
     AVBufferRef *frames_ref = av_hwframe_ctx_alloc(device_ctx);
     av_buffer_unref(&device_ctx);
-    if(!frames_ref)
+    if(!frames_ref) {
+        gsr_log(GSR_LOG_LEVEL_ERROR, "nvenc: av_hwframe_ctx_alloc failed");
         return NULL;
+    }
     AVHWFramesContext *frames_ctx = (AVHWFramesContext*)frames_ref->data;
     frames_ctx->format = AV_PIX_FMT_D3D11;
     frames_ctx->sw_format = sw_format;
     frames_ctx->width = width;
     frames_ctx->height = height;
     if(av_hwframe_ctx_init(frames_ref) < 0) {
+        gsr_log(GSR_LOG_LEVEL_ERROR, "nvenc: av_hwframe_ctx_init failed (%dx%d)", width, height);
         av_buffer_unref(&frames_ref);
         return NULL;
     }
@@ -219,12 +241,16 @@ static AVBufferRef *nvenc_create_hw_frames(ID3D11Device *device, int width, int 
    the encoder genuinely opens (i.e. the GPU supports the codec/profile). */
 static bool nvenc_probe_encoder(const char *encoder_name, bool ten_bit, ID3D11Device *device) {
     const AVCodec *codec = avcodec_find_encoder_by_name(encoder_name);
-    if(!codec)
+    if(!codec) {
+        gsr_log(GSR_LOG_LEVEL_INFO, "nvenc: encoder '%s' not in this FFmpeg build", encoder_name);
         return false;
+    }
 
     AVCodecContext *codec_ctx = avcodec_alloc_context3(codec);
-    if(!codec_ctx)
+    if(!codec_ctx) {
+        gsr_log(GSR_LOG_LEVEL_ERROR, "nvenc: avcodec_alloc_context3 failed for %s", encoder_name);
         return false;
+    }
     codec_ctx->width = 128;
     codec_ctx->height = 128;
     codec_ctx->time_base = (AVRational){1, 60};
@@ -233,15 +259,23 @@ static bool nvenc_probe_encoder(const char *encoder_name, bool ten_bit, ID3D11De
     const enum AVPixelFormat sw_format = ten_bit ? AV_PIX_FMT_P010LE : AV_PIX_FMT_NV12;
     AVDictionary *options = NULL;
     if(ten_bit)
-        av_dict_set_int(&options, "highbitdepth", 1, 0);
-
-    AVBufferRef *frames_ref = nvenc_create_hw_frames(device, codec_ctx->width, codec_ctx->height, sw_format);
+        av_dict_set_int(&options, "highbitdepth", 1, 0);    AVBufferRef *frames_ref = nvenc_create_hw_frames(device, codec_ctx->width, codec_ctx->height, sw_format);
     bool opened = false;
     if(frames_ref) {
         codec_ctx->hw_frames_ctx = av_buffer_ref(frames_ref);
-        opened = avcodec_open2(codec_ctx, codec, &options) == 0;
+        const int open_ret = avcodec_open2(codec_ctx, codec, &options);
+        opened = open_ret == 0;
+        if(!opened) {
+            char errbuf[128];
+            if(av_strerror(open_ret, errbuf, sizeof(errbuf)) == 0)
+                gsr_log(GSR_LOG_LEVEL_INFO, "nvenc: avcodec_open2(%s) failed: %s", encoder_name, errbuf);
+            else
+                gsr_log(GSR_LOG_LEVEL_INFO, "nvenc: avcodec_open2(%s) failed (%d)", encoder_name, open_ret);
+        }
         avcodec_free_context(&codec_ctx);
         av_buffer_unref(&frames_ref);
+
+
     } else {
         avcodec_free_context(&codec_ctx);
     }
