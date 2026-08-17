@@ -764,9 +764,10 @@ render), so the flag was pure cruft.
 
 ---
 
-## Phase 14 — GitHub Actions (single workflow, full pipeline)
+## Phase 14 — GitHub Actions (single workflow, full pipeline) ✅ (complete)
 
-Tasks: complete `windows-release.yml`:
+The pipeline was built incrementally across Phases 1–13; this phase
+formalized the release stage:
 
 ```
 build (checkout → provision deps → configure → compile → upload artifact)
@@ -778,12 +779,28 @@ package (installer + zip + validation → upload release artifacts)
 release (create GitHub Release → upload EXE + ZIP → publish)
 ```
 
+Done in this phase:
+* **Single source of truth for the version** — the build job computes it
+  (workflow_dispatch input > `v*` tag minus the `v` > dev default
+  `6.0.0-w1`) and exposes `outputs.version`; package (artifact naming,
+  embedded version) and release (tag, title, notes) consume it. Previously
+  package hardcoded the dev version, which would have shipped the wrong
+  version on a tagged build.
+* **Release job enabled with the §84 policy** — runs only on a `v*` tag
+  push or a workflow_dispatch with a version input; a plain main push / PR
+  runs build+test+package as validation but never publishes. `tag_name` is
+  explicit (`v<version>`) so workflow_dispatch creates the tag and the
+  action finds it on tag pushes.
+* **Auto-generated release notes** (`packaging/make-release-notes.ps1`)
+  — version, commit SHA, date, upstream revision pins parsed from
+  `NOTICE-WINDOWS-PORT.md`, NOT POSSIBLE limitations parsed from the parity
+  matrix, CI hardware reality statement (brief §64 — never claims hardware
+  testing that didn't happen), attribution/license pointer.
+
 Release policy: documented in the workflow header — push to `main` runs
 build+test+package; a release is published only when the workflow is
 triggered with a version tag (e.g. `v0.1.0-windows`) or a workflow_dispatch
-with a version — *never* on every trivial commit (brief §84). Release notes
-auto-generated with version, upstream revision, commit SHA, Windows-specific
-changes, limitations, hardware notes, attribution.
+with a version — *never* on every trivial commit (brief §84).
 
 ---
 
@@ -842,7 +859,7 @@ release notes, installer + zip published. Acceptance checklist from the brief
 | 11 | Engine binary + IPC | ✅ complete (engine exe + named-pipe IPC + gsr-cli + commands + windowing + HAGS hardening; engine-ipc-test + live engine test CI-green) |
 | 12 | Startup/integration | ✅ complete (HKCU Run autostart portable-safe + tested; clean shutdown on logoff for engine and UI; file associations documented as not needed) |
 | 13 | Installer + portable zip | ✅ complete (Inno Setup 6, portable ZIP, original logo/branding via gsr.ico + gsr.rc, CI validation of resources + --help/--version/--info + ZIP round-trip) |
-| 14 | GitHub Actions full pipeline | pending (built incrementally: build/test/coverage/package/release already in one workflow) |
+| 14 | GitHub Actions full pipeline | ✅ complete (build→test→coverage→package→release in one workflow; version flows from build output; release job conditional on v* tag / dispatch-with-version; auto-generated honest release notes) |
 | 15 | Performance | pending |
 | 16 | Parity testing | pending |
 | 17 | Release packaging | pending |

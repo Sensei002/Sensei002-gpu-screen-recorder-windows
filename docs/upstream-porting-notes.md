@@ -1091,3 +1091,51 @@ the order CI found them:
   checks `$LASTEXITCODE` immediately, and only throws on a non-zero exit.
   Without this guard, any engine output to stderr (log messages, warnings)
   would abort the entire package build.
+
+## 3t. Phase 14 CI workflow lessons (release pipeline, version flow)
+
+* **The effective version belongs in ONE place: the build job's output.**
+  Previously the package job hardcoded the dev version (`6.0.0-w1`) as its
+  default when no dispatch input was given — so a tagged build would have
+  packaged with the *dev* version, not the tag's. Now the build job computes
+  the version once (dispatch input > `v*` tag minus the `v` > dev default)
+  and exposes it as `outputs.version`; package (artifact naming, embedded
+  version) and release (notes, tag, release title) both consume
+  `needs.build.outputs.version`. One source of truth, no drift.
+* **GitHub Actions job outputs flow DOWNSTREAM only.** `release` needs both
+  `build` (for `outputs.version`) and `package` (for the artifacts) — a job
+  can only read outputs of jobs listed in its own `needs`. `package` was
+  changed from `needs: test` to `needs: [build, test]` for the same reason.
+* **Release conditionality is an `if:` on the release job, not a separate
+  workflow.** A plain main push / PR must run build+test+package as
+  validation but never publish. The single expression:
+  `(github.event_name == 'workflow_dispatch' && inputs.version != '') ||
+  (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))`
+  keeps the one-workflow model (§59) while honoring the release policy
+  (§84). Note the tag case checks the ref, not the event payload: a tag push
+  is still `event_name == 'push'`.
+* **`softprops/action-gh-release` needs an explicit `tag_name` on
+  workflow_dispatch.** Without a tag the action errors; with `tag_name` set
+  it creates the tag. On a tag push the explicit tag matches the triggering
+  ref, so the same config serves both paths. The subsequent tag-push run
+  (from the action creating the tag) re-runs the pipeline and updates the
+  same release idempotently — acceptable, and it validates the tagged commit.
+* **PS 5.1 reads BOM-less files as ANSI — read docs as UTF-8 explicitly.**
+  `make-release-notes.ps1` parses `NOTICE-WINDOWS-PORT.md` and the parity
+  matrix for release-note content; without `-Encoding UTF8` on
+  `Get-Content`, the em-dashes in the parity notes ("dropped — NVIDIA-only
+  scope decision") came out mojibake'd (`â€”`). This is the same
+  encoding trap as the `build-package.ps1` parser failure (Phase 13): any
+  non-ASCII byte is suspect under PS 5.1.
+* **PS 5.1 has no `Set-Content -Encoding UTF8NoBOM`.** The enum doesn't
+  exist in 5.1 (UTF8 in 5.1 writes a BOM, which GitHub would render as a
+  stray character at the top of the release body). Use
+  `[System.IO.File]::WriteAllText($path, $body, (New-Object
+  System.Text.UTF8Encoding($false)))` for BOM-less UTF-8 output.
+* **Release notes are generated, not hand-typed — and honest.** The notes
+  pull upstream revision pins from `NOTICE-WINDOWS-PORT.md`, the NOT
+  POSSIBLE rows from `docs/windows-port-parity.md` (Status column, index 4
+  of the split table row — the table is `Feature | Linux | Windows |
+  Status | Notes`), and state the CI hardware reality explicitly (no
+  physical GPU on runners; hardware validation required) per brief §64.
+  Nothing in the notes claims hardware testing that did not happen.

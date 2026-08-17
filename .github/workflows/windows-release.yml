@@ -15,14 +15,27 @@
 #     (e.g. `v6.0.0-w1`) or an explicit workflow_dispatch with a version
 #     input — never for a trivial commit.
 #
+# The effective version flows from the build job's `version` output:
+#   * workflow_dispatch with a `version` input → that version
+#   * a `v*` tag push → the tag minus the leading `v`
+#   * anything else (plain main push / PR) → the current dev version
+#     (6.0.0-w1, matching GSR_VERSION_STR in CMakeLists.txt)
+#
 # PHASE STATUS (docs/implementation-roadmap.md):
 #   Phase 1: build job ran a toolchain smoke test (tests/ci-smoke).
-#   Phase 2: the build job now builds the real portable engine core
-#            (upstream sources + Windows shims) with MinGW-w64, and the
-#            test job runs the unit tests. Active: build + test.
-#   Phase 3+: package/release jobs are activated as their components
-#             land. They are currently disabled with `if: false` so pushes
-#             do not fail on not-yet-implemented stages.
+#   Phase 2: the build job builds the real portable engine core (upstream
+#            sources + Windows shims) with MinGW-w64; the test job runs
+#            the unit tests. Active: build + test.
+#   Phase 3-12: coverage build + report, render/recorder/NVENC/audio/
+#            replay/IPC self-tests, engine exe + gsr-cli, UI module + RPC
+#            + golden tests, startup integration — all active steps.
+#   Phase 13: package job (Inno Setup installer + portable ZIP with the
+#            original logo/version resources) is active on every push.
+#   Phase 14: release job is conditional — it runs only on a `v*` tag
+#            push or a workflow_dispatch with a version input, and
+#            auto-generates release notes (version, upstream pins, commit
+#            SHA, Windows-specific changes, limitations, hardware notes,
+#            attribution).
 # =============================================================================
 
 name: Windows Release Pipeline
@@ -57,9 +70,28 @@ jobs:
     name: Build (Windows x64)
     runs-on: windows-latest
     timeout-minutes: 120
+    # The version every downstream job (package naming, release) uses.
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # Effective version: dispatch input wins, then a v* tag (minus the
+      # leading v), then the dev default. Package/release consume this so
+      # a tagged build ships with the tagged version, not the dev one.
+      - name: Compute version
+        id: version
+        shell: pwsh
+        run: |
+          $v = "${{ inputs.version }}"
+          if ([string]::IsNullOrWhiteSpace($v)) {
+            $ref = "${{ github.ref }}"
+            if ($ref -like 'refs/tags/v*') { $v = $ref.Substring(11) }
+            else { $v = "6.0.0-w1" }
+          }
+          Write-Host "effective version: $v"
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Print toolchain versions
         shell: pwsh
@@ -464,7 +496,7 @@ jobs:
   # -------------------------------------------------------------------------
   package:
     name: Package (installer + portable zip)
-    needs: test
+    needs: [build, test]
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -491,7 +523,7 @@ jobs:
       - name: Build installer + portable zip
         shell: pwsh
         run: |
-          $version = "${{ inputs.version }}"
+          $version = "${{ needs.build.outputs.version }}"
           if ([string]::IsNullOrWhiteSpace($version)) { $version = "6.0.0-w1" }
           & .\packaging\build-package.ps1 `
             -BinDir (Resolve-Path .\build\Release) `
@@ -508,13 +540,17 @@ jobs:
           if-no-files-found: error
 
   # -------------------------------------------------------------------------
-  # RELEASE
+  # RELEASE (Phase 14): publishes a GitHub Release ONLY when the workflow
+  # was triggered by a `v*` tag push or a workflow_dispatch with a version
+  # input (release policy §84). A plain main push / PR runs build+test+
+  # package as validation but never creates a release.
   # -------------------------------------------------------------------------
   release:
     name: Create GitHub Release
-    needs: package
-    # TODO(phase 17): enable with the release policy (version tag / dispatch).
-    if: false
+    needs: [build, package]
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.version != '') ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -525,14 +561,30 @@ jobs:
         with:
           name: windows-release-artifacts
           path: dist/
+      # Release notes are auto-generated (packaging/make-release-notes.ps1)
+      # from the version, commit SHA, upstream revision pins in
+      # NOTICE-WINDOWS-PORT.md, the parity matrix's NOT POSSIBLE rows, and
+      # the CI hardware reality statement — never claiming hardware testing
+      # that did not happen (brief §64).
+      - name: Generate release notes
+        shell: pwsh
+        run: |
+          $version = "${{ needs.build.outputs.version }}"
+          if ([string]::IsNullOrWhiteSpace($version)) { $version = "6.0.0-w1" }
+          & .\packaging\make-release-notes.ps1 `
+            -Version $version `
+            -Sha "${{ github.sha }}" `
+            -OutPath "$PWD\release-notes.md"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-Content release-notes.md | Select-Object -First 30
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          # Explicit tag: on a tag push this matches the triggering ref; on
+          # workflow_dispatch the tag is created (release policy §84).
+          tag_name: v${{ needs.build.outputs.version }}
+          name: GPU Screen Recorder ${{ needs.build.outputs.version }}
+          body_path: release-notes.md
           files: |
             dist/GPU-Screen-Recorder-Windows-x64-Setup.exe
             dist/GPU-Screen-Recorder-Windows-x64-Portable.zip
-          # TODO(phase 17): generate release notes from
-          # docs/release-notes-template.md (port version, upstream revision,
-          # commit SHA, Windows-specific changes, limitations, hardware
-          # notes, attribution). Never claim hardware CI testing that did
-          # not happen (brief §64).
