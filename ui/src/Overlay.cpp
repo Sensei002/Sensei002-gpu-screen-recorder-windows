@@ -4006,6 +4006,6 @@ namespace gsr {
             XRaiseWindow(mgl_display, (Window)window->get_system_handle());
             XFlush(mgl_display);
         }
-    }
 #endif /* !_WIN32 */
+    }
 }
