@@ -43,14 +43,15 @@ static void test_window_utils(void) {
         CHECK(monitors.front().size.y > 0);
     }
 
-    /* Cursor position + the window it is over. */
-    gsr::Window cursor_window = 0;
+    /* Cursor position + the window it is over. `Window` is the global
+       X11-compatible opaque handle from WindowUtils.hpp (not in gsr::). */
+    Window cursor_window = 0;
     const mgl::vec2i cursor_position = gsr::get_cursor_position(nullptr, &cursor_window);
     CHECK(cursor_position.x >= 0 || cursor_position.x == 0); /* always valid */
     (void)cursor_window;
 
     /* Focused window (may legitimately be 0 on a locked session). */
-    const gsr::Window focused = gsr::get_focused_window(nullptr, gsr::WindowCaptureType::FOCUSED, false);
+    const Window focused = gsr::get_focused_window(nullptr, gsr::WindowCaptureType::FOCUSED, false);
     (void)focused;
 
     /* Title sanitization strips path-invalid characters. */

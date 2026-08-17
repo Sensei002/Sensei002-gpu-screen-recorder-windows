@@ -4,6 +4,7 @@
 #include "../include/gui/Utils.hpp"
 #include "../include/Process.hpp"
 #include "../include/Rpc.hpp"
+#include "../include/GlobalHotkeys/GlobalHotkeys.hpp"
 #include "../include/Theme.hpp"
 #include "../include/Translation.hpp"
 #include "../include/WaylandHostBridge.hpp"
