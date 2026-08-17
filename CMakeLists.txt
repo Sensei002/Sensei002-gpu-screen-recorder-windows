@@ -434,13 +434,6 @@ add_executable(gsr-ui-cli ui/tools/gsr-ui-cli/main.c)
 target_include_directories(gsr-ui-cli PRIVATE ${CMAKE_SOURCE_DIR}/ui/include)
 add_executable(ui-rpc-test tests/ui-rpc-test/main.cpp)
 target_link_libraries(ui-rpc-test PRIVATE ui_rpc)
-# DEBUG ONLY: ui-rpc-test crashed with 0xc0000374 (heap corruption) on CI;
-# instrument it with AddressSanitizer so the next run names the exact spot.
-# Remove once the corruption is fixed.
-target_compile_options(ui_rpc PRIVATE -fsanitize=address -fno-omit-frame-pointer)
-target_link_options(ui_rpc PUBLIC -fsanitize=address)
-target_compile_options(ui-rpc-test PRIVATE -fsanitize=address -fno-omit-frame-pointer)
-target_link_options(ui-rpc-test PRIVATE -fsanitize=address)
 
 # ---------------------------------------------------------------------------
 # ui_core — the gsr-ui application sources that compile on Windows. This is
