@@ -48,11 +48,13 @@
 #include <algorithm>
 #include <inttypes.h>
 #include <math.h>
+/* unistd.h exists on MinGW-w64 and provides read/write/close/access and
+   (on gcc 16) usleep; the Windows portability shim supplies kill/waitpid. */
+#include <unistd.h>
 
 #ifndef _WIN32
 #include <sys/wait.h>
 #include <poll.h>
-#include <unistd.h>
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>

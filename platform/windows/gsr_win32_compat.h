@@ -180,9 +180,9 @@ int gsr_platform_replay_cleanup_stale_directories(const char *replay_directory, 
 #define WEXITSTATUS(status) ((int)(status))
 #endif
 
-static inline void usleep(unsigned long usec) {
-    Sleep((DWORD)((usec + 999) / 1000));
-}
+/* Note: usleep is NOT shimmed here — modern MinGW-w64 (gcc 16) declares it
+   in <unistd.h> (int usleep(useconds_t)), and a shim would conflict. Sources
+   that call usleep must include <unistd.h>. */
 
 /* pid_t is a child process HANDLE (from ui Process.cpp's CreateProcess). */
 static inline int kill(int pid, int sig) {

@@ -12,6 +12,7 @@
 #include <windows.h>
 #include <shlobj.h>
 #include <direct.h>
+#include <unistd.h> /* usleep (MinGW gcc 16 provides it) */
 #else
 #include <unistd.h>
 #include <fcntl.h>
