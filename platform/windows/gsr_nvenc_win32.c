@@ -229,12 +229,16 @@ static AVBufferRef *nvenc_create_hw_frames(ID3D11Device *device, int width, int 
     frames_ctx->sw_format = sw_format;
     frames_ctx->width = width;
     frames_ctx->height = height;
-    /* NVENC encodes D3D11 frames asynchronously: it holds a reference to
-       every submitted frame (and thus its D3D11 texture) until the encode
-       completes. The recorder needs a fresh frame per video frame, so give
-       the context a real pool to recycle; without it (initial_pool_size 0)
-       the d3d11va hwcontext allocates a new single texture on every get. */
-    frames_ctx->initial_pool_size = 16;
+    /* Leave initial_pool_size at 0: with a size > 0 the d3d11va hwcontext
+       creates a texture *array* (ArraySize = pool size), and NV12 texture
+       arrays fail with E_INVALIDARG on some NVIDIA GPUs/drivers (observed
+       0x80070057 on a GTX 950). With 0 it allocates single ArraySize=1
+       textures lazily and AVBufferPool recycles them once the encoder
+       releases them — same bounded in-flight behavior, no array. NVENC
+       encodes D3D11 frames asynchronously (it holds a reference to every
+       submitted frame until the encode completes), so the recorder still
+       needs a fresh frame per video frame; copy_textures_to_frame gets one
+       from this pool each time. */
     if(av_hwframe_ctx_init(frames_ref) < 0) {
         gsr_log(GSR_LOG_LEVEL_ERROR, "nvenc: av_hwframe_ctx_init failed (%dx%d)", width, height);
         av_buffer_unref(&frames_ref);

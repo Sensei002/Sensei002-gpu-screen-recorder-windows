@@ -1360,13 +1360,24 @@ the hw frame's device memory directly and CUDA input is copied
 synchronously.)
 
 Fix (platform/windows/gsr_nvenc_win32.c):
-* `nvenc_create_hw_frames` sets `frames_ctx->initial_pool_size = 16` — the
-  d3d11va hwcontext creates one texture *array* of that many slices and
-  recycles them; with 0 it allocates a fresh single texture per get.
 * `copy_textures_to_frame` takes a **fresh** hw frame from the pool
-  (`av_hwframe_get_buffer`) every video frame instead of reusing one —
-  the recorder's contract (fill once, send 1..N times) still holds.
+  (`av_frame_unref` + `av_hwframe_get_buffer`) every video frame instead
+  of reusing one — the recorder's contract (fill once, send 1..N times)
+  still holds. The unref is required: av_hwframe_get_buffer assigns
+  frame->buf[0] outright, and a stale buffer would leak its pool slot.
+  NVENC keeps its own reference, so the texture stays alive until the
+  async encode finishes. Color properties (range/primaries/trc/colorspace/
+  chroma) are captured at start and re-applied after each unref, which
+  clears them (the software path never unrefs, so it never loses them).
 * The setup-time pre-allocation was removed (`(void)frame`).
+* `initial_pool_size` is deliberately left at 0. Do NOT set it: with a
+  size > 0 the d3d11va hwcontext creates a texture *array*
+  (ArraySize = pool size) and NV12 texture arrays fail with E_INVALIDARG
+  on some NVIDIA GPUs/drivers (0x80070057 on a GTX 950, driver
+  32.0.15.8228). With 0 it allocates single ArraySize=1 textures lazily
+  and AVBufferPool recycles them once the encoder releases them — the
+  same bounded in-flight behavior, without the array.
 
-Lesson: on D3D11, "one frame, refill it" is invalid for NVENC; you need a
-pool large enough to cover the async in-flight depth (16 covers it).
+Lesson: on D3D11, "one frame, refill it" is invalid for NVENC — you need
+one pooled frame in flight per async encode, and on Windows the pool must
+be the lazy single-texture kind, not a texture array.
