@@ -1288,3 +1288,24 @@ the order CI found them:
   was diffing bare vs overlay captures seconds apart and looking for
   deviation from the *predicted* dim, or (better) an isolated WGL repro
   with opaque magenta/white output.
+
+## 3w. Phase 13-14: click-through port undid the alpha fix (the real black-overlay bug)
+
+* **`make_window_click_through` must be a no-op on Windows.** The Phase 10
+  Windows port of `WindowUtils::make_window_click_through` set
+  `WS_EX_LAYERED | WS_EX_TRANSPARENT` on the overlay HWND. That re-added
+  the exact `WS_EX_LAYERED` style that breaks WGL content compositing on
+  NVIDIA + Win11 (see 3v / the wgltest repros) — undoing the mgl backend fix
+  at the window level — and also made the interactive overlay click-through,
+  because on Windows there is no X input grab to redirect events back to it.
+  Result: black/dim-only overlay, and Record / Instant Replay / Settings
+  buttons that either don't respond or pass clicks through to the app below.
+* **Lesson: when a port "fixes" a backend, check every X11-only utility call
+  site for a Windows twin.** `display_server` parses as `x11` on Windows
+  (the `--info` line reports it), so `show()` happily called the click-through
+  helper on the overlay window every time. Grep for `SetWindowLongPtr` /
+  `WS_EX_*` on the overlay HWND when diagnosing invisible or dead UI.
+* The working overlay window recipe on Windows is: WS_POPUP, no
+  `WS_EX_LAYERED`, `WS_EX_TOOLWINDOW | WS_EX_TOPMOST`, alpha pixel format
+  with `PFD_SUPPORT_COMPOSITION`, and `DwmEnableBlurBehindWindow` with an
+  empty region for per-pixel alpha (mgl win32.c + wgl.c).

@@ -312,12 +312,21 @@ namespace gsr {
     }
 
     void make_window_click_through(Display *display, Window window) {
+        // No-op on Windows. Click-through is an X11 concept: the X11 path pairs it
+        // with an X input grab so the overlay still receives every event. On Windows
+        // there is no input grab, and the naive port that set
+        // WS_EX_LAYERED | WS_EX_TRANSPARENT here did two harmful things:
+        //   1. WS_EX_LAYERED breaks WGL content compositing on NVIDIA + Win11 — the
+        //      GL back buffer never appears and the overlay renders as a bare
+        //      dim/black layer (mgl's win32 backend deliberately avoids WS_EX_LAYERED
+        //      and uses PFD_SUPPORT_COMPOSITION + DwmEnableBlurBehindWindow instead).
+        //   2. WS_EX_TRANSPARENT makes the interactive overlay click-through (no input
+        //      grab redirects events back to it), so the user cannot click the
+        //      Record / Instant Replay / Settings buttons at all.
         (void)display;
-        HWND hwnd = (HWND)(uintptr_t)window;
-        if(!hwnd)
-            return;
-        const LONG_PTR ex_style = GetWindowLongPtrA(hwnd, GWL_EXSTYLE);
-        SetWindowLongPtrA(hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED | WS_EX_TRANSPARENT);
+        (void)window;
+        // The overlay stays interactive and composited; hide_window_from_taskbar
+        // (WS_EX_TOOLWINDOW) and make_window_sticky (HWND_TOPMOST) are enough.
     }
 
     bool make_window_sticky(Display *dpy, Window window) {
