@@ -287,7 +287,11 @@ GlobalSettingsPage, GsrPage, Subsection, LineSeparator, CustomRendererWidget.
 * `gsr-ui` **spawns `gpu-screen-recorder` as a child process** with a fully
   built command line (see `Overlay.cpp`), captures its stdout to learn saved
   file paths, and controls it with signals (SIGUSR1 save replay, SIGUSR2
-  pause) and by killing the process on stop. It also spawns `gsr-notify` for
+  pause) and by killing the process on stop. On Windows the kill() shim
+  terminates the child outright and there are no POSIX signals, so the port
+  starts the engine with `-ipc gsr-record`/`gsr-replay`/`gsr-stream` and
+  drives it through `gsr-cli` (save-replay [n], toggle-pause,
+  toggle-replay-recording, stop) instead. It also spawns `gsr-notify` for
   notifications and `gsr-game-tracker` for the game-name list.
 * The overlay background can show the focused window (X11 XComposite texture
   via `window_texture.c`).

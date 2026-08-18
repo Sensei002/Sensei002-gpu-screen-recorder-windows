@@ -52,6 +52,22 @@
    (on gcc 16) usleep; the Windows portability shim supplies kill/waitpid. */
 #include <unistd.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+#ifdef _WIN32
+/* Windows engine control is delivered over the named-pipe IPC channel
+   (gsr-cli), never via kill(): the kill() shim terminates the process
+   outright (TerminateProcess) and there are no POSIX signals. Each engine
+   instance is started with a fixed -ipc pipe name matching these; only one
+   record/replay/stream engine runs at a time in the UI. */
+static const char *const GSR_RECORD_IPC_PIPE = "gsr-record";
+static const char *const GSR_REPLAY_IPC_PIPE = "gsr-replay";
+static const char *const GSR_STREAM_IPC_PIPE = "gsr-stream";
+static void send_gsr_control_command(const char *pipe_name, const char *command, const char *arg = nullptr);
+#endif
+
 #ifndef _WIN32
 #include <sys/wait.h>
 #include <poll.h>
@@ -763,7 +779,21 @@ namespace gsr {
         }
 
         if(gpu_screen_recorder_process > 0) {
+#ifdef _WIN32
+            /* Graceful stop so the current recording/replay is finalized
+               instead of being terminated (which would drop the file). */
+            const char *pipe = nullptr;
+            if(recording_status == RecordingStatus::REPLAY)
+                pipe = GSR_REPLAY_IPC_PIPE;
+            else if(recording_status == RecordingStatus::RECORD)
+                pipe = GSR_RECORD_IPC_PIPE;
+            else if(recording_status == RecordingStatus::STREAM)
+                pipe = GSR_STREAM_IPC_PIPE;
+            if(pipe)
+                send_gsr_control_command(pipe, "stop");
+#else
             kill(gpu_screen_recorder_process, SIGINT);
+#endif
             int status;
             if(waitpid(gpu_screen_recorder_process, &status, 0) == -1) {
                 perror("waitpid failed");
@@ -876,6 +906,13 @@ namespace gsr {
     }
 
     void Overlay::close_gpu_screen_recorder_output() {
+#ifdef _WIN32
+        /* On Windows the "fd" is the child's stdout pipe HANDLE. */
+        if(gpu_screen_recorder_process_output_fd > 0) {
+            CloseHandle((HANDLE)(intptr_t)gpu_screen_recorder_process_output_fd);
+            gpu_screen_recorder_process_output_fd = -1;
+        }
+#else
         if(gpu_screen_recorder_process_output_file) {
             fclose(gpu_screen_recorder_process_output_file);
             gpu_screen_recorder_process_output_file = nullptr;
@@ -885,6 +922,7 @@ namespace gsr {
             close(gpu_screen_recorder_process_output_fd);
             gpu_screen_recorder_process_output_fd = -1;
         }
+#endif
     }
 
 #ifdef _WIN32
@@ -1974,7 +2012,11 @@ namespace gsr {
         if(recording_status != RecordingStatus::RECORD || gpu_screen_recorder_process <= 0)
             return;
 
+#ifdef _WIN32
+        send_gsr_control_command(GSR_RECORD_IPC_PIPE, "toggle-pause");
+#else
         kill(gpu_screen_recorder_process, SIGUSR2);
+#endif
         paused = !paused;
 
         if(paused) {
@@ -2317,9 +2359,12 @@ namespace gsr {
 
     static std::string filepath_get_filename(const char *filepath) {
         std::string result = filepath;
+        /* Windows paths use backslashes; the engine prints the full path. */
         const size_t last_slash_index = result.rfind('/');
-        if(last_slash_index != std::string::npos)
-            result.erase(0, last_slash_index + 1);
+        const size_t last_backslash_index = result.rfind('\\');
+        const size_t last_separator_index = std::max(last_slash_index, last_backslash_index);
+        if(last_separator_index != std::string::npos)
+            result.erase(0, last_separator_index + 1);
         return result;
     }
 
@@ -2503,51 +2548,126 @@ namespace gsr {
                 show_notification(TR("Saving replay, this might take some time"), notification_timeout_seconds, mgl::Color(255, 255, 255), get_color_theme().tint_color, NotificationType::REPLAY);
         }
 
+        #ifdef _WIN32
+        /* Windows: |gpu_screen_recorder_process_output_fd| is the child's
+           stdout pipe HANDLE (no POSIX read/write). Peek before reading so
+           the UI loop never blocks, then drain available bytes into a
+           persistent line buffer and process complete lines. */
+        if(gpu_screen_recorder_process_output_fd > 0) {
+            const HANDLE handle = (HANDLE)(intptr_t)gpu_screen_recorder_process_output_fd;
+            DWORD avail = 0;
+            if(!PeekNamedPipe(handle, nullptr, 0, nullptr, &avail, nullptr) || avail == 0)
+                return;
+
+            char chunk[1024];
+            DWORD bytes_read = 0;
+            if(!ReadFile(handle, chunk, sizeof(chunk) - 1, &bytes_read, nullptr) || bytes_read == 0)
+                return;
+
+            gsr_ui_output_buffer.append(chunk, bytes_read);
+            size_t newline;
+            while((newline = gsr_ui_output_buffer.find('\n')) != std::string::npos) {
+                std::string line = gsr_ui_output_buffer.substr(0, newline);
+                gsr_ui_output_buffer.erase(0, newline + 1);
+                if(line.empty())
+                    continue;
+                process_gsr_output_line(&line[0]);
+            }
+        }
+#else
         char buffer[1024];
         if(gpu_screen_recorder_process_output_file) {
             char *line = fgets(buffer, sizeof(buffer), gpu_screen_recorder_process_output_file);
             if(!line || line[0] == '\0')
                 return;
-
-            int line_len = strlen(line);
-            if(line[line_len - 1] == '\n') {
-                line[line_len - 1] = '\0';
-                line_len -= 1;
-            }
-
-            const std::string_view line_view{line, (size_t)line_len};
-            if(starts_with(line_view, "gsr error: ")) {
-                //show_notification(line + 11, notification_error_timeout_seconds, mgl::Color(255, 0, 0), mgl::Color(255, 0, 0), recording_status_to_notification_type(recording_status), nullptr, NotificationLevel::ERROR);
-                if(replay_recording && ends_with(line_view, "recording")) {
-                    std::string dummy;
-                    on_stop_recording(1, dummy);
-                } else if(recording_status == RecordingStatus::REPLAY && ends_with(line_view, "replay")) {
-                    show_notification(TR("Failed to save replay, make sure the replay save directory is mounted and writable"), notification_error_timeout_seconds, mgl::Color(255, 0, 0), mgl::Color(255, 0, 0), NotificationType::REPLAY, nullptr, NotificationLevel::ERROR);
-                    replay_save_show_notification = false;
-                }
-                return;
-            }
-
-            const std::string video_filepath = filepath_get_filename(line);
-            if(starts_with(video_filepath, "Video_")) {
-                record_filepath = line;
-                on_stop_recording(0, record_filepath);
-                return;
-            }
-
-            switch(recording_status) {
-                case RecordingStatus::NONE:
-                    break;
-                case RecordingStatus::REPLAY:
-                    on_replay_saved(line);
-                    break;
-                case RecordingStatus::RECORD:
-                    break;
-                case RecordingStatus::STREAM:
-                    break;
-            }
+            process_gsr_output_line(line);
         } else if(gpu_screen_recorder_process_output_fd > 0) {
             read(gpu_screen_recorder_process_output_fd, buffer, sizeof(buffer));
+        }
+#endif
+    }
+
+#ifdef _WIN32
+    void Overlay::drain_gsr_process_output() {
+        /* Drains the engine's stdout pipe synchronously after the process
+           has exited (the update loop is blocked in a waitpid inside the
+           stop handler, so process_gsr_output() won't run). Processes the
+           same lines as process_gsr_output(). */
+        if(gpu_screen_recorder_process_output_fd <= 0)
+            return;
+
+        const HANDLE handle = (HANDLE)(intptr_t)gpu_screen_recorder_process_output_fd;
+        char chunk[1024];
+        while(true) {
+            DWORD avail = 0;
+            DWORD bytes_read = 0;
+            if(!PeekNamedPipe(handle, nullptr, 0, nullptr, &avail, nullptr) || avail == 0)
+                break;
+            if(!ReadFile(handle, chunk, sizeof(chunk) - 1, &bytes_read, nullptr) || bytes_read == 0)
+                break;
+
+            gsr_ui_output_buffer.append(chunk, bytes_read);
+            size_t newline;
+            while((newline = gsr_ui_output_buffer.find('\n')) != std::string::npos) {
+                std::string line = gsr_ui_output_buffer.substr(0, newline);
+                gsr_ui_output_buffer.erase(0, newline + 1);
+                if(line.empty())
+                    continue;
+                process_gsr_output_line(&line[0]);
+            }
+        }
+
+        /* Handle any trailing line that arrived without a newline. */
+        if(!gsr_ui_output_buffer.empty()) {
+            process_gsr_output_line(&gsr_ui_output_buffer[0]);
+            gsr_ui_output_buffer.clear();
+        }
+    }
+#endif
+
+    void Overlay::process_gsr_output_line(char *line) {
+        int line_len = strlen(line);
+        if(line_len > 0 && line[line_len - 1] == '\n') {
+            line[line_len - 1] = '\0';
+            line_len -= 1;
+        }
+        if(line_len > 0 && line[line_len - 1] == '\r') {
+            line[line_len - 1] = '\0';
+            line_len -= 1;
+        }
+        if(line_len == 0)
+            return;
+
+        const std::string_view line_view{line, (size_t)line_len};
+        if(starts_with(line_view, "gsr error: ")) {
+            //show_notification(line + 11, notification_error_timeout_seconds, mgl::Color(255, 0, 0), mgl::Color(255, 0, 0), recording_status_to_notification_type(recording_status), nullptr, NotificationLevel::ERROR);
+            if(replay_recording && ends_with(line_view, "recording")) {
+                std::string dummy;
+                on_stop_recording(1, dummy);
+            } else if(recording_status == RecordingStatus::REPLAY && ends_with(line_view, "replay")) {
+                show_notification(TR("Failed to save replay, make sure the replay save directory is mounted and writable"), notification_error_timeout_seconds, mgl::Color(255, 0, 0), mgl::Color(255, 0, 0), NotificationType::REPLAY, nullptr, NotificationLevel::ERROR);
+                replay_save_show_notification = false;
+            }
+            return;
+        }
+
+        const std::string video_filepath = filepath_get_filename(line);
+        if(starts_with(video_filepath, "Video_")) {
+            record_filepath = line;
+            on_stop_recording(0, record_filepath);
+            return;
+        }
+
+        switch(recording_status) {
+            case RecordingStatus::NONE:
+                break;
+            case RecordingStatus::REPLAY:
+                on_replay_saved(line);
+                break;
+            case RecordingStatus::RECORD:
+                break;
+            case RecordingStatus::STREAM:
+                break;
         }
     }
 
@@ -3096,10 +3216,28 @@ namespace gsr {
         if(gpu_screen_recorder_process_output_file)
             gpu_screen_recorder_process_output_fd = -1;
 #else
-        /* No POSIX output pipes on Windows; the fd is never > 0. */
+        /* On Windows the fd already holds the child's stdout pipe HANDLE,
+           which process_gsr_output() reads directly via PeekNamedPipe/
+           ReadFile — nothing to do here. */
         (void)0;
 #endif
     }
+
+#ifdef _WIN32
+    /* Sends a control command to the engine's -ipc named pipe through
+       gsr-cli, detached. The engine completes the command asynchronously;
+       for deferred commands (save-replay/stop) it prints the result
+       filepath to its stdout, which process_gsr_output() picks up. */
+    static void send_gsr_control_command(const char *pipe_name, const char *command, const char *arg) {
+        if(arg) {
+            const char *args[] = { "gsr-cli", "-ipc", pipe_name, command, arg, nullptr };
+            gsr::exec_program_daemonized(args, true);
+        } else {
+            const char *args[] = { "gsr-cli", "-ipc", pipe_name, command, nullptr };
+            gsr::exec_program_daemonized(args, true);
+        }
+    }
+#endif
 
     void Overlay::on_press_save_replay() {
         if(recording_status != RecordingStatus::REPLAY || gpu_screen_recorder_process <= 0)
@@ -3112,7 +3250,14 @@ namespace gsr {
         if(replay_restart_on_save)
             replay_duration_clock.restart();
 
+#ifdef _WIN32
+        /* Windows: no POSIX signals — the save command goes over the
+           engine's -ipc pipe via gsr-cli (detached; the engine prints the
+           saved filepath to stdout, which process_gsr_output() surfaces). */
+        send_gsr_control_command(GSR_REPLAY_IPC_PIPE, "save-replay");
+#else
         kill(gpu_screen_recorder_process, SIGUSR1);
+#endif
     }
 
     void Overlay::on_press_save_replay_1_min_replay() {
@@ -3126,7 +3271,11 @@ namespace gsr {
         replay_save_show_notification = true;
         replay_save_clock.restart();
         replay_saved_duration_sec = replay_duration_clock.get_elapsed_time_seconds();
+#ifdef _WIN32
+        send_gsr_control_command(GSR_REPLAY_IPC_PIPE, "save-replay", "60");
+#else
         kill(gpu_screen_recorder_process, SIGRTMIN+3);
+#endif
     }
 
     void Overlay::on_press_save_replay_10_min_replay() {
@@ -3140,7 +3289,11 @@ namespace gsr {
         replay_save_show_notification = true;
         replay_save_clock.restart();
         replay_saved_duration_sec = replay_duration_clock.get_elapsed_time_seconds();
+#ifdef _WIN32
+        send_gsr_control_command(GSR_REPLAY_IPC_PIPE, "save-replay", "600");
+#else
         kill(gpu_screen_recorder_process, SIGRTMIN+5);
+#endif
     }
 
     static const char* get_first_usable_hardware_video_codec_name(const GsrInfo &gsr_info) {
@@ -3294,15 +3447,21 @@ namespace gsr {
         replay_launched_manually = launched_manually;
         replay_launched_once = true;
 
-        close_gpu_screen_recorder_output();
-
         if(gpu_screen_recorder_process > 0) {
+#ifdef _WIN32
+            /* Windows: graceful stop over the -ipc pipe; the engine stops,
+               finalizes and exits on its own. */
+            send_gsr_control_command(GSR_REPLAY_IPC_PIPE, "stop");
+#else
             kill(gpu_screen_recorder_process, SIGINT);
+#endif
             int status;
             if(waitpid(gpu_screen_recorder_process, &status, 0) == -1) {
                 perror("waitpid failed");
                 /* Ignore... */
             }
+
+            close_gpu_screen_recorder_output();
 
             gpu_screen_recorder_process = -1;
             recording_status = RecordingStatus::NONE;
@@ -3381,6 +3540,13 @@ namespace gsr {
             "-v", "no",
             "-o", output_directory.c_str()
         };
+
+#ifdef _WIN32
+        /* Windows: control (save-replay/stop) goes over the -ipc pipe via
+           gsr-cli; POSIX signals do not exist and kill() terminates. */
+        args.push_back("-ipc");
+        args.push_back(GSR_REPLAY_IPC_PIPE);
+#endif
 
         if(config.replay_config.restart_replay_on_save) {
             args.push_back("-restart-replay-on-save");
@@ -3474,7 +3640,11 @@ namespace gsr {
                 }
 
                 replay_recording = true;
+#ifdef _WIN32
+                send_gsr_control_command(GSR_REPLAY_IPC_PIPE, "toggle-replay-recording");
+#else
                 kill(gpu_screen_recorder_process, SIGRTMIN);
+#endif
                 return;
             }
             case RecordingStatus::STREAM: {
@@ -3502,15 +3672,25 @@ namespace gsr {
                 }
 
                 replay_recording = true;
+#ifdef _WIN32
+                send_gsr_control_command(GSR_STREAM_IPC_PIPE, "toggle-replay-recording");
+#else
                 kill(gpu_screen_recorder_process, SIGRTMIN);
+#endif
                 return;
             }
         }
 
-        close_gpu_screen_recorder_output();
-
         if(gpu_screen_recorder_process > 0) {
+#ifdef _WIN32
+            /* Windows: graceful stop over the -ipc pipe; gsr-cli is detached
+               and the engine stops, finalizes the file and prints the
+               "Video_..." path to stdout before exiting. The output pipe
+               must stay open until after drain_gsr_process_output(). */
+            send_gsr_control_command(GSR_RECORD_IPC_PIPE, "stop");
+#else
             kill(gpu_screen_recorder_process, SIGINT);
+#endif
             int status;
             if(waitpid(gpu_screen_recorder_process, &status, 0) == -1) {
                 perror("waitpid failed");
@@ -3519,8 +3699,16 @@ namespace gsr {
                 int exit_code = -1;
                 if(WIFEXITED(status))
                     exit_code = WEXITSTATUS(status);
-                on_stop_recording(exit_code, record_filepath);
+#ifdef _WIN32
+                /* The update loop is blocked in waitpid above, so drain the
+                   engine's stdout now to pick up the final filepath line. */
+                drain_gsr_process_output();
+#endif
+                if(record_filepath.empty())
+                    on_stop_recording(exit_code, record_filepath);
             }
+
+            close_gpu_screen_recorder_output();
 
             gpu_screen_recorder_process = -1;
             recording_status = RecordingStatus::NONE;
@@ -3609,6 +3797,12 @@ namespace gsr {
             "-v", "no",
             "-o", output_file.c_str()
         };
+
+#ifdef _WIN32
+        /* Windows: stop/pause go over the -ipc pipe via gsr-cli. */
+        args.push_back("-ipc");
+        args.push_back(GSR_RECORD_IPC_PIPE);
+#endif
 
         const std::string hotkey_window_capture_portal_session_token_filepath = get_config_dir() + "/gsr-ui-window-capture-token";
         if(record_area_option == "portal") {
@@ -3723,15 +3917,19 @@ namespace gsr {
 
         update_upause_status();
 
-        close_gpu_screen_recorder_output();
-
         if(gpu_screen_recorder_process > 0) {
+#ifdef _WIN32
+            send_gsr_control_command(GSR_STREAM_IPC_PIPE, "stop");
+#else
             kill(gpu_screen_recorder_process, SIGINT);
+#endif
             int status;
             if(waitpid(gpu_screen_recorder_process, &status, 0) == -1) {
                 perror("waitpid failed");
                 /* Ignore... */
             }
+
+            close_gpu_screen_recorder_output();
 
             gpu_screen_recorder_process = -1;
             recording_status = RecordingStatus::NONE;
@@ -3816,6 +4014,12 @@ namespace gsr {
             "-v", "no",
             "-o", url.c_str()
         };
+
+#ifdef _WIN32
+        /* Windows: stop/toggle-replay-recording go over the -ipc pipe. */
+        args.push_back("-ipc");
+        args.push_back(GSR_STREAM_IPC_PIPE);
+#endif
 
         char region_str[128];
         add_common_gpu_screen_recorder_args(args, config.main_config, config.streaming_config.record_options, audio_tracks, video_bitrate, size, region_str, sizeof(region_str), config.streaming_config.record_options.record_area_option);

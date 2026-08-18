@@ -158,6 +158,10 @@ namespace gsr {
         void on_replay_saved(const char *replay_saved_filepath);
         void process_gsr_game_tracker_output();
         void process_gsr_output();
+        void process_gsr_output_line(char *line);
+#ifdef _WIN32
+        void drain_gsr_process_output();
+#endif
         void on_gsr_process_error(int exit_code, NotificationType notification_type);
         void update_gsr_process_status();
         void update_gsr_screenshot_process_status();
@@ -241,6 +245,10 @@ namespace gsr {
         pid_t notification_process = -1;
         int gpu_screen_recorder_process_output_fd = -1;
         FILE *gpu_screen_recorder_process_output_file = nullptr;
+#ifdef _WIN32
+        /* Persistent buffer for the Windows stdout-pipe reading path. */
+        std::string gsr_ui_output_buffer;
+#endif
         pid_t gpu_screen_recorder_screenshot_process = -1;
 
         DropdownButton *replay_dropdown_button_ptr = nullptr;

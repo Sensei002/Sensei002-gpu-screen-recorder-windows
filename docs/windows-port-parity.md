@@ -42,11 +42,11 @@ to a final status. `PLANNED` rows below reflect the architecture in
 | `-exclude-metadata` | FULL | FULL | PLANNED | |
 | `-write-first-frame-ts` | FULL | FULL | PLANNED | QPC-based |
 | `-ipc` unix socket | FULL | named pipe | WINDOWS-SPECIFIC | same JSON protocol |
-| Signals (SIGUSR1/2, SIGRTMIN+n) | FULL | named events + `gsr-cli` | WINDOWS-SPECIFIC | semantics preserved |
+| Signals (SIGUSR1/2, SIGRTMIN+n) | FULL | named events + `gsr-cli` | WINDOWS-SPECIFIC | semantics preserved; UI sends control via gsr-cli (`save-replay [n]`, `toggle-pause`, `toggle-replay-recording`, `stop`) instead of kill() |
 | `gsr-cli` | FULL | `gsr-cli.exe` | PLANNED | same CLI/exit codes |
 | `--help`/`--version`/`--info`/`--list-*` | FULL | FULL (same `key|value` format) | PLANNED | `--info` gains Windows fields (backend, DXGI info) |
 | Exit codes per error class | PARTIAL upstream | PARTIAL | PLANNED | keep upstream's mapping |
-| stdout=paths / stderr=logs contract | FULL | FULL | PLANNED | |
+| stdout=paths / stderr=logs contract | FULL | FULL | DONE | UI reads engine stdout via the Windows pipe (`PeekNamedPipe`/`ReadFile`); record/replay stop + save-replay filepaths surface like Linux |
 
 ## Engine — capture
 
