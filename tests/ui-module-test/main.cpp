@@ -292,14 +292,18 @@ static void test_overlay_window_behavior(void) {
         }
         CHECK(a_before_b);
 
-        /* make_window_click_through -> WS_EX_LAYERED | WS_EX_TRANSPARENT. */
+        /* make_window_click_through is a no-op on Windows: WS_EX_LAYERED
+           breaks WGL content compositing on NVIDIA + Win11 (the GL back
+           buffer never appears), and WS_EX_TRANSPARENT would make the
+           interactive overlay click-through — Windows has no X input grab
+           to redirect events back to it. It must not touch the ex styles. */
         const LONG_PTR ex_before_click = get_ex_style(hwnd_a);
         gsr::make_window_click_through(nullptr, (Window)(uintptr_t)hwnd_a);
         const LONG_PTR ex_after_click = get_ex_style(hwnd_a);
-        CHECK((ex_after_click & WS_EX_LAYERED) != 0);
-        CHECK((ex_after_click & WS_EX_TRANSPARENT) != 0);
-        /* The helper is additive: it must not clear pre-existing styles. */
-        CHECK((ex_after_click & ex_before_click) == ex_before_click);
+        CHECK((ex_after_click & WS_EX_LAYERED) == 0);
+        CHECK((ex_after_click & WS_EX_TRANSPARENT) == 0);
+        /* No-op: the helper must not clear or add styles. */
+        CHECK(ex_after_click == ex_before_click);
 
         /* hide_window_from_taskbar -> WS_EX_TOOLWINDOW (no taskbar button). */
         gsr::hide_window_from_taskbar(nullptr, (Window)(uintptr_t)hwnd_a);
