@@ -362,7 +362,7 @@ typedef struct {
     enum AVColorPrimaries color_primaries;
     enum AVColorTransferCharacteristic color_trc;
     enum AVColorSpace colorspace;
-    enum AVColorChromaLocation chroma_location;
+    enum AVChromaLocation chroma_location;
 } gsr_video_encoder_nvenc;
 
 static bool nvenc_setup_textures(gsr_video_encoder_nvenc *self, AVCodecContext *video_codec_context, AVFrame *frame) {
