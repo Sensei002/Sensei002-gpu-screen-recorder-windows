@@ -65,7 +65,6 @@
 static const char *const GSR_RECORD_IPC_PIPE = "gsr-record";
 static const char *const GSR_REPLAY_IPC_PIPE = "gsr-replay";
 static const char *const GSR_STREAM_IPC_PIPE = "gsr-stream";
-static void send_gsr_control_command(const char *pipe_name, const char *command, const char *arg = nullptr);
 #endif
 
 #ifndef _WIN32
@@ -94,6 +93,11 @@ extern "C" {
 }
 
 namespace gsr {
+#ifdef _WIN32
+    /* Forward declaration so the engine control helper is visible from the
+       destructor (which runs before the helper's definition below). */
+    static void send_gsr_control_command(const char *pipe_name, const char *command, const char *arg = nullptr);
+#endif
     static const mgl::Color bg_color(0, 0, 0, 100);
     static const double force_window_on_top_timeout_seconds = 1.0;
     static const double replay_status_update_check_timeout_seconds = 1.5;
