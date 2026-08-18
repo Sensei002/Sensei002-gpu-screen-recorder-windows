@@ -48,7 +48,8 @@ static bool mgl_graphics_wgl_set_pixel_format(HDC hdc, bool alpha, bool request_
     PIXELFORMATDESCRIPTOR pfd = {
         .nSize = sizeof(pfd),
         .nVersion = 1,
-        .dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
+        .dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER
+            | (alpha ? PFD_SUPPORT_COMPOSITION : 0),
         .iPixelType = PFD_TYPE_RGBA,
         .cColorBits = 32,
         .cRedBits = 0, .cRedShift = 0,
@@ -64,10 +65,16 @@ static bool mgl_graphics_wgl_set_pixel_format(HDC hdc, bool alpha, bool request_
         .dwLayerMask = 0, .dwVisibleMask = 0, .dwDamageMask = 0,
     };
 
+    /* PFD_SUPPORT_COMPOSITION is required for DWM to composite the GL back
+       buffer's alpha per-pixel (used together with the blur-behind empty
+       region in the win32 window backend). Without it DWM drops the alpha
+       and a transparent overlay shows opaque black. */
+
     int pixel_format = ChoosePixelFormat(hdc, &pfd);
     if(pixel_format == 0 && (alpha || request_depth_buffer || request_stencil_buffer)) {
         /* Retry without the extras (the Microsoft GDI generic implementation
            is limited; hardware ICDs accept the full request). */
+        pfd.dwFlags &= ~PFD_SUPPORT_COMPOSITION;
         pfd.cAlphaBits = 0;
         pfd.cDepthBits = 0;
         pfd.cStencilBits = 0;

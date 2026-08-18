@@ -1263,3 +1263,28 @@ the order CI found them:
   reports `gsr_version|6.0.0-w1`; upstream's `parse_gsr_version` rejected
   the `-w1` tail and the whole version became "Unknown". The UI now parses
   only the leading numeric triple and ignores a `-suffix`.
+## 3w. Phase 14 (2nd pass): the WS_EX_LAYERED overlay that rendered nothing
+
+* **WS_EX_LAYERED breaks WGL compositing on NVIDIA + Win11.** mgl created
+  alpha windows with `WS_EX_LAYERED` + an 8-bit alpha PFD. On the user's
+  GTX 950 (driver 582.28, Win11 24H2) the overlay rendered ONLY the dim:
+  `glClear` appeared to work but every `glBegin`-based draw (top bar,
+  buttons, text) was invisible — clicks hit nothing, and the stuck
+  fullscreen window looked "unresponsive". Isolated with a standalone WGL
+  repro compiled against the local VS BuildTools:
+  - plain `WS_POPUP` WGL window: clear + quads render fine;
+  - `WS_EX_LAYERED` (with or without DWM blur-behind): GL content never
+    composites — the desktop shows through, the back buffer never appears.
+* **The canonical per-pixel-alpha recipe that works:** plain window (no
+  `WS_EX_LAYERED`) + PFD with `PFD_SUPPORT_COMPOSITION` + 8 alpha bits +
+  `DwmEnableBlurBehindWindow(empty region)`. Verified empirically: the dim
+  `(0,0,0,100)` composites over the desktop at ~39% black and opaque quads
+  render on top. mgl's win32 backend now uses exactly this; the
+  `ChoosePixelFormat` fallback clears `PFD_SUPPORT_COMPOSITION` so GDI
+  Generic (CI) still works.
+* **Pixel-probing a GL overlay is treacherous when the wallpaper is dark
+  and non-uniform.** Bright "button" pixels turned out to be bright spots
+  in the wallpaper image showing through the dim; the only reliable test
+  was diffing bare vs overlay captures seconds apart and looking for
+  deviation from the *predicted* dim, or (better) an isolated WGL repro
+  with opaque magenta/white output.

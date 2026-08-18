@@ -959,11 +959,15 @@ static void* mgl_window_win32_get_egl_context(mgl_window *self) {
     return NULL;
 }
 
-/* Per-pixel alpha for a WGL window: DWM only composites a window's alpha
+/* Per-pixel alpha for a WGL window: DWM composites a window's alpha
    channel when blur-behind is enabled with an empty blur region (the
    canonical recipe from Microsoft's "Per-Pixel Alpha in OpenGL" sample).
-   Without this the GL back buffer's alpha is dropped and a transparent
-   overlay renders as opaque black. Loaded dynamically like opengl32. */
+   The window must NOT be WS_EX_LAYERED (that breaks WGL compositing on
+   some NVIDIA + Win11 setups) and the pixel format must request
+   PFD_SUPPORT_COMPOSITION (wgl.c). Without all three, the GL back
+   buffer's alpha is dropped and a transparent overlay renders as opaque
+   black (or its content is not composited at all). Loaded dynamically
+   like opengl32. */
 static void mgl_window_win32_enable_per_pixel_alpha(HWND window) {
     typedef BOOL (WINAPI *dwm_enable_blur_behind_t)(HWND, const void*);
     HMODULE dwmapi = LoadLibraryA("dwmapi.dll");
@@ -1034,8 +1038,13 @@ static bool mgl_window_win32_setup(mgl_window *self, const char *title, const mg
         style |= WS_OVERLAPPEDWINDOW;
 
     DWORD ex_style = 0;
-    if(impl->support_alpha)
-        ex_style |= WS_EX_LAYERED;
+    /* Per-pixel alpha is NOT done via WS_EX_LAYERED: on some NVIDIA + Win11
+       combinations a layered WGL window stops compositing its GL content
+       entirely (the desktop shows through but the back buffer never appears,
+       so the overlay renders as a bare dim layer). Instead the alpha-capable
+       PFD_SUPPORT_COMPOSITION pixel format (see wgl.c) is combined with
+       DwmEnableBlurBehindWindow(empty region) below, which makes DWM
+       composite the GL back buffer's alpha channel per-pixel. */
 
     mgl_window_type window_type = params ? params->window_type : MGL_WINDOW_TYPE_NORMAL;
     if(window_type == MGL_WINDOW_TYPE_DIALOG || window_type == MGL_WINDOW_TYPE_NOTIFICATION)
