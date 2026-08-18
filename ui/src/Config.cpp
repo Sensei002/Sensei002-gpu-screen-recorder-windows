@@ -166,7 +166,13 @@ namespace gsr {
         const size_t space_index = line.find(' ');
         if(space_index == std::string_view::npos)
             return std::nullopt;
-        return KeyValue{line.substr(0, space_index), line.substr(space_index + 1)};
+        /* Strip a trailing '\r' left over from a CRLF config file; otherwise
+           string values (save directories, etc.) carry the '\r' into the
+           engine args and file creation fails. */
+        std::string_view value = line.substr(space_index + 1);
+        if(!value.empty() && value.back() == '\r')
+            value.remove_suffix(1);
+        return KeyValue{line.substr(0, space_index), value};
     }
 
     using ConfigValue = std::variant<bool*, std::string*, int32_t*, ConfigHotkey*, std::vector<std::string>*, std::vector<AudioTrack>*>;

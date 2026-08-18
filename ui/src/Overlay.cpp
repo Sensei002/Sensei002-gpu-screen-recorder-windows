@@ -94,9 +94,10 @@ extern "C" {
 
 namespace gsr {
 #ifdef _WIN32
-    /* Forward declaration so the engine control helper is visible from the
-       destructor (which runs before the helper's definition below). */
+    /* Forward declaration so the engine control helpers are visible from the
+       destructor (which runs before the helpers' definitions below). */
     static void send_gsr_control_command(const char *pipe_name, const char *command, const char *arg = nullptr);
+    static int wait_gsr_process_exit(pid_t process, int timeout_ms);
 #endif
     static const mgl::Color bg_color(0, 0, 0, 100);
     static const double force_window_on_top_timeout_seconds = 1.0;
@@ -798,11 +799,15 @@ namespace gsr {
 #else
             kill(gpu_screen_recorder_process, SIGINT);
 #endif
+#ifdef _WIN32
+            wait_gsr_process_exit(gpu_screen_recorder_process, 15000);
+#else
             int status;
             if(waitpid(gpu_screen_recorder_process, &status, 0) == -1) {
                 perror("waitpid failed");
                 /* Ignore... */
             }
+#endif
             gpu_screen_recorder_process = -1;
         }
 
@@ -3241,6 +3246,30 @@ namespace gsr {
             gsr::exec_program_daemonized(args, true);
         }
     }
+
+    /* Waits up to |timeout_ms| for the engine to finalize and exit on its
+       own (the gsr-cli stop command was already sent), then force-terminates
+       it as a fallback so a stuck engine can never hang the UI in a blocking
+       waitpid. Returns the engine's exit code, or -1 if it had to be
+       force-terminated. */
+    static int wait_gsr_process_exit(pid_t process, int timeout_ms) {
+        if(process <= 0)
+            return -1;
+
+        int status = 0;
+        const int step_ms = 50;
+        for(int i = 0; i < timeout_ms / step_ms; ++i) {
+            if(waitpid(process, &status, WNOHANG) != 0)
+                return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+            usleep(step_ms * 1000);
+        }
+
+        fprintf(stderr, "gsr-ui warning: gpu-screen-recorder (%d) did not exit after %d ms, force-terminating it\n", (int)process, timeout_ms);
+        kill(process, SIGTERM);
+        while(waitpid(process, &status, WNOHANG) == 0)
+            usleep(step_ms * 1000);
+        return -1;
+    }
 #endif
 
     void Overlay::on_press_save_replay() {
@@ -3459,11 +3488,15 @@ namespace gsr {
 #else
             kill(gpu_screen_recorder_process, SIGINT);
 #endif
+#ifdef _WIN32
+            wait_gsr_process_exit(gpu_screen_recorder_process, 15000);
+#else
             int status;
             if(waitpid(gpu_screen_recorder_process, &status, 0) == -1) {
                 perror("waitpid failed");
                 /* Ignore... */
             }
+#endif
 
             close_gpu_screen_recorder_output();
 
@@ -3695,6 +3728,14 @@ namespace gsr {
 #else
             kill(gpu_screen_recorder_process, SIGINT);
 #endif
+#ifdef _WIN32
+            const int exit_code = wait_gsr_process_exit(gpu_screen_recorder_process, 15000);
+            /* The update loop is blocked above, so drain the engine's stdout
+               now to pick up the final filepath line. */
+            drain_gsr_process_output();
+            if(record_filepath.empty())
+                on_stop_recording(exit_code, record_filepath);
+#else
             int status;
             if(waitpid(gpu_screen_recorder_process, &status, 0) == -1) {
                 perror("waitpid failed");
@@ -3703,14 +3744,10 @@ namespace gsr {
                 int exit_code = -1;
                 if(WIFEXITED(status))
                     exit_code = WEXITSTATUS(status);
-#ifdef _WIN32
-                /* The update loop is blocked in waitpid above, so drain the
-                   engine's stdout now to pick up the final filepath line. */
-                drain_gsr_process_output();
-#endif
                 if(record_filepath.empty())
                     on_stop_recording(exit_code, record_filepath);
             }
+#endif
 
             close_gpu_screen_recorder_output();
 
@@ -3927,11 +3964,15 @@ namespace gsr {
 #else
             kill(gpu_screen_recorder_process, SIGINT);
 #endif
+#ifdef _WIN32
+            wait_gsr_process_exit(gpu_screen_recorder_process, 15000);
+#else
             int status;
             if(waitpid(gpu_screen_recorder_process, &status, 0) == -1) {
                 perror("waitpid failed");
                 /* Ignore... */
             }
+#endif
 
             close_gpu_screen_recorder_output();
 

@@ -42,11 +42,11 @@ to a final status. `PLANNED` rows below reflect the architecture in
 | `-exclude-metadata` | FULL | FULL | PLANNED | |
 | `-write-first-frame-ts` | FULL | FULL | PLANNED | QPC-based |
 | `-ipc` unix socket | FULL | named pipe | WINDOWS-SPECIFIC | same JSON protocol |
-| Signals (SIGUSR1/2, SIGRTMIN+n) | FULL | named events + `gsr-cli` | WINDOWS-SPECIFIC | semantics preserved; UI sends control via gsr-cli (`save-replay [n]`, `toggle-pause`, `toggle-replay-recording`, `stop`) instead of kill() |
+| Signals (SIGUSR1/2, SIGRTMIN+n) | FULL | named events + `gsr-cli` | WINDOWS-SPECIFIC | semantics preserved; UI sends control via gsr-cli (`save-replay [n]`, `toggle-pause`, `toggle-replay-recording`, `stop`) instead of kill(). Engine shutdown uses a bounded wait (15 s) with a TerminateProcess fallback so a stuck engine can't hang the UI |
 | `gsr-cli` | FULL | `gsr-cli.exe` | PLANNED | same CLI/exit codes |
 | `--help`/`--version`/`--info`/`--list-*` | FULL | FULL (same `key|value` format) | PLANNED | `--info` gains Windows fields (backend, DXGI info) |
 | Exit codes per error class | PARTIAL upstream | PARTIAL | PLANNED | keep upstream's mapping |
-| stdout=paths / stderr=logs contract | FULL | FULL | DONE | UI reads engine stdout via the Windows pipe (`PeekNamedPipe`/`ReadFile`); record/replay stop + save-replay filepaths surface like Linux |
+| stdout=paths / stderr=logs contract | FULL | FULL | DONE | UI reads engine stdout via the Windows pipe (`PeekNamedPipe`/`ReadFile`); record/replay stop + save-replay filepaths surface like Linux. UI config parser strips a trailing `\r` from CRLF `config_ui` values so save directories/booleans reach the engine clean |
 
 ## Engine — capture
 
