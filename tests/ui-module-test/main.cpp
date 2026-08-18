@@ -324,7 +324,10 @@ static void test_overlay_window_behavior(void) {
         CHECK(!mgl_window_is_fullscreen(win_a));
     }
 
-    /* Alpha-capable window: support_alpha must produce WS_EX_LAYERED. */
+    /* Alpha-capable window: support_alpha must NOT produce WS_EX_LAYERED —
+       a layered WGL window stops compositing its GL content on some
+       NVIDIA + Win11 setups, so per-pixel alpha comes from a
+       PFD_SUPPORT_COMPOSITION pixel format + DWM blur-behind instead. */
     mgl_window alpha_window;
     mgl_window_create_params alpha_params;
     memset(&alpha_params, 0, sizeof(alpha_params));
@@ -334,7 +337,19 @@ static void test_overlay_window_behavior(void) {
     alpha_params.support_alpha = true;
     CHECK(mgl_window_create(&alpha_window, "alpha", &alpha_params) == 0);
     HWND alpha_hwnd = (HWND)mgl_window_get_system_handle(&alpha_window);
-    CHECK((get_ex_style(alpha_hwnd) & WS_EX_LAYERED) != 0);
+    CHECK((get_ex_style(alpha_hwnd) & WS_EX_LAYERED) == 0);
+    {
+        /* The pixel format must be alpha-capable and composition-capable so
+           DWM can composite the GL back buffer per-pixel. */
+        HDC alpha_dc = GetDC(alpha_hwnd);
+        const int alpha_pf = GetPixelFormat(alpha_dc);
+        PIXELFORMATDESCRIPTOR alpha_pfd;
+        memset(&alpha_pfd, 0, sizeof(alpha_pfd));
+        CHECK(DescribePixelFormat(alpha_dc, alpha_pf, sizeof(alpha_pfd), &alpha_pfd) != 0);
+        CHECK((alpha_pfd.dwFlags & PFD_SUPPORT_COMPOSITION) != 0);
+        CHECK(alpha_pfd.cAlphaBits == 8);
+        ReleaseDC(alpha_hwnd, alpha_dc);
+    }
     mgl_window_deinit(&alpha_window);
 
     /* Overlay-type window: borderless popup (WS_POPUP, no WS_OVERLAPPEDWINDOW
