@@ -496,8 +496,12 @@ int gsr_audio_track_init_device_inputs(gsr_audio_track *self, const gsr_merged_a
             char description[GSR_AUDIO_INPUT_NAME_MAX_SIZE + 8];
             snprintf(description, sizeof(description), "gsr-%s", audio_input->name);
             if(sound_device_get_by_name(&device->sound_device, description, audio_input->name, description, num_channels, audio_codec_context->frame_size, audio_codec_context_get_audio_format(audio_codec_context)) != 0) {
-                gsr_log(GSR_LOG_LEVEL_ERROR, "failed to get \"%s\" audio device", audio_input->name);
-                return GSR_ERROR_GENERIC;
+                // Windows port: a device that cannot be opened (e.g. a broken WASAPI capture stack)
+                // must not abort the whole recording. Fall back to a silent track so video-only
+                // recordings still work; the capture thread treats a NULL handle as silence.
+                gsr_log(GSR_LOG_LEVEL_WARNING, "failed to open \"%s\" audio device, recording without it", audio_input->name);
+                device->sound_device.handle = NULL;
+                device->sound_device.frames = 0;
             }
         }
 

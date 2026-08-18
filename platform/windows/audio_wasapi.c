@@ -76,7 +76,7 @@ static const GUID GSR_KSDATAFORMAT_SUBTYPE_IEEE_FLOAT = {0x00000003, 0x0000, 0x0
    headers' extern declarations; only this TU references them, so there
    is no collision. Values are the canonical SDK GUIDs. */
 const IID IID_IAudioClient = {0x1CB9AD4C, 0xDBFA, 0x4c32, {0xB1, 0x78, 0xC2, 0xF5, 0x68, 0xA7, 0x03, 0xB2}};
-const IID IID_IAudioCaptureClient = {0xC8ADBD64, 0xE71E, 0x48a0, {0xA4, 0xDE, 0x18, 0x5C, 0x39, 0x5C, 0xE4, 0x17}};
+const IID IID_IAudioCaptureClient = {0xC8ADBD64, 0xE71E, 0x48a0, {0xA4, 0xDE, 0x18, 0x5C, 0x39, 0x5C, 0xD3, 0x17}};
 const CLSID CLSID_MMDeviceEnumerator = {0xBCDE0395, 0xE52F, 0x467C, {0x8E, 0x3D, 0xC4, 0x57, 0x92, 0x91, 0x69, 0x2E}};
 const IID IID_IMMDeviceEnumerator = {0xA95664D2, 0x9614, 0x4F35, {0xA7, 0x46, 0xDE, 0x8D, 0xB6, 0x36, 0x17, 0xE6}};
 const IID IID_IMMNotificationClient = {0x7991EEC9, 0x7E89, 0x4D85, {0x83, 0x90, 0x6C, 0x70, 0x3C, 0xEC, 0x60, 0xC0}};
@@ -735,8 +735,12 @@ int sound_device_get_by_name(SoundDevice *device, const char *node_name, const c
        file header.) */
     hr = wasapi_start_endpoint(self, endpoint, kind);
     if(FAILED(hr)) {
-        gsr_log(GSR_LOG_LEVEL_ERROR, "wasapi: failed to open \"%s\" (0x%08lx)", device_name, (unsigned long)hr);
-        goto fail;
+        /* OBS-style reconnect: keep the device object and let the capture
+           thread retry opening the endpoint in the background (throttled
+           to once per second), producing silence meanwhile. Audio comes
+           back automatically if the OS audio stack recovers (service
+           restart, device replug) instead of failing the recording. */
+        gsr_log(GSR_LOG_LEVEL_WARNING, "wasapi: could not open \"%s\" (0x%08lx), will retry in the background", device_name, (unsigned long)hr);
     }
 
     /* Register for default-device change notifications so
@@ -757,9 +761,12 @@ int sound_device_get_by_name(SoundDevice *device, const char *node_name, const c
 
     device->handle = self;
     device->frames = period_frame_size;
-    gsr_log(GSR_LOG_LEVEL_INFO, "wasapi: opened \"%s\" (%s, %u Hz, %u ch, mix %u Hz %u ch, format %d, period %u)",
-        device_name, endpoint_kind_name(kind), (unsigned)GSR_AUDIO_SAMPLE_RATE, num_channels,
-        (unsigned)self->mix_info.sample_rate, (unsigned)self->mix_info.num_channels, (int)audio_format, period_frame_size);
+    if(self->mix_info.sample_rate)
+        gsr_log(GSR_LOG_LEVEL_INFO, "wasapi: opened \"%s\" (%s, %u Hz, %u ch, mix %u Hz %u ch, format %d, period %u)",
+            device_name, endpoint_kind_name(kind), (unsigned)GSR_AUDIO_SAMPLE_RATE, num_channels,
+            (unsigned)self->mix_info.sample_rate, (unsigned)self->mix_info.num_channels, (int)audio_format, period_frame_size);
+    else
+        gsr_log(GSR_LOG_LEVEL_INFO, "wasapi: \"%s\" registered (%s), endpoint will open in the background", device_name, endpoint_kind_name(kind));
     endpoint->lpVtbl->Release(endpoint);
     return 0;
 
