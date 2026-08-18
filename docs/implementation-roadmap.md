@@ -514,7 +514,7 @@ the MSYS2 runs), coverage 52.9%. Lessons in
 
 ---
 
-## Phase 10 — UI
+## Phase 10 — UI ✅ (complete)
 
 **Milestone A — mgl Win32 backend: ✅ complete (CI-green, run `31970849892`).**
 
@@ -600,10 +600,22 @@ run `31973326044`).**
   exercised end-to-end — it execs `gpu-screen-recorder --info` at startup,
   which needs the engine binary (Phase 11+).
 
-Remaining in Phase 10: startup integration, per-monitor overlay
-positioning verification once the engine runs, and the tray-icon decision
-(**deferred** — upstream gsr-ui has no tray either; it is controlled by a
-global hotkey + gsr-ui-cli, so the Windows port keeps that model).
+**Completed since (real-desktop validation, Aug 2026):** the overlay was
+exercised end-to-end on a real desktop. Two rendering/input bugs found and
+fixed: (1) the mgl Win32 backend + WGL pixel format used `WS_EX_LAYERED`,
+which on NVIDIA + Win11 stops WGL compositing entirely (the dim shows, GL
+content never composites — proven with a minimal repro) — fixed by removing
+`WS_EX_LAYERED` and using `PFD_SUPPORT_COMPOSITION` + DWM blur-behind with
+an empty region for per-pixel alpha; (2) `make_window_click_through()`
+re-added `WS_EX_LAYERED|WS_EX_TRANSPARENT` to the overlay on every open (it
+runs because the display server reports `x11` on Windows) — fixed by making
+it a no-op on Windows, since no input grab exists to redirect clicks back
+(see docs/upstream-porting-notes.md §3u/§3v). Verified on the real desktop:
+buttons render, dropdowns open on click, Alt+Z show/hide cycles work, and
+the window styles are `TOOLWINDOW|TOPMOST` only. Startup integration and
+hotkey wiring landed in Phase 11/12. The tray-icon decision stays
+**deferred** (upstream gsr-ui has no tray either — it is controlled by a
+global hotkey + gsr-ui-cli, and the Windows port keeps that model).
 
 Tasks:
 
@@ -679,6 +691,24 @@ calling `--info` and spawning the engine), the notification/tray decision
 no separate gsr-notification.exe is needed), and the hotkey integration
 (GlobalHotkeysWin32 exists from Phase 10; wiring it to the engine's IPC is
 left to the UI↔engine milestone).
+
+**Post-completion fixes from real-desktop validation (commit c8b8e67, run
+32107366622):**
+
+- **NVENC hidden from `--info`/settings.** The ffmpeg build's
+  `--disable-everything` also disabled the d3d11va hwcontext, so the NVENC
+  probe's `av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_D3D11VA)` failed before
+  touching the GPU and only `h264_software` was offered. Fixed with
+  `--enable-dxva2 --enable-d3d11va` in scripts/build-ffmpeg-windows.sh, and
+  the build script added to the CI ffmpeg cache key so a configure-flags
+  change actually invalidates the cached prefix.
+- **Record silently failed: "display not found".** DXGI lists monitors as
+  `\.\DISPLAY1` (one leading backslash pair) while the GetMonitorInfoW
+  lookup compares `\\.\DISPLAY1` (two), so the exact match never
+  succeeded. Fixed by stripping leading backslashes on both sides before
+  the case-insensitive compare (`monitor_name_matches` in
+  platform/windows/gsr_display_win32.c), with a regression test for the
+  DXGI spelling.
 
 ---
 
@@ -852,11 +882,11 @@ release notes, installer + zip published. Acceptance checklist from the brief
 | 5 | Windows Graphics Capture | ✅ complete |
 | 5b | ANGLE GL render backend | ✅ complete |
 | 6 | DXGI fallback | ✅ complete |
-| 7 | NVIDIA NVENC | ✅ complete (milestone A recorder end-to-end + milestone B d3d11va encode path + honest probe) |
+| 7 | NVIDIA NVENC | ✅ complete (milestone A recorder end-to-end + milestone B d3d11va encode path + honest probe; post-completion: ffmpeg build now enables the d3d11va hwcontext so the probe's av_hwdevice_ctx_alloc succeeds and NVENC appears on real GPUs) |
 | 8 | WASAPI audio | ✅ complete (milestone A backend + milestone B listing/session-enum, A/V-sync harness, device-change auto-switch; per-app capture documented unsupported) |
 | 9 | Replay | ✅ complete (RAM + disk buffers verified end-to-end: 2s + FULL saves, -restart-replay-on-save proven, -df naming; crash-safe disk buffer cleanup via stale-session sweep; tests: trim, keyframe boundaries, simulated-crash cleanup) |
-| 10 | UI | 🔄 in progress — milestone A (mgl Win32 backend) ✅ + milestone B (mgl text pipeline: pangoft2 + fontconfig, glyph atlas, mixed-script fallback) ✅ both CI-green; the UI app itself remains |
-| 11 | Engine binary + IPC | ✅ complete (engine exe + named-pipe IPC + gsr-cli + commands + windowing + HAGS hardening; engine-ipc-test + live engine test CI-green) |
+| 10 | UI | ✅ complete (milestone A mgl Win32 backend + milestone B text pipeline + milestone C Rpc/overlay, CI-green; real-desktop overlay validation fixed the WS_EX_LAYERED WGL-compositing bug and the click-through bug) |
+| 11 | Engine binary + IPC | ✅ complete (engine exe + named-pipe IPC + gsr-cli + commands + windowing + HAGS hardening; engine-ipc-test + live engine test CI-green; post-completion: NVENC d3d11va ffmpeg enable + monitor-name normalization fixes) |
 | 12 | Startup/integration | ✅ complete (HKCU Run autostart portable-safe + tested; clean shutdown on logoff for engine and UI; file associations documented as not needed) |
 | 13 | Installer + portable zip | ✅ complete (Inno Setup 6, portable ZIP, original logo/branding via gsr.ico + gsr.rc, CI validation of resources + --help/--version/--info + ZIP round-trip; UI resource dirs images/ + translations/ + fonts.conf now bundled after a real-desktop test caught the missing-theme failure) |
 | 14 | GitHub Actions full pipeline | ✅ complete (build→test→coverage→package→release in one workflow; version flows from build output; release job conditional on v* tag / dispatch-with-version; auto-generated honest release notes) |

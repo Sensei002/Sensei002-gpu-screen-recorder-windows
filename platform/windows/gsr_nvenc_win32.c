@@ -229,6 +229,12 @@ static AVBufferRef *nvenc_create_hw_frames(ID3D11Device *device, int width, int 
     frames_ctx->sw_format = sw_format;
     frames_ctx->width = width;
     frames_ctx->height = height;
+    /* NVENC encodes D3D11 frames asynchronously: it holds a reference to
+       every submitted frame (and thus its D3D11 texture) until the encode
+       completes. The recorder needs a fresh frame per video frame, so give
+       the context a real pool to recycle; without it (initial_pool_size 0)
+       the d3d11va hwcontext allocates a new single texture on every get. */
+    frames_ctx->initial_pool_size = 16;
     if(av_hwframe_ctx_init(frames_ref) < 0) {
         gsr_log(GSR_LOG_LEVEL_ERROR, "nvenc: av_hwframe_ctx_init failed (%dx%d)", width, height);
         av_buffer_unref(&frames_ref);
@@ -348,6 +354,15 @@ typedef struct {
 
     AVBufferRef *hw_frames_ref;   /* d3d11va hw frames context (D3D11/NV12) */
     AVFrame *sw_frame;            /* persistent system-memory NV12/P010 frame */
+
+    /* Color properties the recorder sets on the frame once at setup; each
+       av_frame_unref clears them, so they are captured at start and
+       re-applied after every pool get. */
+    enum AVColorRange color_range;
+    enum AVColorPrimaries color_primaries;
+    enum AVColorTransferCharacteristic color_trc;
+    enum AVColorSpace colorspace;
+    enum AVColorChromaLocation chroma_location;
 } gsr_video_encoder_nvenc;
 
 static bool nvenc_setup_textures(gsr_video_encoder_nvenc *self, AVCodecContext *video_codec_context, AVFrame *frame) {
@@ -381,12 +396,10 @@ static bool nvenc_setup_textures(gsr_video_encoder_nvenc *self, AVCodecContext *
         return false;
     }
 
-    /* The recorder's |frame| becomes the reusable D3D11 hw frame. */
-    if(av_hwframe_get_buffer(self->hw_frames_ref, frame, 0) < 0) {
-        gsr_log(GSR_LOG_LEVEL_ERROR, "gsr_video_encoder_nvenc: av_hwframe_get_buffer failed");
-        return false;
-    }
-
+    /* The recorder's |frame| is (re)filled from the pool on every video
+       frame in copy_textures_to_frame — never pre-allocated here, because
+       NVENC holds each submitted D3D11 frame until its async encode ends. */
+    (void)frame;
     return true;
 }
 
@@ -409,6 +422,14 @@ static bool gsr_video_encoder_nvenc_start(gsr_video_encoder *encoder, AVCodecCon
         video_codec_context->height = 128;
     frame->width = video_codec_context->width;
     frame->height = video_codec_context->height;
+
+    /* The recorder set these on |frame| at setup; keep them for re-apply
+       after each av_frame_unref in copy_textures_to_frame. */
+    self->color_range = frame->color_range;
+    self->color_primaries = frame->color_primaries;
+    self->color_trc = frame->color_trc;
+    self->colorspace = frame->colorspace;
+    self->chroma_location = frame->chroma_location;
 
     const enum AVPixelFormat sw_format = self->params.color_depth == GSR_COLOR_DEPTH_10_BITS ? AV_PIX_FMT_P010LE : AV_PIX_FMT_NV12;
     self->hw_frames_ref = nvenc_create_hw_frames(device, video_codec_context->width, video_codec_context->height, sw_format);
@@ -461,14 +482,31 @@ static void gsr_video_encoder_nvenc_copy_textures_to_frame(gsr_video_encoder *en
             formats[i], type, self->sw_frame->data[i]);
     }
 
-    /* 2. Upload into the D3D11 hw frame (d3d11va equivalent of upstream's
-          cuMemcpy2DAsync). The hw frame must be writable — after
-          avcodec_send_frame the encoder holds a reference until it has
-          copied the texture, so the check is honest. */
-    if(av_frame_make_writable(frame) < 0) {
-        gsr_log(GSR_LOG_LEVEL_WARNING, "nvenc: hw frame not writable, dropping frame");
+    /* 2. Take a fresh D3D11 frame from the pool and upload into it
+          (d3d11va equivalent of upstream's cuMemcpy2DAsync). A new frame per
+          call, never a reused one: NVENC holds a reference to every
+          submitted D3D11 frame until the async encode completes, so a
+          reused frame would never be writable (and av_frame_make_writable
+          would try to reallocate it as a *software* buffer once its
+          hw_frames_ctx was unref'd, which cannot work). The pool
+          (initial_pool_size) bounds how many frames may be in flight.
+          The frame must be unref'd first: av_hwframe_get_buffer assigns
+          frame->buf[0] outright, so a stale buffer would leak its pool
+          slot. NVENC keeps its own reference, so the texture stays alive
+          until its async encode finishes. */
+    av_frame_unref(frame);
+    if(av_hwframe_get_buffer(self->hw_frames_ref, frame, 0) < 0) {
+        gsr_log(GSR_LOG_LEVEL_WARNING, "nvenc: no free D3D11 hw frame, dropping frame");
         return;
     }
+    /* av_frame_unref cleared the color properties the recorder set once at
+       setup (the software path keeps them because it never unrefs); put
+       them back so NVENC signals the same range/primaries/transfer. */
+    frame->color_range = self->color_range;
+    frame->color_primaries = self->color_primaries;
+    frame->color_trc = self->color_trc;
+    frame->colorspace = self->colorspace;
+    frame->chroma_location = self->chroma_location;
     if(av_hwframe_transfer_data(frame, self->sw_frame, AV_HWFRAME_TRANSFER_DIRECTION_TO) < 0) {
         gsr_log(GSR_LOG_LEVEL_ERROR, "nvenc: av_hwframe_transfer_data failed, dropping frame");
     }

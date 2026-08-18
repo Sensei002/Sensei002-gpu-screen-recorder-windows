@@ -1343,3 +1343,30 @@ Two silent failures that made "Record" do nothing on Windows while CI stayed gre
   with the one-backslash DXGI spelling.
   Lesson: Windows APIs disagree on device-name spelling; normalize at the
   compare, don't special-case the caller.
+
+## 3x. NVENC on D3D11 is async — never reuse one hw frame
+
+After enabling the d3d11va hwcontext (3w) the encoder started but dropped
+every frame with "hw frame not writable". Root cause: NVENC encodes D3D11
+frames **asynchronously** — `avcodec_send_frame` takes a reference to the
+submitted AVFrame (and thus its D3D11 texture) and only releases it when the
+encode completes. The d3d11va port pre-allocated ONE hw frame in
+`nvenc_setup_textures` and refilled it every frame, so from frame 2 on the
+frame was always referenced; `av_frame_make_writable` then tried to
+reallocate it, but its `hw_frames_ctx` had been unref'd by
+`av_frame_unref`, so it allocated a *software* buffer for a D3D11 hw frame
+— which fails. (Upstream's CUDA NVENC path never hits this: it copies into
+the hw frame's device memory directly and CUDA input is copied
+synchronously.)
+
+Fix (platform/windows/gsr_nvenc_win32.c):
+* `nvenc_create_hw_frames` sets `frames_ctx->initial_pool_size = 16` — the
+  d3d11va hwcontext creates one texture *array* of that many slices and
+  recycles them; with 0 it allocates a fresh single texture per get.
+* `copy_textures_to_frame` takes a **fresh** hw frame from the pool
+  (`av_hwframe_get_buffer`) every video frame instead of reusing one —
+  the recorder's contract (fill once, send 1..N times) still holds.
+* The setup-time pre-allocation was removed (`(void)frame`).
+
+Lesson: on D3D11, "one frame, refill it" is invalid for NVENC; you need a
+pool large enough to cover the async in-flight depth (16 covers it).
