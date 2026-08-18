@@ -300,8 +300,18 @@ ffmpeg_configure_args() {
         --enable-mbedtls \
         --enable-ffnvcodec \
         --enable-nvenc \
-        --enable-cuda
+        --enable-cuda \
+        --enable-dxva2 \
+        --enable-d3d11va
 }
+
+# d3d11va hwcontext: the NVENC probe (platform/windows/gsr_nvenc_win32.c)
+# builds AV_HWDEVICE_TYPE_D3D11VA frames on a D3D11 device. With
+# --disable-everything the d3d11va hwcontext is not compiled unless this
+# option is given, and av_hwdevice_ctx_alloc fails, which hides NVENC from
+# --info and leaves only h264_software. dxva2 is d3d11va's configure dep
+# (d3d11va uses the dxva2 API types); enable it explicitly so the dep chain
+# does not rely on configure's auto-enable.
 
 # ---- apply the upstream ffmpeg patches --------------------------------
 # The meson wrap applies these via diff_files; we apply them the same way,

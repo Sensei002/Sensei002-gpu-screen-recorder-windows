@@ -147,10 +147,12 @@ jobs:
       # scripts/build-ffmpeg-windows.sh) is cached as a whole directory:
       # install prefix and per-library stamps. On a cache hit the stamp
       # check makes the build a no-op. The cache key tracks the source
-      # pins (scripts/ffmpeg-sources.sh) and the upstream patches, but NOT
-      # the build script itself: the script's per-library stamps rebuild
-      # only what changed, so diagnostic iterations restore the built libs
-      # and re-run just the failing step.
+      # pins (scripts/ffmpeg-sources.sh), the upstream patches, and the
+      # build script itself (its ffmpeg configure flags live there; a
+      # flags change must invalidate the cached prefix or the new flags
+      # would never take effect). The script's per-library stamps still
+      # rebuild only what changed, so diagnostic iterations restore the
+      # built libs and re-run just the failing step.
       #
       # build/ffmpeg-sources is deliberately NOT cached: it is the
       # downloaded+extracted tarball trees (hundreds of MB of redundant
@@ -171,7 +173,7 @@ jobs:
           path: |
             build/ffmpeg-prefix
             build/ffmpeg-libs
-          key: ffmpeg-v3-${{ hashFiles('scripts/ffmpeg-sources.sh', 'scripts/patches/*.patch') }}
+          key: ffmpeg-v4-${{ hashFiles('scripts/ffmpeg-sources.sh', 'scripts/patches/*.patch', 'scripts/build-ffmpeg-windows.sh') }}
 
       - name: Build FFmpeg stack from source
         shell: msys2 {0}
@@ -190,7 +192,7 @@ jobs:
           path: |
             build/ffmpeg-prefix
             build/ffmpeg-libs
-          key: ffmpeg-v3-${{ hashFiles('scripts/ffmpeg-sources.sh', 'scripts/patches/*.patch') }}
+          key: ffmpeg-v4-${{ hashFiles('scripts/ffmpeg-sources.sh', 'scripts/patches/*.patch', 'scripts/build-ffmpeg-windows.sh') }}
 
       - name: Configure
         shell: msys2 {0}

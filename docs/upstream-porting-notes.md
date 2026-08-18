@@ -1309,3 +1309,37 @@ the order CI found them:
   `WS_EX_LAYERED`, `WS_EX_TOOLWINDOW | WS_EX_TOPMOST`, alpha pixel format
   with `PFD_SUPPORT_COMPOSITION`, and `DwmEnableBlurBehindWindow` with an
   empty region for per-pixel alpha (mgl win32.c + wgl.c).
+
+## 3w. NVENC discovery and monitor-name matching (record can't start)
+
+Two silent failures that made "Record" do nothing on Windows while CI stayed green:
+
+* **NVENC hidden from the UI / `--info`.** The NVENC probe
+  (platform/windows/gsr_nvenc_win32.c) calls
+  `av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_D3D11VA)` to build the D3D11 device
+  the encoder runs on. The ffmpeg build uses `--disable-everything`, which
+  also disables the d3d11va *hwcontext* unless `--enable-d3d11va` is passed —
+  so the alloc failed before touching any GPU and every NVENC probe reported
+  unsupported, leaving only `h264_software` in the settings. Fix:
+  `--enable-dxva2 --enable-d3d11va` in scripts/build-ffmpeg-windows.sh
+  (dxva2 is d3d11va's configure dependency).
+  Lesson: with `--disable-everything`, add *every* hwcontext/hwaccel you
+  touch in code to the configure flags — and add the build script itself to
+  the CI ffmpeg cache key (`.github/workflows/windows-release.yml`) so a
+  flags change actually invalidates the cached prefix. The per-library
+  stamps in the build script re-run the affected library, but the cache
+  save only fires on a restore *miss*; without a key bump every later run
+  restores the stale prefix and rebuilds ffmpeg.
+
+* **"display not found" → record silently fails.** `--list-capture-options`
+  lists monitor names from DXGI (`DXGI_OUTPUT_DESC.DeviceName`), which emits
+  `\.\DISPLAY1` (one leading backslash pair), while the capture lookup
+  (gsr_platform_display_find_monitor → GetMonitorInfoW) compares against the
+  canonical `\.\DISPLAY1` (two). The exact-match never succeeded, so the
+  recorder aborted with "not a valid monitor" (surfacing as an info
+  notification, no log). Fix: strip leading backslashes on both sides
+  before the case-insensitive compare (platform/windows/gsr_display_win32.c,
+  `monitor_name_matches`). Regression-tested in tests/platform-test/main.c
+  with the one-backslash DXGI spelling.
+  Lesson: Windows APIs disagree on device-name spelling; normalize at the
+  compare, don't special-case the caller.

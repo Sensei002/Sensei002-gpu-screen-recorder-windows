@@ -527,6 +527,14 @@ static void test_display_logic(void) {
         lower[i] = (char)tolower((unsigned char)lower[i]);
     CHECK(gsr_platform_display_find_monitor(monitors, 3, lower) == 0);
     CHECK(gsr_platform_display_find_monitor(monitors, 3, monitors[1].name) == 1);
+    /* DXGI's DXGI_OUTPUT_DESC.DeviceName emits the device name with a single
+       leading backslash pair ("\\.\DISPLAY1") while GetMonitorInfoW returns
+       the canonical "\\.\DISPLAY1"; the lookup must treat both as equal
+       (this is the bug that made "display not found" / record fail). */
+    char dxgi_form[64];
+    strcpy(dxgi_form, monitors[0].name); /* "\\.\DISPLAY1" */
+    memmove(dxgi_form, dxgi_form + 1, strlen(dxgi_form)); /* "\\.\DISPLAY1" */
+    CHECK(gsr_platform_display_find_monitor(monitors, 3, dxgi_form) == 0);
     /* friendly name, case-insensitive */
     CHECK(gsr_platform_display_find_monitor(monitors, 3, "dell u2720q") == 0);
     CHECK(gsr_platform_display_find_monitor(monitors, 3, "GENERIC PNP MONITOR") == 1);

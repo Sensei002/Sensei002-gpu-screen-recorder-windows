@@ -58,13 +58,33 @@ static bool name_equals_ci(const char *a, const char *b) {
     return *a == '\0' && *b == '\0';
 }
 
+/* Monitor device names have two spellings depending on the API that
+   produced them: GetMonitorInfoW returns "\\.\DISPLAY1" while DXGI's
+   DXGI_OUTPUT_DESC.DeviceName (what --list-capture-options lists) returns
+   "\.\DISPLAY1". The recorder passes the listed name straight to the
+   lookup, so strip leading backslashes on both sides before comparing.
+   "screen" and friendly (EDID) names are unaffected. */
+static const char *skip_leading_backslashes(const char *s) {
+    if(!s)
+        return s;
+    while(*s == '\\')
+        ++s;
+    return s;
+}
+
+static bool monitor_name_matches(const char *a, const char *b) {
+    if(!a || !b)
+        return false;
+    return name_equals_ci(skip_leading_backslashes(a), skip_leading_backslashes(b));
+}
+
 int gsr_platform_display_find_monitor(const gsr_platform_monitor *monitors, int count, const char *name) {
     if(!monitors || !name || count <= 0)
         return -1;
 
-    /* Canonical device name first ("\\\\.\\DISPLAY1") */
+    /* Canonical device name first ("\\.\DISPLAY1") */
     for(int i = 0; i < count; ++i) {
-        if(name_equals_ci(monitors[i].name, name))
+        if(monitor_name_matches(monitors[i].name, name))
             return i;
     }
     /* Then the EDID friendly name */
@@ -140,7 +160,7 @@ static BOOL CALLBACK find_hmonitor_callback(HMONITOR hmon, HDC hdc, LPRECT rect,
 
     char device_name[64];
     gsr_platform_wide_to_utf8(mi.szDevice, device_name, sizeof(device_name));
-    if(name_equals_ci(device_name, ud->name)) {
+    if(monitor_name_matches(device_name, ud->name)) {
         ud->found = hmon;
         return FALSE;
     }
